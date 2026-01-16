@@ -1,0 +1,230 @@
+
+import React, { useState, useMemo } from 'react';
+import type { Transaction, Addition } from '../types';
+import { TransactionType, PaymentStatus } from '../types';
+import { CheckCircleIcon, ClockIcon, ArrowUpCircleIcon, ArrowDownCircleIcon, XCircleIcon, ShareIcon, PencilIcon, TrashIcon, ChevronDownIcon } from './icons';
+import ConfirmationModal from './ConfirmationModal';
+
+interface TransactionListProps {
+  transactions: Transaction[];
+  currentUserPhone: string;
+  onUpdateStatus: (transaction: Transaction, newStatus: PaymentStatus) => void;
+  onToggleSimplePaid: (id: string) => void;
+  onStartEdit: (transaction: Transaction) => void;
+  onDelete: (transaction: Transaction) => void;
+  onDeleteSubTransaction: (transactionId: string, additionName: string, ownerPhone: string) => void;
+  isPastMonth: boolean;
+}
+
+interface TransactionItemProps {
+  transaction: Transaction;
+  currentUserPhone: string;
+  onUpdateStatus: (transaction: Transaction, newStatus: PaymentStatus) => void;
+  onToggleSimplePaid: (id: string) => void;
+  onStartEdit: (transaction: Transaction) => void;
+  onDelete: (transaction: Transaction) => void;
+  onDeleteSubTransaction: (transactionId: string, additionName: string, ownerPhone: string) => void;
+  isPastMonth: boolean;
+}
+
+const formatCurrency = (value: number) => {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+};
+
+const StatusBadge: React.FC<{ status: PaymentStatus }> = ({ status }) => {
+    const statusMap = {
+        [PaymentStatus.PAID]: { text: 'Pago', icon: <CheckCircleIcon className="w-4 h-4" />, color: 'text-green-accent' },
+        [PaymentStatus.UNPAID]: { text: 'Não Pago', icon: <XCircleIcon className="w-4 h-4" />, color: 'text-red-accent' },
+        [PaymentStatus.PENDING]: { text: 'Pendente', icon: <ClockIcon className="w-4 h-4" />, color: 'text-yellow-accent' },
+    };
+    const { text, icon, color } = statusMap[status] || statusMap[PaymentStatus.UNPAID];
+    return <div className={`flex items-center flex-shrink-0 space-x-1 text-xs font-medium px-2 py-1 rounded-full ${color} bg-gray-700`}>{icon}<span>{text}</span></div>;
+};
+
+const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transaction, currentUserPhone, onUpdateStatus, onToggleSimplePaid, onStartEdit, onDelete, onDeleteSubTransaction, isPastMonth }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+    const [additionToDelete, setAdditionToDelete] = useState<Addition | null>(null);
+
+    const isRevenue = transaction.type === TransactionType.REVENUE;
+
+    const isToggleDisabled = isPastMonth && transaction.status === PaymentStatus.PAID;
+    const toggleTitle = isToggleDisabled ? "Não é possível alterar o status em meses anteriores." : (transaction.status === PaymentStatus.PAID ? "Marcar como Não Pago" : "Marcar como Pago");
+    
+    const activeAdditions = useMemo(() => transaction.additions?.filter(a => !a.removed) || [], [transaction.additions]);
+
+    const handleSimpleToggle = () => {
+        if (!isToggleDisabled) {
+            onToggleSimplePaid(transaction.id);
+        }
+    }
+    
+    const handleDelete = () => {
+        onDelete(transaction);
+    };
+
+    const handleConfirmDeleteAddition = () => {
+        if (additionToDelete) {
+            onDeleteSubTransaction(transaction.id, additionToDelete.name, transaction.ownerPhone);
+        }
+        setAdditionToDelete(null);
+    };
+
+    const showCheckboxForStatus = !transaction.isControlled || (isRevenue && transaction.status !== PaymentStatus.PENDING);
+
+    return (
+        <li className="p-3 bg-gray-700 rounded-lg">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+                {/* LEFT SIDE */}
+                <div className="flex items-center flex-grow min-w-0 space-x-3">
+                    {isRevenue ? <ArrowUpCircleIcon className="flex-shrink-0 w-6 h-6 text-green-accent" /> : <ArrowDownCircleIcon className="flex-shrink-0 w-6 h-6 text-red-accent" />}
+                    <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                            <p className="font-semibold text-white truncate">{transaction.name}</p>
+                            {transaction.ownerPhone !== currentUserPhone && (
+                                <span className="inline-flex items-center flex-shrink-0 px-2 py-0.5 text-xs text-purple-300 bg-purple-800 rounded-full" title={`Compartilhado por ${transaction.ownerPhone}`}>
+                                    <ShareIcon className="w-3 h-3 mr-1.5" />
+                                    <span>{transaction.ownerPhone}</span>
+                                </span>
+                            )}
+                        </div>
+                        <p className="mt-1 text-sm text-gray-400 truncate">
+                            {new Date(transaction.date).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}
+                            {transaction.isControlled && ` | com ${transaction.counterpartyPhone}`}
+                        </p>
+                    </div>
+                </div>
+
+                {/* RIGHT SIDE - Mobile: space-between, Desktop: justify-end */}
+                <div className="flex flex-wrap items-center justify-between w-full gap-x-4 gap-y-2 sm:w-auto sm:justify-end">
+                    <p className={`font-bold text-base whitespace-nowrap ${isRevenue ? 'text-green-accent' : 'text-red-accent'}`}>
+                        {formatCurrency(transaction.amount)}
+                    </p>
+                    
+                    <div className="flex items-center flex-shrink-0 gap-x-3">
+                        {showCheckboxForStatus ? (
+                            <label 
+                                htmlFor={`paid-toggle-${transaction.id}`} 
+                                className={`flex items-center space-x-2 ${isToggleDisabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                                title={toggleTitle}
+                            >
+                                <input
+                                    type="checkbox"
+                                    id={`paid-toggle-${transaction.id}`}
+                                    checked={transaction.status === PaymentStatus.PAID}
+                                    onChange={handleSimpleToggle}
+                                    disabled={isToggleDisabled}
+                                    className="w-5 h-5 text-green-accent bg-gray-600 border-gray-500 rounded focus:ring-green-accent focus:ring-offset-gray-800 disabled:cursor-not-allowed"
+                                />
+                                <span className="text-sm text-gray-300">Pago</span>
+                            </label>
+                        ) : (
+                            <StatusBadge status={transaction.status} />
+                        )}
+                        
+                        {transaction.isControlled && transaction.controlId && (
+                            <>
+                                {transaction.type === TransactionType.EXPENSE && transaction.status === PaymentStatus.UNPAID && (
+                                    <button onClick={() => onUpdateStatus(transaction, PaymentStatus.PENDING)} className="px-2 py-1 text-xs text-white transition-colors bg-blue-600 rounded-md hover:bg-blue-700">Solicitar</button>
+                                )}
+                                {transaction.type === TransactionType.REVENUE && transaction.status === PaymentStatus.PENDING && (
+                                    <>
+                                        <button onClick={() => onUpdateStatus(transaction, PaymentStatus.PAID)} className="px-2 py-1 text-xs text-white transition-colors bg-green-600 rounded-md hover:bg-green-700">Confirmar</button>
+                                        <button onClick={() => onUpdateStatus(transaction, PaymentStatus.UNPAID)} className="px-2 py-1 text-xs text-white transition-colors bg-red-600 rounded-md hover:bg-red-700">Recusar</button>
+                                    </>
+                                )}
+                            </>
+                        )}
+
+                        {transaction.ownerPhone === currentUserPhone && (
+                            <>
+                            <button 
+                                onClick={() => onStartEdit(transaction)}
+                                disabled={transaction.isControlled || isPastMonth}
+                                className="p-1.5 text-gray-400 transition-colors rounded-md hover:bg-gray-600 disabled:text-gray-600 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                                title={transaction.isControlled ? "Não é possível editar transações controladas" : (isPastMonth ? "Não é possível editar em meses anteriores" : "Editar")}
+                                aria-label="Editar transação"
+                            >
+                                <PencilIcon className="w-4 h-4" />
+                            </button>
+                             <button 
+                                onClick={handleDelete}
+                                className="p-1.5 text-gray-400 transition-colors rounded-md hover:bg-gray-600 hover:text-red-accent"
+                                title="Excluir"
+                                aria-label="Excluir transação"
+                            >
+                                <TrashIcon className="w-4 h-4" />
+                            </button>
+                            </>
+                        )}
+                    </div>
+                </div>
+            </div>
+            
+            {/* ACCORDION */}
+            {activeAdditions.length > 0 && (
+                <div className="w-full pt-3 mt-3 space-y-2 border-t border-gray-600">
+                    <button
+                        onClick={() => setIsExpanded(!isExpanded)}
+                        className="flex items-center justify-between w-full text-sm text-gray-400 hover:text-white"
+                        aria-expanded={isExpanded}
+                    >
+                        <span>Detalhes adicionais ({activeAdditions.length})</span>
+                        <ChevronDownIcon className={`w-5 h-5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                    </button>
+                    {isExpanded && (
+                        <ul className="pl-4 space-y-2 text-sm border-l-2 border-gray-500">
+                            {activeAdditions.map((item) => (
+                                <li key={item._id} className="flex items-center justify-between group">
+                                    <span className="text-gray-300">{item.name}</span>
+                                    <div className="flex items-center space-x-2">
+                                        <span className="font-medium text-gray-300">
+                                            {formatCurrency(item.value)}
+                                        </span>
+                                        <button
+                                            onClick={() => setAdditionToDelete(item)}
+                                            className="p-1 text-gray-500 transition-colors rounded-md hover:bg-gray-600 hover:text-red-accent"
+                                            title="Excluir item"
+                                        >
+                                            <TrashIcon className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+            )}
+            <ConfirmationModal
+                isOpen={!!additionToDelete}
+                onClose={() => setAdditionToDelete(null)}
+                onConfirm={handleConfirmDeleteAddition}
+                title="Confirmar Exclusão do Item"
+                message={`Tem certeza que deseja excluir o item "${additionToDelete?.name}" da fatura?`}
+            />
+        </li>
+    );
+});
+
+const TransactionList: React.FC<TransactionListProps> = ({ transactions, ...rest }) => {
+    const sortedTransactions = [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  return (
+    <div className="space-y-4">
+        <h2 className="text-xl font-bold text-white">Transações do Mês</h2>
+      {sortedTransactions.length > 0 ? (
+        <ul className="space-y-3">
+          {sortedTransactions.map((transaction) => (
+            <TransactionItem key={transaction.id} transaction={transaction} {...rest} />
+          ))}
+        </ul>
+      ) : (
+        <div className="p-8 text-center bg-gray-700 rounded-lg">
+          <p className="text-gray-400">Nenhuma transação encontrada para este mês.</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default TransactionList;
+    
