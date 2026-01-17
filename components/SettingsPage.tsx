@@ -9,7 +9,7 @@ interface SettingsPageProps {
 }
 
 const apiToFrontendPermissions = (apiPerms: string[] | null | undefined): MenuPermissions => {
-    const frontendPerms: MenuPermissions = { rh: false, financeiro: false, os: false, ponto: false, aprovarHoras: false, chamados: false, empresa: false, listPurcharse: false, settings: false, exemplo: false };
+    const frontendPerms: MenuPermissions = { rh: false, financeiro: false, os: false, ponto: false, aprovarHoras: false, chamados: false, empresa: false, listPurcharse: false, settings: false, exemplo: false, financialManual: false };
     if (Array.isArray(apiPerms)) {
         for (const key of apiPerms) {
             if (key in frontendPerms) {

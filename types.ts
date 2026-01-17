@@ -50,6 +50,7 @@ export interface MenuPermissions {
   listPurcharse: boolean;
   settings: boolean;
   exemplo: boolean;
+  financialManual: boolean;
 }
 
 export interface Empresa {
@@ -120,7 +121,7 @@ export interface UserCompanyLink {
   status: 'ativo' | 'inativo' | 'pendente';
 }
 
-export type ActivePage = 'home' | 'financeiro' | 'rh' | 'os' | 'settings' | 'empresa' | 'ponto' | 'aprovar-horas' | 'chamados' | 'listPurcharse' | 'exemplo';
+export type ActivePage = 'home' | 'financeiro' | 'rh' | 'os' | 'settings' | 'empresa' | 'ponto' | 'aprovar-horas' | 'chamados' | 'listPurcharse' | 'exemplo' | 'financialManual';
 
 // Tipos para Lista de Compras
 export interface Market {

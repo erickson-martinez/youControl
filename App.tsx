@@ -13,13 +13,14 @@ import ListPurcharsePage from './components/ListPurcharsePage';
 import SettingsPage from './components/SettingsPage';
 import HomePage from './components/HomePage';
 import ExemploPage from './components/ExemploPage';
+import FinancialManualPage from './components/FinancialManualPage';
 import { MenuIcon, XCircleIcon } from './components/icons';
 import type { User, MenuPermissions, Empresa, WorkRecord, ActivePage, PontoStatus, OrdemServico, UserCompanyLink } from './types';
 import { API_BASE_URL, FALLBACK_PERMISSIONS, NEW_COLLABORATOR_PERMISSIONS } from './constants';
 import { PontoStatus as PontoStatusEnum, OSStatus } from './types';
 
 const apiToFrontendPermissions = (apiPerms: string[] | null | undefined, userPhone?: string): MenuPermissions => {
-    const frontendPerms: MenuPermissions = { rh: false, financeiro: false, os: false, ponto: false, aprovarHoras: false, chamados: false, empresa: false, listPurcharse: false, settings: false, exemplo: false };
+    const frontendPerms: MenuPermissions = { rh: false, financeiro: false, os: false, ponto: false, aprovarHoras: false, chamados: false, empresa: false, listPurcharse: false, settings: false, exemplo: false, financialManual: false };
     if (Array.isArray(apiPerms)) {
         for (const key of apiPerms) {
             if (key in frontendPerms) {
@@ -402,6 +403,7 @@ const App: React.FC = () => {
               {activePage === 'listPurcharse' && userPermissions.listPurcharse && <ListPurcharsePage />}
               {activePage === 'settings' && userPermissions.settings && <SettingsPage currentUser={user} onCurrentUserPermissionsUpdate={handleCurrentUserPermissionsUpdate} />}
               {activePage === 'exemplo' && userPermissions.exemplo && <ExemploPage />}
+              {activePage === 'financialManual' && userPermissions.financialManual && <FinancialManualPage />}
             </>
           )}
         </main>
