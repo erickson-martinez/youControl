@@ -27,7 +27,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
       interval = window.setInterval(() => {
         messageIndex = (messageIndex + 1) % loadingMessages.length;
         setLoadingMessage(loadingMessages[messageIndex]);
-      }, 10000); // Change message every 10 seconds
+      }, 11000); // Change message every 11 seconds
     }
 
     return () => {
