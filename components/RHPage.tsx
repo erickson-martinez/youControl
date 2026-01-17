@@ -18,9 +18,8 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
   const [userToUnlink, setUserToUnlink] = useState<User | null>(null);
   
   const [userCompanyLinks, setUserCompanyLinks] = useState<UserCompanyLink[]>([]);
-  const [allUsers, setAllUsers] = useState<User[]>([]);
-  const [isLoadingLinks, setIsLoadingLinks] = useState(true);
-  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+  const [linkedUsers, setLinkedUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const apiFetch = useCallback(async (url: string, options: RequestInit = {}) => {
@@ -36,64 +35,76 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
       }
       return response;
   }, []);
-  
-  const fetchAllUsers = useCallback(async () => {
-    setIsLoadingUsers(true);
-    try {
-        const response = await apiFetch(`${API_BASE_URL}/users`);
-        const data = await response.json();
-        const usersList = Array.isArray(data) ? data : data.users;
-        setAllUsers(usersList || []);
-    } catch (err) {
-       console.error("Falha ao buscar todos os usuários.", err);
-       setError((err as Error).message);
-    } finally {
-       setIsLoadingUsers(false);
+
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    if (empresas.length === 0) {
+      setLinkedUsers([]);
+      setUserCompanyLinks([]);
+      setIsLoading(false);
+      return;
     }
-  }, [apiFetch]);
 
-  useEffect(() => {
-    fetchAllUsers();
-  }, [fetchAllUsers]);
+    try {
+      // 1. Fetch all users in the system to resolve names from phones.
+      const usersResponse = await apiFetch(`${API_BASE_URL}/users`);
+      const usersData = await usersResponse.json();
+      const allUsersList: User[] = (Array.isArray(usersData) ? usersData : usersData.users) || [];
+      const userMap = allUsersList.reduce((acc, u) => {
+        acc[u.phone] = u.name;
+        return acc;
+      }, {} as Record<string, string>);
 
-  const fetchAllCompanyLinks = useCallback(async (currentEmpresas: Empresa[]) => {
-      setIsLoadingLinks(true);
-      setError(null);
-      try {
-        const promises = currentEmpresas
-          .filter(e => e && e.id)
-          .map(empresa =>
-            apiFetch(`${API_BASE_URL}/rh/${empresa.id}/employees`)
-              .then(res => (res.ok ? res.json() : Promise.resolve({ listEmployees: [] })))
-              .then(data => (data.listEmployees || []).map((link: any) => ({...link, empresaId: empresa.id})))
-          );
-        const results = await Promise.all(promises);
-        const allLinksRaw: any[] = results.flat();
-        
-        const allLinks = allLinksRaw.map(link => ({
+      // 2. Fetch all employee links for the managed companies.
+      const linkPromises = empresas
+        .filter(e => e && e.id)
+        .map(empresa =>
+          apiFetch(`${API_BASE_URL}/rh/${empresa.id}/employees`)
+            .then(res => (res.ok ? res.json() : Promise.resolve({ listEmployees: [] })))
+            .then(data => (data.listEmployees || []).map((link: any) => ({ ...link, empresaId: empresa.id })))
+        );
+      
+      const linkResults = await Promise.all(linkPromises);
+      const allLinksRaw: any[] = linkResults.flat();
+
+      const links: UserCompanyLink[] = [];
+      const currentLinkedUsers: User[] = [];
+      const seenPhones = new Set<string>();
+
+      allLinksRaw.forEach(link => {
+        const userPhone = link.userPhone;
+        if (userPhone && userMap[userPhone]) { // Ensure the user exists in our map
+          links.push({
             _id: link.empId || link._id,
-            userPhone: link.userPhone || link.user?.phone,
+            userPhone: userPhone,
             empresaId: link.empresaId,
             status: link.status,
-        })).filter(link => link._id && link.userPhone);
-        
-        setUserCompanyLinks(allLinks);
-      } catch (err) {
-        console.error("Falha ao buscar vínculos de usuários por empresa.", err);
-        setError((err as Error).message);
-      } finally {
-        setIsLoadingLinks(false);
-      }
-  }, [apiFetch]);
+          });
+          
+          if (!seenPhones.has(userPhone)) {
+            currentLinkedUsers.push({ name: userMap[userPhone], phone: userPhone });
+            seenPhones.add(userPhone);
+          }
+        }
+      });
+
+      setUserCompanyLinks(links);
+      setLinkedUsers(currentLinkedUsers.sort((a, b) => a.name.localeCompare(b.name)));
+
+    } catch (err) {
+      console.error("Falha ao buscar dados de RH:", err);
+      setError((err as Error).message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [apiFetch, empresas]);
 
   useEffect(() => {
-    if (empresas.length > 0) {
-        fetchAllCompanyLinks(empresas);
-    } else {
-        setUserCompanyLinks([]);
-        setIsLoadingLinks(false);
-    }
-  }, [empresas, fetchAllCompanyLinks]);
+    fetchData();
+  }, [fetchData]);
+
 
   const handleLinkUser = useCallback(async (userPhone: string, empresaId: string) => {
     try {
@@ -109,7 +120,7 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
         });
       }
       
-      await fetchAllCompanyLinks(empresas);
+      await fetchData();
       
       if (user.phone === userPhone) {
         onCurrentUserUpdate();
@@ -117,7 +128,7 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
     } catch (err) {
       alert(`Falha ao vincular/desvincular: ${(err as Error).message}`);
     }
-  }, [user.phone, apiFetch, empresas, userCompanyLinks, fetchAllCompanyLinks, onCurrentUserUpdate]);
+  }, [user.phone, apiFetch, userCompanyLinks, fetchData, onCurrentUserUpdate]);
 
   const handleSaveCollaborator = async (phone: string, empresaId: string) => {
     await handleLinkUser(phone, empresaId);
@@ -136,28 +147,21 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
     setIsConfirmModalOpen(false);
     setUserToUnlink(null);
   };
-
-  const usersToDisplay = useMemo(() => {
-    const linkedUserPhones = new Set(userCompanyLinks.map(link => link.userPhone));
-    const linked = allUsers.filter(u => linkedUserPhones.has(u.phone));
-    const unlinked = allUsers.filter(u => !linkedUserPhones.has(u.phone));
-    return [...linked, ...unlinked].sort((a,b) => a.name.localeCompare(b.name));
-  }, [allUsers, userCompanyLinks]);
   
   const userToUnlinkLink = userToUnlink ? userCompanyLinks.find(link => link.userPhone === userToUnlink.phone) : null;
   const userToUnlinkCompany = userToUnlinkLink ? empresas.find(e => e.id === userToUnlinkLink.empresaId) : null;
 
   const renderContent = () => {
-    if (isLoadingLinks || isLoadingUsers) {
-        return <tr><td colSpan={3} className="px-6 py-4 text-center text-gray-400">Carregando dados...</td></tr>;
+    if (isLoading) {
+        return <tr><td colSpan={3} className="px-6 py-4 text-center text-gray-400">Carregando colaboradores...</td></tr>;
     }
      if (error) {
         return <tr><td colSpan={3} className="px-6 py-4 text-center text-red-accent">Erro: {error}</td></tr>;
     }
-    if (usersToDisplay.length === 0) {
-        return <tr><td colSpan={3} className="px-6 py-4 text-center text-gray-500">Nenhum colaborador encontrado.</td></tr>;
+    if (linkedUsers.length === 0) {
+        return <tr><td colSpan={3} className="px-6 py-4 text-center text-gray-500">Nenhum colaborador vinculado encontrado.</td></tr>;
     }
-    return usersToDisplay.map(u => {
+    return linkedUsers.map(u => {
       const userLink = userCompanyLinks.find(link => link.userPhone === u.phone);
       const selectedCompanyId = userLink ? userLink.empresaId : '';
       return (
@@ -209,7 +213,7 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
       </div>
 
       <div className="overflow-x-auto">
-        <h2 className="mb-4 text-lg font-semibold text-white">Vincular Usuário a Empresa</h2>
+        <h2 className="mb-4 text-lg font-semibold text-white">Colaboradores Vinculados</h2>
         <table className="min-w-full text-sm text-left text-gray-400">
           <thead className="text-xs text-gray-300 uppercase bg-gray-700">
             <tr>
@@ -229,6 +233,7 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveCollaborator}
         empresas={empresas}
+        linkedUserPhones={userCompanyLinks.map(link => link.userPhone)}
       />
       <ConfirmationModal
         isOpen={isConfirmModalOpen}

@@ -16,7 +16,7 @@ type FormDataType = {
 interface TransactionFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: (Omit<Transaction, 'id' | 'ownerPhone' | 'controlId'> | Transaction) & { repeatCount?: number }) => void;
+  onSubmit: (data: (Omit<Transaction, 'id' | 'ownerPhone' | 'controlId'> | Transaction) & { repeatCount?: number }) => Promise<void>;
   type: TransactionType;
   transactionToEdit?: Transaction | null;
   currentDateForForm: Date;
@@ -33,6 +33,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
     repeat: false,
     repeatCount: '1',
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isExpense = type === TransactionType.EXPENSE;
   const isEditing = !!transactionToEdit;
@@ -76,31 +77,39 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const repeatCount = formData.repeat ? parseInt(formData.repeatCount, 10) : 0;
-    
-    if (isEditing && transactionToEdit) {
-        const updatedTransaction: Transaction = {
-            ...transactionToEdit,
-            name: formData.name,
-            amount: parseFloat(formData.amount),
-            date: formData.date,
-            status: formData.paid ? PaymentStatus.PAID : PaymentStatus.UNPAID,
-        };
-        onSubmit(updatedTransaction);
-    } else {
-        const submissionData = {
-            name: formData.name,
-            amount: parseFloat(formData.amount),
-            date: formData.date,
-            type,
-            isControlled: formData.isControlled,
-            counterpartyPhone: formData.counterpartyPhone || undefined,
-            status: formData.isControlled ? PaymentStatus.UNPAID : (formData.paid ? PaymentStatus.PAID : PaymentStatus.UNPAID),
-            repeatCount: repeatCount > 0 ? repeatCount : undefined,
-        };
-        onSubmit(submissionData);
+    setIsSubmitting(true);
+    try {
+        const repeatCount = formData.repeat ? parseInt(formData.repeatCount, 10) : 0;
+        
+        let submissionData;
+        if (isEditing && transactionToEdit) {
+            submissionData = {
+                ...transactionToEdit,
+                name: formData.name,
+                amount: parseFloat(formData.amount),
+                date: formData.date,
+                status: formData.paid ? PaymentStatus.PAID : PaymentStatus.UNPAID,
+            };
+        } else {
+            submissionData = {
+                name: formData.name,
+                amount: parseFloat(formData.amount),
+                date: formData.date,
+                type,
+                isControlled: formData.isControlled,
+                counterpartyPhone: formData.counterpartyPhone || undefined,
+                status: formData.isControlled ? PaymentStatus.UNPAID : (formData.paid ? PaymentStatus.PAID : PaymentStatus.UNPAID),
+                repeatCount: repeatCount > 0 ? repeatCount : undefined,
+            };
+        }
+        await onSubmit(submissionData);
+    } catch (error) {
+        console.error("Falha ao submeter o formulário de transação", error);
+        alert(`Ocorreu um erro: ${(error as Error).message}`);
+    } finally {
+        setIsSubmitting(false);
     }
   };
 
@@ -111,6 +120,10 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
     : (isExpense ? 'Registrar Despesa' : 'Registrar Receita');
   const controlLabel = isExpense ? 'Pagar para' : 'Cobrar de';
   const submitButtonColor = isExpense ? 'bg-red-accent hover:bg-red-accent/90' : 'bg-green-accent hover:bg-green-accent/90';
+  const submitButtonText = isEditing 
+    ? (isSubmitting ? 'Salvando...' : 'Salvar Alterações')
+    : (isSubmitting ? 'Registrando...' : 'Registrar');
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75">
@@ -119,32 +132,32 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="name" className="block mb-1 text-sm font-medium text-gray-300">Nome</label>
-            <input type="text" name="name" id="name" value={formData.name} onChange={handleChange} required className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500" />
+            <input type="text" name="name" id="name" value={formData.name} onChange={handleChange} required disabled={isSubmitting} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500 disabled:opacity-50" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="amount" className="block mb-1 text-sm font-medium text-gray-300">Valor (R$)</label>
-              <input type="number" name="amount" id="amount" value={formData.amount} onChange={handleChange} required step="0.01" min="0.01" className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500" />
+              <input type="number" name="amount" id="amount" value={formData.amount} onChange={handleChange} required step="0.01" min="0.01" disabled={isSubmitting} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500 disabled:opacity-50" />
             </div>
             <div>
               <label htmlFor="date" className="block mb-1 text-sm font-medium text-gray-300">Data</label>
-              <input type="date" name="date" id="date" value={formData.date} onChange={handleChange} required className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500" />
+              <input type="date" name="date" id="date" value={formData.date} onChange={handleChange} required disabled={isSubmitting} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500 disabled:opacity-50" />
             </div>
           </div>
           
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center">
-                <input type="checkbox" name="paid" id="paid" checked={formData.paid} onChange={handleChange} disabled={formData.isControlled} className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50" />
-                <label htmlFor="paid" className={`ml-2 text-sm text-gray-300 ${formData.isControlled ? 'opacity-50' : ''}`}>Pago</label>
+                <input type="checkbox" name="paid" id="paid" checked={formData.paid} onChange={handleChange} disabled={formData.isControlled || isSubmitting} className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50" />
+                <label htmlFor="paid" className={`ml-2 text-sm text-gray-300 ${(formData.isControlled || isSubmitting) ? 'opacity-50' : ''}`}>Pago</label>
             </div>
             <div className="flex items-center">
-              <input type="checkbox" name="isControlled" id="isControlled" checked={formData.isControlled} onChange={handleChange} disabled={isEditing} className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50" />
-              <label htmlFor="isControlled" className={`ml-2 text-sm text-gray-300 ${isEditing ? 'opacity-50' : ''}`}>{controlLabel}</label>
+              <input type="checkbox" name="isControlled" id="isControlled" checked={formData.isControlled} onChange={handleChange} disabled={isEditing || isSubmitting} className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50" />
+              <label htmlFor="isControlled" className={`ml-2 text-sm text-gray-300 ${(isEditing || isSubmitting) ? 'opacity-50' : ''}`}>{controlLabel}</label>
             </div>
              {!isEditing && (
               <div className="flex items-center">
-                <input type="checkbox" name="repeat" id="repeat" checked={formData.repeat} onChange={handleChange} className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500" />
-                <label htmlFor="repeat" className="ml-2 text-sm text-gray-300">Repetir +</label>
+                <input type="checkbox" name="repeat" id="repeat" checked={formData.repeat} onChange={handleChange} disabled={isSubmitting} className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50" />
+                <label htmlFor="repeat" className={`ml-2 text-sm text-gray-300 ${isSubmitting ? 'opacity-50' : ''}`}>Repetir +</label>
               </div>
             )}
           </div>
@@ -152,20 +165,20 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
           {formData.isControlled && (
             <div>
               <label htmlFor="counterpartyPhone" className="block mb-1 text-sm font-medium text-gray-300">Telefone</label>
-              <input type="tel" name="counterpartyPhone" id="counterpartyPhone" value={formData.counterpartyPhone} onChange={handleChange} required maxLength={11} disabled={isEditing} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500 disabled:opacity-50" placeholder="(XX) XXXXX-XXXX" />
+              <input type="tel" name="counterpartyPhone" id="counterpartyPhone" value={formData.counterpartyPhone} onChange={handleChange} required maxLength={11} disabled={isEditing || isSubmitting} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500 disabled:opacity-50" placeholder="(XX) XXXXX-XXXX" />
             </div>
           )}
 
           {!isEditing && formData.repeat && (
             <div>
               <label htmlFor="repeatCount" className="block mb-1 text-sm font-medium text-gray-300">Repetir por quantos meses?</label>
-              <input type="number" name="repeatCount" id="repeatCount" value={formData.repeatCount} onChange={handleChange} required min="1" className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500" placeholder="Ex: 11 (total de 12x)" />
+              <input type="number" name="repeatCount" id="repeatCount" value={formData.repeatCount} onChange={handleChange} required min="1" disabled={isSubmitting} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500 disabled:opacity-50" placeholder="Ex: 11 (total de 12x)" />
             </div>
           )}
 
           <div className="flex justify-end pt-4 space-x-3">
-            <button type="button" onClick={onClose} className="px-4 py-2 font-medium text-gray-300 bg-gray-600 rounded-md hover:bg-gray-700">Cancelar</button>
-            <button type="submit" className={`px-4 py-2 font-medium text-white rounded-md ${submitButtonColor}`}>{isEditing ? 'Salvar Alterações' : 'Registrar'}</button>
+            <button type="button" onClick={onClose} disabled={isSubmitting} className="px-4 py-2 font-medium text-gray-300 bg-gray-600 rounded-md hover:bg-gray-700 disabled:opacity-50">Cancelar</button>
+            <button type="submit" disabled={isSubmitting} className={`px-4 py-2 font-medium text-white rounded-md ${submitButtonColor} disabled:bg-gray-500 disabled:cursor-wait`}>{submitButtonText}</button>
           </div>
         </form>
       </div>

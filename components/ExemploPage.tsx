@@ -278,10 +278,11 @@ const ExemploPage: React.FC = () => {
                     transactions={mockTransactions}
                     currentUserPhone="123"
                     onUpdateStatus={() => alert('Ação de exemplo: Atualizar status')}
-                    onToggleSimplePaid={() => alert('Ação de exemplo: Alternar pago/não pago')}
+                    onToggleSimplePaid={async () => { alert('Ação de exemplo: Alternar pago/não pago'); }}
                     onStartEdit={() => alert('Ação de exemplo: Editar')}
                     onDelete={() => alert('Ação de exemplo: Deletar')}
                     onDeleteSubTransaction={() => alert('Ação de exemplo: Deletar sub-transação')}
+                    onOpenAddValueModal={() => alert('Ação de exemplo: Abrir modal de adicionar valor')}
                     isPastMonth={false}
                 />
             </div>

@@ -1,9 +1,10 @@
 
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { User, MenuPermissions, ActivePage } from '../types';
 import { 
     CashIcon, UsersIcon, ClockIcon, ClipboardCheckIcon, ClipboardListIcon, 
-    InboxInIcon, OfficeBuildingIcon, ShoppingCartIcon, CogIcon, LockClosedIcon, DocumentTextIcon
+    InboxInIcon, OfficeBuildingIcon, ShoppingCartIcon, CogIcon, LockClosedIcon, 
+    DocumentTextIcon, ChevronLeftIcon, ChevronRightIcon
 } from './icons';
 
 interface HomePageProps {
@@ -95,7 +96,7 @@ const features: Feature[] = [
 
 const FeatureCard: React.FC<{ feature: Feature; hasPermission: boolean; onNavigate: (page: ActivePage) => void; }> = ({ feature, hasPermission, onNavigate }) => {
     
-    const cardClasses = `relative flex flex-col justify-between p-6 bg-gray-800 rounded-lg shadow-lg group transition-all duration-300 ${
+    const cardClasses = `relative flex flex-col h-full justify-between p-6 bg-gray-800 rounded-lg shadow-lg group transition-all duration-300 ${
         hasPermission 
             ? 'cursor-pointer hover:bg-gray-700 hover:shadow-xl hover:-translate-y-1' 
             : 'opacity-60 cursor-not-allowed'
@@ -131,6 +132,55 @@ const FeatureCard: React.FC<{ feature: Feature; hasPermission: boolean; onNaviga
 
 
 const HomePage: React.FC<HomePageProps> = ({ user, permissions, onNavigate }) => {
+    const [currentIndex, setCurrentIndex] = useState(0);
+    const [itemsPerPage, setItemsPerPage] = useState(window.innerWidth < 768 ? 1 : 3);
+
+    useEffect(() => {
+        const handleResize = () => {
+            const newItemsPerPage = window.innerWidth < 768 ? 1 : 3;
+            setItemsPerPage(newItemsPerPage);
+        };
+
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    const slides = useMemo(() => {
+        const result = [];
+        for (let i = 0; i < features.length; i += itemsPerPage) {
+            result.push(features.slice(i, i + itemsPerPage));
+        }
+        return result;
+    }, [itemsPerPage]);
+
+    const numSlides = slides.length;
+    
+    useEffect(() => {
+        setCurrentIndex(0);
+    }, [numSlides]);
+
+    useEffect(() => {
+        if (numSlides <= 1) return;
+
+        const timer = setTimeout(() => {
+            setCurrentIndex((prevIndex) => (prevIndex + 1) % numSlides);
+        }, 15000); // 15 seconds
+
+        return () => clearTimeout(timer);
+    }, [currentIndex, numSlides]);
+
+    const goToPrevious = () => {
+        setCurrentIndex((prevIndex) => (prevIndex - 1 + numSlides) % numSlides);
+    };
+
+    const goToNext = () => {
+        setCurrentIndex((prevIndex) => (prevIndex + 1) % numSlides);
+    };
+    
+    const goToSlide = (slideIndex: number) => {
+        setCurrentIndex(slideIndex);
+    };
+
     if (!permissions) {
         return (
              <div className="p-4 text-center bg-gray-800 rounded-lg">
@@ -146,15 +196,60 @@ const HomePage: React.FC<HomePageProps> = ({ user, permissions, onNavigate }) =>
                 <p className="mt-2 text-gray-400">Aqui está um resumo das soluções que oferecemos. Acesse os módulos aos quais você tem permissão ou contate um administrador para solicitar acesso a outros.</p>
             </div>
 
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {features.map(feature => (
-                    <FeatureCard 
-                        key={feature.key}
-                        feature={feature}
-                        hasPermission={permissions[feature.permissionKey]}
-                        onNavigate={onNavigate}
-                    />
-                ))}
+            <div className="relative">
+                <div className="overflow-hidden">
+                    <div
+                        className="flex transition-transform duration-700 ease-in-out"
+                        style={{ transform: `translateX(-${currentIndex * 100}%)` }}
+                    >
+                        {slides.map((slideFeatures, index) => (
+                            <div key={index} className="flex-shrink-0 w-full">
+                                <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                                    {slideFeatures.map(feature => (
+                                        <FeatureCard
+                                            key={feature.key}
+                                            feature={feature}
+                                            hasPermission={permissions[feature.permissionKey]}
+                                            onNavigate={onNavigate}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {numSlides > 1 && (
+                    <>
+                        <button
+                            onClick={goToPrevious}
+                            className="absolute top-1/2 -translate-y-1/2 left-0 z-10 p-2 -ml-4 text-white bg-gray-800 rounded-full shadow-lg opacity-75 hover:opacity-100"
+                            aria-label="Anterior"
+                        >
+                            <ChevronLeftIcon className="w-6 h-6" />
+                        </button>
+                        <button
+                            onClick={goToNext}
+                            className="absolute top-1/2 -translate-y-1/2 right-0 z-10 p-2 -mr-4 text-white bg-gray-800 rounded-full shadow-lg opacity-75 hover:opacity-100"
+                            aria-label="Próximo"
+                        >
+                            <ChevronRightIcon className="w-6 h-6" />
+                        </button>
+                        
+                        <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex space-x-2">
+                            {slides.map((_, index) => (
+                                <button
+                                    key={index}
+                                    onClick={() => goToSlide(index)}
+                                    className={`w-2.5 h-2.5 rounded-full transition-colors ${
+                                        currentIndex === index ? 'bg-blue-accent' : 'bg-gray-600 hover:bg-gray-500'
+                                    }`}
+                                    aria-label={`Ir para o slide ${index + 1}`}
+                                />
+                            ))}
+                        </div>
+                    </>
+                )}
             </div>
         </div>
     );

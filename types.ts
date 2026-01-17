@@ -121,3 +121,24 @@ export interface UserCompanyLink {
 }
 
 export type ActivePage = 'home' | 'financeiro' | 'rh' | 'os' | 'settings' | 'empresa' | 'ponto' | 'aprovar-horas' | 'chamados' | 'listPurcharse' | 'exemplo';
+
+// Tipos para Lista de Compras
+export interface Market {
+  id: string;
+  name: string;
+}
+
+export interface Product {
+  id: string;
+  name: string;
+  quantity: number;
+  price: number;
+}
+
+export interface ShoppingList {
+  id: string;
+  name: string;
+  marketId: string;
+  date: string; // YYYY-MM-DD
+  products: Product[];
+}

@@ -9,6 +9,8 @@ import TransactionList from './TransactionList';
 import TransactionFormModal from './TransactionFormModal';
 import ShareModal from './ShareModal';
 import ConfirmationModal from './ConfirmationModal';
+import AddValueModal from './AddValueModal';
+import OverdueNoticeModal from './OverdueNoticeModal';
 import { XCircleIcon } from './icons';
 import { API_BASE_URL } from '../constants';
 
@@ -25,6 +27,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [activeTab, setActiveTab] = useState<'transactions' | 'shared'>('transactions');
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [transactionToDelete, setTransactionToDelete] = useState<Transaction | null>(null);
+  const [isAddValueModalOpen, setIsAddValueModalOpen] = useState(false);
+  const [transactionToAddValueTo, setTransactionToAddValueTo] = useState<Transaction | null>(null);
+  const [isOverdueModalOpen, setIsOverdueModalOpen] = useState(false);
   
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [summary, setSummary] = useState({ revenue: 0, expenses: 0, balance: 0, total: 0 });
@@ -272,17 +277,49 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     }
   };
 
-  const onShare = (shareePhone: string, aggregate: boolean) => { console.log("Sharing logic to be implemented via API"); };
+  const onShare = async (shareePhone: string, aggregate: boolean) => { console.log("Sharing logic to be implemented via API"); };
   const onUnshare = (phoneToUnshare: string) => { console.log("Unsharing logic to be implemented via API"); };
 
   const openModal = (type: TransactionType) => { setEditingTransaction(null); setModalType(type); setIsModalOpen(true); };
   const handleStartEdit = (transaction: Transaction) => { setEditingTransaction(transaction); setIsModalOpen(true); };
   const handleModalClose = () => { setIsModalOpen(false); setEditingTransaction(null); };
 
-  const handleModalSubmit = (data: (Omit<Transaction, 'id' | 'ownerPhone' | 'controlId'> | Transaction) & { repeatCount?: number }) => {
-      if ('id' in data) onEditTransaction(data as Transaction); 
-      else onAddTransaction(data as Omit<Transaction, 'id' | 'ownerPhone' | 'controlId'> & { repeatCount?: number }); 
+  const handleModalSubmit = async (data: (Omit<Transaction, 'id' | 'ownerPhone' | 'controlId'> | Transaction) & { repeatCount?: number }) => {
+      if ('id' in data) {
+        await onEditTransaction(data as Transaction);
+      } else {
+        await onAddTransaction(data as Omit<Transaction, 'id' | 'ownerPhone' | 'controlId'> & { repeatCount?: number });
+      }
       handleModalClose();
+  };
+
+  const handleOpenAddValueModal = (transaction: Transaction) => {
+    setTransactionToAddValueTo(transaction);
+    setIsAddValueModalOpen(true);
+  };
+
+  const handleSaveAddedValue = async (data: { name: string; value: number }) => {
+    if (!transactionToAddValueTo) return;
+    try {
+      const response = await apiFetch(`${API_BASE_URL}/transactions/${transactionToAddValueTo.id}/add-value`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          description: data.name,
+          additionalAmount: data.value,
+          ownerPhone: transactionToAddValueTo.ownerPhone,
+        }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Falha ao adicionar valor.' }));
+        throw new Error(errorData.message || 'Falha ao adicionar valor.');
+      }
+      await fetchTransactions();
+    } catch (error) {
+      alert((error as Error).message);
+    } finally {
+      setIsAddValueModalOpen(false);
+      setTransactionToAddValueTo(null);
+    }
   };
 
   const { personalTransactions, sharedTransactions } = useMemo(() => {
@@ -290,6 +327,29 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     const shared = transactions.filter(t => t.sharerPhone === user.phone);
     return { personalTransactions: personal, sharedTransactions: shared };
   }, [transactions, user.phone]);
+
+  const overdueTransactions = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Normalize to the start of the day
+    return personalTransactions.filter(t => {
+      if (t.status !== PaymentStatus.UNPAID) return false;
+      // Parse YYYY-MM-DD as local date to avoid timezone issues with `new Date()`
+      const parts = t.date.split('-').map(p => parseInt(p, 10));
+      const dueDate = new Date(parts[0], parts[1] - 1, parts[2]);
+      return dueDate < today;
+    });
+  }, [personalTransactions]);
+
+  useEffect(() => {
+    if (isLoading) return; // Only run after initial load is complete
+
+    const hasShownModal = sessionStorage.getItem('overdueModalShown');
+    if (overdueTransactions.length > 0 && !hasShownModal) {
+        setIsOverdueModalOpen(true);
+        sessionStorage.setItem('overdueModalShown', 'true');
+    }
+  }, [isLoading, overdueTransactions]);
+
 
   const transactionsForCurrentTab = activeTab === 'transactions' ? personalTransactions : sharedTransactions;
 
@@ -335,6 +395,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               onStartEdit={handleStartEdit}
               onDelete={handleStartDelete}
               onDeleteSubTransaction={onDeleteSubTransaction}
+              onOpenAddValueModal={handleOpenAddValueModal}
               isPastMonth={isPastMonth}
             />
           )}
@@ -344,9 +405,22 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       {isModalOpen && ( <TransactionFormModal isOpen={isModalOpen} onClose={handleModalClose} onSubmit={handleModalSubmit} type={editingTransaction?.type ?? modalType} transactionToEdit={editingTransaction} currentDateForForm={currentDate} /> )}
       <ShareModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} onShare={(sharedUserInfo) => onShare(sharedUserInfo.phone, sharedUserInfo.aggregate)} />
       <ConfirmationModal isOpen={isConfirmModalOpen} onClose={() => setIsConfirmModalOpen(false)} onConfirm={handleConfirmDelete} title="Confirmar Exclusão" message={`Tem certeza de que deseja excluir a transação "${transactionToDelete?.name}"? Esta ação não pode ser desfeita.`} />
+      {isAddValueModalOpen && transactionToAddValueTo && (
+        <AddValueModal
+          isOpen={isAddValueModalOpen}
+          onClose={() => setIsAddValueModalOpen(false)}
+          onSubmit={handleSaveAddedValue}
+          transactionType={transactionToAddValueTo.type}
+        />
+      )}
+      <OverdueNoticeModal
+        isOpen={isOverdueModalOpen}
+        onClose={() => setIsOverdueModalOpen(false)}
+        overdueTransactions={overdueTransactions}
+        onMarkAsPaid={onToggleSimpleTransactionPaid}
+      />
     </>
   );
 };
 
 export default Dashboard;
-    

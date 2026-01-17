@@ -2,17 +2,18 @@
 import React, { useState, useMemo } from 'react';
 import type { Transaction, Addition } from '../types';
 import { TransactionType, PaymentStatus } from '../types';
-import { CheckCircleIcon, ClockIcon, ArrowUpCircleIcon, ArrowDownCircleIcon, XCircleIcon, ShareIcon, PencilIcon, TrashIcon, ChevronDownIcon } from './icons';
+import { CheckCircleIcon, ClockIcon, ArrowUpCircleIcon, ArrowDownCircleIcon, XCircleIcon, ShareIcon, PencilIcon, TrashIcon, ChevronDownIcon, PlusIcon, MinusIcon } from './icons';
 import ConfirmationModal from './ConfirmationModal';
 
 interface TransactionListProps {
   transactions: Transaction[];
   currentUserPhone: string;
   onUpdateStatus: (transaction: Transaction, newStatus: PaymentStatus) => void;
-  onToggleSimplePaid: (id: string) => void;
+  onToggleSimplePaid: (id: string) => Promise<void>;
   onStartEdit: (transaction: Transaction) => void;
   onDelete: (transaction: Transaction) => void;
   onDeleteSubTransaction: (transactionId: string, additionName: string, ownerPhone: string) => void;
+  onOpenAddValueModal: (transaction: Transaction) => void;
   isPastMonth: boolean;
 }
 
@@ -20,10 +21,11 @@ interface TransactionItemProps {
   transaction: Transaction;
   currentUserPhone: string;
   onUpdateStatus: (transaction: Transaction, newStatus: PaymentStatus) => void;
-  onToggleSimplePaid: (id: string) => void;
+  onToggleSimplePaid: (id: string) => Promise<void>;
   onStartEdit: (transaction: Transaction) => void;
   onDelete: (transaction: Transaction) => void;
   onDeleteSubTransaction: (transactionId: string, additionName: string, ownerPhone: string) => void;
+  onOpenAddValueModal: (transaction: Transaction) => void;
   isPastMonth: boolean;
 }
 
@@ -41,19 +43,28 @@ const StatusBadge: React.FC<{ status: PaymentStatus }> = ({ status }) => {
     return <div className={`flex items-center flex-shrink-0 space-x-1 text-xs font-medium px-2 py-1 rounded-full ${color} bg-gray-700`}>{icon}<span>{text}</span></div>;
 };
 
-const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transaction, currentUserPhone, onUpdateStatus, onToggleSimplePaid, onStartEdit, onDelete, onDeleteSubTransaction, isPastMonth }) => {
+const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transaction, currentUserPhone, onUpdateStatus, onToggleSimplePaid, onStartEdit, onDelete, onDeleteSubTransaction, onOpenAddValueModal, isPastMonth }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [additionToDelete, setAdditionToDelete] = useState<Addition | null>(null);
+    const [isConfirmUnpayOpen, setIsConfirmUnpayOpen] = useState(false);
 
     const isRevenue = transaction.type === TransactionType.REVENUE;
 
     const isToggleDisabled = isPastMonth && transaction.status === PaymentStatus.PAID;
     const toggleTitle = isToggleDisabled ? "Não é possível alterar o status em meses anteriores." : (transaction.status === PaymentStatus.PAID ? "Marcar como Não Pago" : "Marcar como Pago");
     
+    const addValueTitle = isPastMonth
+        ? "Não é possível adicionar valores em meses anteriores"
+        : isRevenue ? "Adicionar item à receita" : "Adicionar item à despesa";
+
     const activeAdditions = useMemo(() => transaction.additions?.filter(a => !a.removed) || [], [transaction.additions]);
 
     const handleSimpleToggle = () => {
-        if (!isToggleDisabled) {
+        if (isToggleDisabled) return;
+        
+        if (transaction.status === PaymentStatus.PAID) {
+            setIsConfirmUnpayOpen(true);
+        } else {
             onToggleSimplePaid(transaction.id);
         }
     }
@@ -67,6 +78,11 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
             onDeleteSubTransaction(transaction.id, additionToDelete.name, transaction.ownerPhone);
         }
         setAdditionToDelete(null);
+    };
+
+    const handleConfirmUnpay = async () => {
+        await onToggleSimplePaid(transaction.id);
+        setIsConfirmUnpayOpen(false);
     };
 
     const showCheckboxForStatus = !transaction.isControlled || (isRevenue && transaction.status !== PaymentStatus.PENDING);
@@ -101,26 +117,6 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
                     </p>
                     
                     <div className="flex items-center flex-shrink-0 gap-x-3">
-                        {showCheckboxForStatus ? (
-                            <label 
-                                htmlFor={`paid-toggle-${transaction.id}`} 
-                                className={`flex items-center space-x-2 ${isToggleDisabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
-                                title={toggleTitle}
-                            >
-                                <input
-                                    type="checkbox"
-                                    id={`paid-toggle-${transaction.id}`}
-                                    checked={transaction.status === PaymentStatus.PAID}
-                                    onChange={handleSimpleToggle}
-                                    disabled={isToggleDisabled}
-                                    className="w-5 h-5 text-green-accent bg-gray-600 border-gray-500 rounded focus:ring-green-accent focus:ring-offset-gray-800 disabled:cursor-not-allowed"
-                                />
-                                <span className="text-sm text-gray-300">Pago</span>
-                            </label>
-                        ) : (
-                            <StatusBadge status={transaction.status} />
-                        )}
-                        
                         {transaction.isControlled && transaction.controlId && (
                             <>
                                 {transaction.type === TransactionType.EXPENSE && transaction.status === PaymentStatus.UNPAID && (
@@ -137,6 +133,22 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
 
                         {transaction.ownerPhone === currentUserPhone && (
                             <>
+                            {transaction.status !== PaymentStatus.PAID && (
+                                <button
+                                    onClick={() => onOpenAddValueModal(transaction)}
+                                    disabled={isPastMonth}
+                                    className={`flex items-center justify-center px-2 py-1 text-xs font-bold text-white rounded-md transition-colors ${
+                                        isRevenue
+                                            ? 'bg-green-accent/90 hover:bg-green-accent'
+                                            : 'bg-red-accent/90 hover:bg-red-accent'
+                                    } disabled:bg-gray-600 disabled:cursor-not-allowed`}
+                                    title={addValueTitle}
+                                    aria-label={addValueTitle}
+                                >
+                                    {isRevenue ? <PlusIcon className="w-4 h-4" /> : <MinusIcon className="w-4 h-4" />}
+                                    <span className="ml-1">$</span>
+                                </button>
+                            )}
                             <button 
                                 onClick={() => onStartEdit(transaction)}
                                 disabled={transaction.isControlled || isPastMonth}
@@ -155,6 +167,26 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
                                 <TrashIcon className="w-4 h-4" />
                             </button>
                             </>
+                        )}
+
+                        {showCheckboxForStatus ? (
+                            <label 
+                                htmlFor={`paid-toggle-${transaction.id}`} 
+                                className={`flex items-center space-x-2 ${isToggleDisabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                                title={toggleTitle}
+                            >
+                                <input
+                                    type="checkbox"
+                                    id={`paid-toggle-${transaction.id}`}
+                                    checked={transaction.status === PaymentStatus.PAID}
+                                    onChange={handleSimpleToggle}
+                                    disabled={isToggleDisabled}
+                                    className="w-5 h-5 text-green-accent bg-gray-600 border-gray-500 rounded focus:ring-green-accent focus:ring-offset-gray-800 disabled:cursor-not-allowed"
+                                />
+                                <span className="text-sm text-gray-300">Pago</span>
+                            </label>
+                        ) : (
+                            <StatusBadge status={transaction.status} />
                         )}
                     </div>
                 </div>
@@ -201,6 +233,13 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
                 title="Confirmar Exclusão do Item"
                 message={`Tem certeza que deseja excluir o item "${additionToDelete?.name}" da fatura?`}
             />
+            <ConfirmationModal
+                isOpen={isConfirmUnpayOpen}
+                onClose={() => setIsConfirmUnpayOpen(false)}
+                onConfirm={handleConfirmUnpay}
+                title="Confirmar Alteração de Status"
+                message={`Tem certeza que deseja marcar a transação "${transaction.name}" como 'Não Paga'?`}
+            />
         </li>
     );
 });
@@ -227,4 +266,3 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, ...rest
 };
 
 export default TransactionList;
-    

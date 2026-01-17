@@ -5,12 +5,13 @@ import type { SharedUser } from '../types';
 interface ShareModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onShare: (sharedUserInfo: SharedUser) => void;
+  onShare: (sharedUserInfo: SharedUser) => Promise<void>;
 }
 
 const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, onShare }) => {
   const [phone, setPhone] = useState('');
   const [aggregate, setAggregate] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -19,13 +20,21 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, onShare }) => 
     }
   }, [isOpen]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (phone.trim()) {
-      onShare({ phone: phone.trim(), aggregate });
-      onClose();
-    } else {
+    if (!phone.trim()) {
         alert("Por favor, insira um número de telefone.");
+        return;
+    }
+    
+    setIsSharing(true);
+    try {
+      await onShare({ phone: phone.trim(), aggregate });
+      onClose();
+    } catch (error) {
+      alert(`Falha ao compartilhar: ${(error as Error).message}`);
+    } finally {
+      setIsSharing(false);
     }
   };
 
@@ -46,7 +55,8 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, onShare }) => 
                 onChange={(e) => setPhone(e.target.value)} 
                 required 
                 maxLength={11}
-                className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500" 
+                disabled={isSharing}
+                className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500 disabled:opacity-50" 
                 placeholder="Ex: 11987654321"
             />
           </div>
@@ -58,14 +68,17 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, onShare }) => 
                 id="aggregate" 
                 checked={aggregate} 
                 onChange={(e) => setAggregate(e.target.checked)} 
-                className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500" 
+                disabled={isSharing}
+                className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50" 
             />
-            <label htmlFor="aggregate" className="ml-2 text-sm text-gray-300">Somar valores do usuário compartilhado ao seu saldo</label>
+            <label htmlFor="aggregate" className={`ml-2 text-sm text-gray-300 ${isSharing ? 'opacity-50' : ''}`}>Somar valores do usuário compartilhado ao seu saldo</label>
           </div>
 
           <div className="flex justify-end pt-4 space-x-3">
-            <button type="button" onClick={onClose} className="px-4 py-2 font-medium text-gray-300 bg-gray-600 rounded-md hover:bg-gray-700">Cancelar</button>
-            <button type="submit" className="px-4 py-2 font-medium text-white rounded-md bg-blue-accent hover:bg-blue-accent/90">Compartilhar</button>
+            <button type="button" onClick={onClose} disabled={isSharing} className="px-4 py-2 font-medium text-gray-300 bg-gray-600 rounded-md hover:bg-gray-700 disabled:opacity-50">Cancelar</button>
+            <button type="submit" disabled={isSharing} className="px-4 py-2 font-medium text-white rounded-md bg-blue-accent hover:bg-blue-accent/90 disabled:bg-gray-500 disabled:cursor-wait">
+                {isSharing ? 'Compartilhando...' : 'Compartilhar'}
+            </button>
           </div>
         </form>
       </div>

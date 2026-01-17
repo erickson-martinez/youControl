@@ -356,15 +356,6 @@ const App: React.FC = () => {
     );
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900">
-        <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-blue-accent"></div>
-        <p className="mt-4 text-lg text-white">Carregando...</p>
-      </div>
-    );
-  }
-
   if (!user) {
     return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
   }
