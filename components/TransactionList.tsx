@@ -12,7 +12,7 @@ interface TransactionListProps {
   onToggleSimplePaid: (id: string) => Promise<void>;
   onStartEdit: (transaction: Transaction) => void;
   onDelete: (transaction: Transaction) => void;
-  onDeleteSubTransaction: (transactionId: string, additionName: string, ownerPhone: string) => void;
+  onDeleteSubTransaction: (transactionId: string, additionName: string, ownerPhone: string) => Promise<void>;
   onOpenAddValueModal: (transaction: Transaction) => void;
   isPastMonth: boolean;
 }
@@ -24,7 +24,7 @@ interface TransactionItemProps {
   onToggleSimplePaid: (id: string) => Promise<void>;
   onStartEdit: (transaction: Transaction) => void;
   onDelete: (transaction: Transaction) => void;
-  onDeleteSubTransaction: (transactionId: string, additionName: string, ownerPhone: string) => void;
+  onDeleteSubTransaction: (transactionId: string, additionName: string, ownerPhone: string) => Promise<void>;
   onOpenAddValueModal: (transaction: Transaction) => void;
   isPastMonth: boolean;
 }
@@ -50,9 +50,15 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
 
     const isRevenue = transaction.type === TransactionType.REVENUE;
 
-    const isToggleDisabled = isPastMonth && transaction.status === PaymentStatus.PAID;
-    const toggleTitle = isToggleDisabled ? "Não é possível alterar o status em meses anteriores." : (transaction.status === PaymentStatus.PAID ? "Marcar como Não Pago" : "Marcar como Pago");
-    
+    const isInteractiveToggleDisabled = (isPastMonth && transaction.status === PaymentStatus.PAID) || transaction.isControlled;
+
+    const getInteractiveToggleTitle = () => {
+      if (transaction.isControlled) return "O status de transações controladas é gerenciado por aprovação.";
+      if (isPastMonth && transaction.status === PaymentStatus.PAID) return "Não é possível alterar o status em meses anteriores.";
+      return transaction.status === PaymentStatus.PAID ? "Marcar como Não Pago" : "Marcar como Pago";
+    };
+    const interactiveToggleTitle = getInteractiveToggleTitle();
+
     const addValueTitle = isPastMonth
         ? "Não é possível adicionar valores em meses anteriores"
         : isRevenue ? "Adicionar item à receita" : "Adicionar item à despesa";
@@ -60,7 +66,7 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
     const activeAdditions = useMemo(() => transaction.additions?.filter(a => !a.removed) || [], [transaction.additions]);
 
     const handleSimpleToggle = () => {
-        if (isToggleDisabled) return;
+        if (isInteractiveToggleDisabled) return;
         
         if (transaction.status === PaymentStatus.PAID) {
             setIsConfirmUnpayOpen(true);
@@ -73,9 +79,9 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
         onDelete(transaction);
     };
 
-    const handleConfirmDeleteAddition = () => {
+    const handleConfirmDeleteAddition = async () => {
         if (additionToDelete) {
-            onDeleteSubTransaction(transaction.id, additionToDelete.name, transaction.ownerPhone);
+            await onDeleteSubTransaction(transaction.id, additionToDelete.name, transaction.ownerPhone);
         }
         setAdditionToDelete(null);
     };
@@ -84,8 +90,41 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
         await onToggleSimplePaid(transaction.id);
         setIsConfirmUnpayOpen(false);
     };
-
-    const showCheckboxForStatus = !transaction.isControlled || (isRevenue && transaction.status !== PaymentStatus.PENDING);
+    
+    const renderStatusDisplay = () => {
+        if (transaction.isControlled) {
+            if (transaction.status === PaymentStatus.PENDING) {
+                return <StatusBadge status={PaymentStatus.PENDING} />;
+            }
+            if (transaction.type === TransactionType.EXPENSE) {
+                return (
+                    <label className="flex items-center space-x-2 cursor-not-allowed opacity-60" title={transaction.status === PaymentStatus.PAID ? "Pagamento Confirmado" : "Aguardando solicitação"}>
+                        <input type="checkbox" checked={transaction.status === PaymentStatus.PAID} disabled className="w-5 h-5 text-green-accent bg-gray-600 border-gray-500 rounded" />
+                        <span className="text-sm text-gray-300">Pago</span>
+                    </label>
+                );
+            }
+        }
+        
+        // Default case for simple transactions and non-pending controlled revenues
+        return (
+             <label 
+                htmlFor={`paid-toggle-${transaction.id}`} 
+                className={`flex items-center space-x-2 ${isInteractiveToggleDisabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                title={interactiveToggleTitle}
+            >
+                <input
+                    type="checkbox"
+                    id={`paid-toggle-${transaction.id}`}
+                    checked={transaction.status === PaymentStatus.PAID}
+                    onChange={handleSimpleToggle}
+                    disabled={isInteractiveToggleDisabled}
+                    className="w-5 h-5 text-green-accent bg-gray-600 border-gray-500 rounded focus:ring-green-accent focus:ring-offset-gray-800 disabled:cursor-not-allowed"
+                />
+                <span className="text-sm text-gray-300">Pago</span>
+            </label>
+        );
+    };
 
     return (
         <li className="p-3 bg-gray-700 rounded-lg">
@@ -120,7 +159,7 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
                         {transaction.isControlled && transaction.controlId && (
                             <>
                                 {transaction.type === TransactionType.EXPENSE && transaction.status === PaymentStatus.UNPAID && (
-                                    <button onClick={() => onUpdateStatus(transaction, PaymentStatus.PENDING)} className="px-2 py-1 text-xs text-white transition-colors bg-blue-600 rounded-md hover:bg-blue-700">Solicitar</button>
+                                    <button onClick={() => onUpdateStatus(transaction, PaymentStatus.PENDING)} className="px-2 py-1 text-xs text-white transition-colors bg-blue-accent rounded-md hover:bg-blue-accent/90">Solicitar</button>
                                 )}
                                 {transaction.type === TransactionType.REVENUE && transaction.status === PaymentStatus.PENDING && (
                                     <>
@@ -133,22 +172,20 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
 
                         {transaction.ownerPhone === currentUserPhone && (
                             <>
-                            {transaction.status !== PaymentStatus.PAID && (
-                                <button
-                                    onClick={() => onOpenAddValueModal(transaction)}
-                                    disabled={isPastMonth}
-                                    className={`flex items-center justify-center px-2 py-1 text-xs font-bold text-white rounded-md transition-colors ${
-                                        isRevenue
-                                            ? 'bg-green-accent/90 hover:bg-green-accent'
-                                            : 'bg-red-accent/90 hover:bg-red-accent'
-                                    } disabled:bg-gray-600 disabled:cursor-not-allowed`}
-                                    title={addValueTitle}
-                                    aria-label={addValueTitle}
-                                >
-                                    {isRevenue ? <PlusIcon className="w-4 h-4" /> : <MinusIcon className="w-4 h-4" />}
-                                    <span className="ml-1">$</span>
-                                </button>
-                            )}
+                            <button
+                                onClick={() => onOpenAddValueModal(transaction)}
+                                disabled={isPastMonth}
+                                className={`flex items-center justify-center px-2 py-1 text-xs font-bold text-white rounded-md transition-colors ${
+                                    isRevenue
+                                        ? 'bg-green-accent/90 hover:bg-green-accent'
+                                        : 'bg-red-accent/90 hover:bg-red-accent'
+                                } disabled:bg-gray-600 disabled:cursor-not-allowed`}
+                                title={addValueTitle}
+                                aria-label={addValueTitle}
+                            >
+                                {isRevenue ? <PlusIcon className="w-4 h-4" /> : <MinusIcon className="w-4 h-4" />}
+                                <span className="ml-1">$</span>
+                            </button>
                             <button 
                                 onClick={() => onStartEdit(transaction)}
                                 disabled={transaction.isControlled || isPastMonth}
@@ -168,26 +205,8 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
                             </button>
                             </>
                         )}
-
-                        {showCheckboxForStatus ? (
-                            <label 
-                                htmlFor={`paid-toggle-${transaction.id}`} 
-                                className={`flex items-center space-x-2 ${isToggleDisabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
-                                title={toggleTitle}
-                            >
-                                <input
-                                    type="checkbox"
-                                    id={`paid-toggle-${transaction.id}`}
-                                    checked={transaction.status === PaymentStatus.PAID}
-                                    onChange={handleSimpleToggle}
-                                    disabled={isToggleDisabled}
-                                    className="w-5 h-5 text-green-accent bg-gray-600 border-gray-500 rounded focus:ring-green-accent focus:ring-offset-gray-800 disabled:cursor-not-allowed"
-                                />
-                                <span className="text-sm text-gray-300">Pago</span>
-                            </label>
-                        ) : (
-                            <StatusBadge status={transaction.status} />
-                        )}
+                        
+                        {renderStatusDisplay()}
                     </div>
                 </div>
             </div>

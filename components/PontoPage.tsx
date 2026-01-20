@@ -213,9 +213,10 @@ const PontoPage: React.FC<PontoPageProps> = ({ user, empresa, onPontoUpdate }) =
     };
   }, [records, currentDate]);
 
-  const handleConfirmDelete = () => {
+  // FIX: Make function async to match onConfirm prop type which expects a Promise.
+  const handleConfirmDelete = async () => {
     if (deletingRecord) {
-      handleDelete(deletingRecord.id);
+      await handleDelete(deletingRecord.id);
     }
     setDeletingRecord(null);
   };

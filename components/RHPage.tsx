@@ -140,9 +140,10 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
     setIsConfirmModalOpen(true);
   };
 
-  const handleConfirmUnlink = () => {
+  // FIX: Make function async to match onConfirm prop type which expects a Promise.
+  const handleConfirmUnlink = async () => {
     if (userToUnlink) {
-      handleLinkUser(userToUnlink.phone, '');
+      await handleLinkUser(userToUnlink.phone, '');
     }
     setIsConfirmModalOpen(false);
     setUserToUnlink(null);

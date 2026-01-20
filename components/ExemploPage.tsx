@@ -281,7 +281,7 @@ const ExemploPage: React.FC = () => {
                     onToggleSimplePaid={async () => { alert('Ação de exemplo: Alternar pago/não pago'); }}
                     onStartEdit={() => alert('Ação de exemplo: Editar')}
                     onDelete={() => alert('Ação de exemplo: Deletar')}
-                    onDeleteSubTransaction={() => alert('Ação de exemplo: Deletar sub-transação')}
+                    onDeleteSubTransaction={async () => alert('Ação de exemplo: Deletar sub-transação')}
                     onOpenAddValueModal={() => alert('Ação de exemplo: Abrir modal de adicionar valor')}
                     isPastMonth={false}
                 />
