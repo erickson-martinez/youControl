@@ -235,7 +235,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         method: 'PATCH',
         body: JSON.stringify({ transactionId: transaction.id, ownerPhone: transaction.ownerPhone, status: newStatus }),
       });
-      if (!response.ok) throw new Error('Falha ao atualizar status');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Falha ao atualizar status. O servidor não respondeu com detalhes.' }));
+        throw new Error(errorData.message || errorData.error || 'Falha ao atualizar status.');
+      }
       await fetchTransactions();
     } catch (error) {
       alert((error as Error).message);
