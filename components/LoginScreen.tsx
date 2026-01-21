@@ -21,6 +21,24 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
   const loginLoadingMessages = ['Entrando...', 'Iniciando servidor...', 'Realizando conexão...'];
   const registrationLoadingMessages = ['Realizando cadastro...', 'Criando permissões...', 'Liberando acesso...'];
+  
+  // Efeito para "acordar" o servidor no Render ao carregar a página
+  useEffect(() => {
+    const prewarmServer = async () => {
+      console.log('Enviando requisição para iniciar o servidor...');
+      try {
+        // Simplesmente faz uma requisição para a URL base para iniciar o serviço
+        await fetch(API_BASE_URL, { method: 'GET' });
+        console.log('Servidor iniciado ou já estava ativo.');
+      } catch (error) {
+        // É normal que isso possa falhar se o servidor estiver completamente inativo,
+        // mas a requisição ainda assim o fará iniciar.
+        console.warn('Falha na requisição de aquecimento do servidor. Isso é esperado se o servidor estiver iniciando.', error);
+      }
+    };
+
+    prewarmServer();
+  }, []); // O array vazio garante que isso rode apenas uma vez quando o componente montar
 
   useEffect(() => {
     let interval: number | undefined;
