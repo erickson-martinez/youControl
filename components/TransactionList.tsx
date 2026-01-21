@@ -1,8 +1,9 @@
+
 // FIX: Import useState and useMemo from React.
 import React, { useState, useMemo } from 'react';
 import type { Transaction, Addition } from '../types';
 import { TransactionType, PaymentStatus } from '../types';
-import { CheckCircleIcon, ClockIcon, ArrowUpCircleIcon, ArrowDownCircleIcon, XCircleIcon, ShareIcon, PencilIcon, TrashIcon, ChevronDownIcon, PlusIcon, MinusIcon } from './icons';
+import { CheckCircleIcon, ClockIcon, ArrowUpCircleIcon, ArrowDownCircleIcon, XCircleIcon, ShareIcon, PencilIcon, TrashIcon, ChevronDownIcon, PlusIcon, MinusIcon, BellIcon } from './icons';
 import ConfirmationModal from './ConfirmationModal';
 
 interface TransactionListProps {
@@ -51,10 +52,10 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
     const isRevenue = transaction.type === TransactionType.REVENUE;
     const isPaid = transaction.status === PaymentStatus.PAID;
 
-    // True when I am the debtor and the collector has sent me a payment request
-    const isReceivingPaymentRequest = transaction.isControlled && isRevenue && transaction.status === PaymentStatus.PENDING && transaction.ownerPhone !== currentUserPhone;
+    // True when I am the creditor of a controlled revenue and the debtor has sent a payment request. My action is required.
+    const isPendingApprovalFromMe = transaction.isControlled && isRevenue && transaction.status === PaymentStatus.PENDING && transaction.ownerPhone === currentUserPhone;
     
-    // True when I am the collector of a controlled revenue I created
+    // True when I am the creator/collector of a controlled revenue I created (covers all its states)
     const isCollectorOfControlledRevenue = transaction.isControlled && isRevenue && transaction.ownerPhone === currentUserPhone;
     
     const addValueTitle = isPastMonth
@@ -90,12 +91,32 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
     };
     
     const renderStatusDisplay = () => {
-        // Case 1: Collector of a controlled revenue has direct control
+        // Case 1: Creditor needs to confirm a pending payment (most specific case)
+        if (isPendingApprovalFromMe) {
+            return (
+                <label 
+                    htmlFor={`confirm-toggle-${transaction.id}`} 
+                    className="flex items-center space-x-2 cursor-pointer"
+                    title="Confirmar Pagamento"
+                >
+                    <input
+                        type="checkbox"
+                        id={`confirm-toggle-${transaction.id}`}
+                        checked={false}
+                        onChange={() => onUpdateStatus(transaction, PaymentStatus.PAID)}
+                        className="w-5 h-5 text-green-accent bg-gray-600 border-gray-500 rounded focus:ring-green-accent focus:ring-offset-gray-800"
+                    />
+                    <span className="text-sm text-gray-300">Pago</span>
+                </label>
+            );
+        }
+
+        // Case 2: Collector of a controlled revenue (PAID/UNPAID states) has direct control
         if (isCollectorOfControlledRevenue) {
             const isDisabled = isPastMonth && isPaid;
             const title = isDisabled 
                 ? "Não é possível alterar o status em meses anteriores." 
-                : isPaid ? "Marcar como Não Pago" : "Confirmar Recebimento";
+                : isPaid ? "Marcar como Não Recebido" : "Confirmar Recebimento";
             return (
                 <label 
                     htmlFor={`paid-toggle-${transaction.id}`} 
@@ -110,42 +131,14 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
                         disabled={isDisabled}
                         className="w-5 h-5 text-green-accent bg-gray-600 border-gray-500 rounded focus:ring-green-accent focus:ring-offset-gray-800 disabled:cursor-not-allowed"
                     />
-                    <span className="text-sm text-gray-300">Pago</span>
-                </label>
-            );
-        }
-
-        // Case 2: Debtor receiving a payment request (sees a PENDING revenue)
-        if (isReceivingPaymentRequest) {
-            return (
-                <label 
-                    htmlFor={`confirm-toggle-${transaction.id}`} 
-                    className="flex items-center space-x-2 cursor-pointer"
-                    title="Confirmar o pagamento"
-                >
-                    <input
-                        type="checkbox"
-                        id={`confirm-toggle-${transaction.id}`}
-                        checked={false}
-                        onChange={() => onUpdateStatus(transaction, PaymentStatus.PAID)}
-                        className="w-5 h-5 text-green-accent bg-gray-600 border-gray-500 rounded focus:ring-green-accent focus:ring-offset-gray-800"
-                    />
-                    <span className="text-sm text-gray-300">Pago</span>
+                    <span className="text-sm text-gray-300">Recebido</span>
                 </label>
             );
         }
         
         // Case 3: Other controlled transactions (e.g., expenses from debtor's POV)
         if (transaction.isControlled) {
-            if (transaction.status === PaymentStatus.PENDING) {
-                return <StatusBadge status={PaymentStatus.PENDING} />;
-            }
-            return (
-                <label className="flex items-center space-x-2 cursor-not-allowed opacity-60" title={isPaid ? "Pagamento Confirmado" : "Status gerenciado pela outra parte"}>
-                    <input type="checkbox" checked={isPaid} disabled className="w-5 h-5 text-green-accent bg-gray-600 border-gray-500 rounded" />
-                    <span className="text-sm text-gray-300">Pago</span>
-                </label>
-            );
+            return <StatusBadge status={transaction.status} />;
         }
         
         // Case 4: Default for simple (non-controlled) transactions
@@ -182,6 +175,11 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
                         <div className="min-w-0">
                             <div className="flex items-center gap-2">
                                 <p className="font-semibold text-white truncate">{transaction.name}</p>
+                                {isPendingApprovalFromMe && (
+                                    <span title="Aguardando sua confirmação de recebimento">
+                                        <BellIcon className="w-5 h-5 text-yellow-accent animate-pulse" />
+                                    </span>
+                                )}
                                 {transaction.ownerPhone !== currentUserPhone && (
                                     <span className="inline-flex items-center flex-shrink-0 px-2 py-0.5 text-xs text-purple-300 bg-purple-800 rounded-full" title={`Compartilhado por ${transaction.ownerPhone}`}>
                                         <ShareIcon className="w-3 h-3 mr-1.5" />
@@ -200,7 +198,7 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
                             </p>
                         </div>
                     </div>
-                    {transaction.ownerPhone === currentUserPhone && !isReceivingPaymentRequest && (
+                    {transaction.ownerPhone === currentUserPhone && !isPendingApprovalFromMe && (
                          <button 
                             onClick={handleDelete}
                             className="p-1.5 text-gray-400 transition-colors rounded-md hover:bg-gray-600 hover:text-red-accent"
@@ -222,11 +220,11 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
                         {transaction.isControlled && transaction.ownerPhone === currentUserPhone && transaction.type === TransactionType.EXPENSE && transaction.status === PaymentStatus.UNPAID && (
                             <button onClick={() => onUpdateStatus(transaction, PaymentStatus.PENDING)} className="px-2 py-1 text-xs text-white transition-colors bg-blue-accent rounded-md hover:bg-blue-accent/90">Solicitar</button>
                         )}
-                        {isReceivingPaymentRequest && (
+                        {isPendingApprovalFromMe && (
                             <button onClick={() => onUpdateStatus(transaction, PaymentStatus.UNPAID)} className="px-2 py-1 text-xs text-white transition-colors bg-red-600 rounded-md hover:bg-red-700">Recusar</button>
                         )}
 
-                        {transaction.ownerPhone === currentUserPhone && !isReceivingPaymentRequest && (
+                        {transaction.ownerPhone === currentUserPhone && !isPendingApprovalFromMe && (
                             <>
                             <button
                                 onClick={() => onOpenAddValueModal(transaction)}

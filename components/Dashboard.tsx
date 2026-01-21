@@ -11,6 +11,7 @@ import ShareModal from './ShareModal';
 import ConfirmationModal from './ConfirmationModal';
 import AddValueModal from './AddValueModal';
 import OverdueNoticeModal from './OverdueNoticeModal';
+import PendingApprovalModal from './PendingApprovalModal';
 import { XCircleIcon } from './icons';
 import { API_BASE_URL } from '../constants';
 
@@ -30,10 +31,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [isAddValueModalOpen, setIsAddValueModalOpen] = useState(false);
   const [transactionToAddValueTo, setTransactionToAddValueTo] = useState<Transaction | null>(null);
   const [isOverdueModalOpen, setIsOverdueModalOpen] = useState(false);
+  const [isPendingApprovalModalOpen, setIsPendingApprovalModalOpen] = useState(false);
   
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [summary, setSummary] = useState({ revenue: 0, expenses: 0, balance: 0, total: 0 });
   const [sharedUsersInfo, setSharedUsersInfo] = useState<SharedUser[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,6 +74,29 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       isFutureMonth: !isPast,
     };
   }, [currentDate]);
+
+  const fetchAllUsers = useCallback(async () => {
+    try {
+        const response = await apiFetch(`${API_BASE_URL}/users`);
+        if (!response.ok) return;
+        const data = await response.json();
+        const usersList = Array.isArray(data) ? data : data.users;
+        setAllUsers(usersList || []);
+    } catch (err) {
+       console.error("Falha ao buscar todos os usuários para o mapa de nomes.", err);
+    }
+  }, [apiFetch]);
+
+  useEffect(() => {
+    fetchAllUsers();
+  }, [fetchAllUsers]);
+
+  const userMap = useMemo(() => {
+    return allUsers.reduce((acc, user) => {
+      acc[user.phone] = user.name;
+      return acc;
+    }, {} as Record<string, string>);
+  }, [allUsers]);
 
   const fetchTransactions = useCallback(async () => {
     setIsLoading(true);
@@ -352,6 +378,39 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         sessionStorage.setItem('overdueModalShown', 'true');
     }
   }, [isLoading, overdueTransactions]);
+  
+  const pendingApprovalTransactions = useMemo(() => {
+    return transactions.filter(t =>
+      t.isControlled &&
+      t.status === PaymentStatus.PENDING &&
+      t.ownerPhone === user.phone && // Eu sou o credor
+      t.type === TransactionType.REVENUE
+    );
+  }, [transactions, user.phone]);
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    const hasShownPendingModal = sessionStorage.getItem('pendingApprovalModalShown');
+    if (pendingApprovalTransactions.length > 0 && !hasShownPendingModal) {
+      setIsPendingApprovalModalOpen(true);
+      sessionStorage.setItem('pendingApprovalModalShown', 'true');
+    }
+  }, [isLoading, pendingApprovalTransactions]);
+  
+  const handleApprovePending = async (transactionId: string) => {
+    const tx = transactions.find(t => t.id === transactionId);
+    if (tx) {
+        await onUpdateTransactionStatus(tx, PaymentStatus.PAID);
+    }
+  };
+
+  const handleRejectPending = async (transactionId: string) => {
+      const tx = transactions.find(t => t.id === transactionId);
+      if (tx) {
+          await onUpdateTransactionStatus(tx, PaymentStatus.UNPAID);
+      }
+  };
 
 
   const transactionsForCurrentTab = activeTab === 'transactions' ? personalTransactions : sharedTransactions;
@@ -421,6 +480,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         onClose={() => setIsOverdueModalOpen(false)}
         overdueTransactions={overdueTransactions}
         onMarkAsPaid={onToggleSimpleTransactionPaid}
+      />
+       <PendingApprovalModal
+        isOpen={isPendingApprovalModalOpen}
+        onClose={() => setIsPendingApprovalModalOpen(false)}
+        pendingTransactions={pendingApprovalTransactions}
+        onApprove={handleApprovePending}
+        onReject={handleRejectPending}
+        userMap={userMap}
       />
     </>
   );
