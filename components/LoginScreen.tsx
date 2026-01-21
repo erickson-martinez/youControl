@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import type { User } from '../types';
 import { API_BASE_URL } from '../constants';
+import { EyeIcon, EyeSlashIcon } from './icons';
 
 interface LoginScreenProps {
   onLoginSuccess: (user: User) => void;
@@ -15,19 +16,23 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
 
-  const loadingMessages = ['Entrando...', 'Iniciando servidor...', 'Realizando conexão...'];
-  const [loadingMessage, setLoadingMessage] = useState(loadingMessages[0]);
+  const loginLoadingMessages = ['Entrando...', 'Iniciando servidor...', 'Realizando conexão...'];
+  const registrationLoadingMessages = ['Realizando cadastro...', 'Criando permissões...', 'Liberando acesso...'];
 
   useEffect(() => {
     let interval: number | undefined;
-    if (loading && !isRegisterMode) {
+    if (loading) {
+      const messages = isRegisterMode ? registrationLoadingMessages : loginLoadingMessages;
       let messageIndex = 0;
-      setLoadingMessage(loadingMessages[0]); // Reset to first message on new load
+      setLoadingMessage(messages[0]);
+      
       interval = window.setInterval(() => {
-        messageIndex = (messageIndex + 1) % loadingMessages.length;
-        setLoadingMessage(loadingMessages[messageIndex]);
-      }, 11000); // Change message every 11 seconds
+        messageIndex = (messageIndex + 1) % messages.length;
+        setLoadingMessage(messages[messageIndex]);
+      }, 11000);
     }
 
     return () => {
@@ -149,14 +154,14 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
       <div className="w-full max-w-md p-8 space-y-8 bg-gray-800 rounded-lg shadow-lg">
         <div>
           <h2 className="text-3xl font-extrabold text-center text-white">
-            {isRegisterMode ? 'Criar Conta' : 'Controle Financeiro'}
+            {isRegisterMode ? 'Criar Conta' : 'Seu Controle'}
           </h2>
           <p className="mt-2 text-sm text-center text-gray-400">
             {isRegisterMode ? 'Preencha os dados para se cadastrar' : 'Acesse sua conta'}
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="space-y-4 rounded-md shadow-sm">
+         <fieldset disabled={loading} className="space-y-4 rounded-md shadow-sm">
             {isRegisterMode && (
               <div>
                 <label htmlFor="name" className="sr-only">Nome</label>
@@ -166,7 +171,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                   type="text"
                   autoComplete="name"
                   required
-                  className="relative block w-full px-3 py-3 text-white placeholder-gray-500 bg-gray-700 border border-gray-600 rounded-md appearance-none focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                  className="relative block w-full px-3 py-3 text-white placeholder-gray-500 bg-gray-700 border border-gray-600 rounded-md appearance-none focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm disabled:opacity-50"
                   placeholder="Nome Completo"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -181,27 +186,36 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 type="tel"
                 autoComplete="tel"
                 required
-                className="relative block w-full px-3 py-3 text-white placeholder-gray-500 bg-gray-700 border border-gray-600 rounded-md appearance-none focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                className="relative block w-full px-3 py-3 text-white placeholder-gray-500 bg-gray-700 border border-gray-600 rounded-md appearance-none focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm disabled:opacity-50"
                 placeholder="Telefone"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
               />
             </div>
-            <div>
+            <div className="relative">
               <label htmlFor="password" className="sr-only">Senha</label>
               <input
                 id="password"
                 name="password"
-                type="password"
+                type={isPasswordVisible ? 'text' : 'password'}
                 autoComplete={isRegisterMode ? "new-password" : "current-password"}
                 required
-                className="relative block w-full px-3 py-3 text-white placeholder-gray-500 bg-gray-700 border border-gray-600 rounded-md appearance-none focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                className="relative block w-full px-3 py-3 pr-10 text-white placeholder-gray-500 bg-gray-700 border border-gray-600 rounded-md appearance-none focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm disabled:opacity-50"
                 placeholder="Senha"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
+              <button
+                type="button"
+                onClick={() => setIsPasswordVisible(!isPasswordVisible)}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-white disabled:opacity-50"
+                aria-label={isPasswordVisible ? 'Ocultar senha' : 'Mostrar senha'}
+                disabled={loading}
+              >
+                {isPasswordVisible ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
+              </button>
             </div>
-          </div>
+          </fieldset>
 
           {error && <p className="text-sm text-center text-red-accent">{error}</p>}
           {message && <p className="text-sm text-center text-green-accent">{message}</p>}
@@ -212,7 +226,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
               disabled={loading}
               className="relative flex justify-center w-full px-4 py-3 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md group hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-500 disabled:cursor-not-allowed"
             >
-              {loading ? (isRegisterMode ? 'Cadastrando...' : loadingMessage) : (isRegisterMode ? 'Cadastrar' : 'Entrar')}
+              {loading ? loadingMessage : (isRegisterMode ? 'Cadastrar' : 'Entrar')}
             </button>
           </div>
         </form>
@@ -220,6 +234,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             <button 
               onClick={handleModeToggle}
               className="font-medium text-blue-400 bg-transparent border-none cursor-pointer hover:text-blue-300 focus:outline-none"
+              disabled={loading}
             >
               {isRegisterMode ? 'Já tem uma conta? Entrar' : 'Cadastrar'}
             </button>

@@ -44,7 +44,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, isOpen, onClose, perm
       >
         <div className="flex flex-col h-full px-3 py-4 overflow-y-auto">
           <div className="flex items-center justify-between pl-2.5 mb-8">
-              <span className="self-center text-xl font-semibold whitespace-nowrap text-white">FinControl</span>
+              <span className="self-center text-xl font-semibold whitespace-nowrap text-white">Seu Controle</span>
               <button onClick={onClose} className="p-1 text-gray-400 rounded-full md:hidden hover:bg-gray-700 hover:text-white" aria-label="Fechar menu">
                 <XIcon className="w-6 h-6" />
               </button>

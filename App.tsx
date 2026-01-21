@@ -111,23 +111,54 @@ const App: React.FC = () => {
   }, [user, apiError]);
 
   const fetchUserPermissions = useCallback(async (phone: string) => {
-      try {
-          const response = await apiFetch(`${API_BASE_URL}/permissions?userPhone=${phone}`);
-          const data = await response.json();
-          const permissionsList = data.permissions || [];
-          const perms = apiToFrontendPermissions(permissionsList, phone);
-          setUserPermissions(perms);
-          return perms;
-      } catch (error) {
-          if ((error as Error).message.includes('404')) {
-            console.warn(`No permissions found for user ${phone}, applying fallback.`);
-            setUserPermissions(FALLBACK_PERMISSIONS);
-            return FALLBACK_PERMISSIONS;
-          } else {
+    try {
+        const response = await apiFetch(`${API_BASE_URL}/permissions?userPhone=${phone}`);
+        const data = await response.json();
+        const permissionsList = data.permissions || [];
+
+        if (permissionsList.length === 0) {
+            console.warn(`User ${phone} has no permissions. Granting default 'financeiro' access.`);
+            await apiFetch(`${API_BASE_URL}/permissions?phone=${phone}&add=true`, {
+                method: 'PATCH',
+                body: JSON.stringify({ permissions: ["financeiro"] }),
+            });
+            
+            const refetchedResponse = await apiFetch(`${API_BASE_URL}/permissions?userPhone=${phone}`);
+            const refetchedData = await refetchedResponse.json();
+            const refetchedPermissionsList = refetchedData.permissions || [];
+            const perms = apiToFrontendPermissions(refetchedPermissionsList, phone);
+            setUserPermissions(perms);
+            return perms;
+        }
+
+        const perms = apiToFrontendPermissions(permissionsList, phone);
+        setUserPermissions(perms);
+        return perms;
+
+    } catch (error) {
+        if ((error as Error).message.includes('404')) {
+            console.warn(`No permissions record for ${phone} (404). Granting default 'financeiro' access.`);
+            try {
+                await apiFetch(`${API_BASE_URL}/permissions?phone=${phone}&add=true`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ permissions: ["financeiro"] }),
+                });
+
+                const refetchedResponse = await apiFetch(`${API_BASE_URL}/permissions?userPhone=${phone}`);
+                const refetchedData = await refetchedResponse.json();
+                const perms = apiToFrontendPermissions(refetchedData.permissions || [], phone);
+                setUserPermissions(perms);
+                return perms;
+            } catch (grantError) {
+                console.error(`Failed to grant permissions after 404 for ${phone}, applying fallback.`, grantError);
+                setUserPermissions(FALLBACK_PERMISSIONS);
+                return FALLBACK_PERMISSIONS;
+            }
+        } else {
             console.error("Erro ao carregar permissões do usuário:", error);
             throw error;
-          }
-      }
+        }
+    }
   }, [apiFetch]);
 
   const fetchUserCompanyLink = useCallback(async (currentUser: User) => {

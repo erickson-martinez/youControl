@@ -179,3 +179,17 @@ export const BookOpenIcon: React.FC<IconProps> = ({ className }) => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
   </svg>
 );
+
+export const EyeIcon: React.FC<IconProps> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+  </svg>
+);
+
+export const EyeSlashIcon: React.FC<IconProps> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243l-4.242-4.242z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 16.121A3 3 0 0012.015 15a3 3 0 00-2.136-5.121m-2.288-1.15A9.96 9.96 0 002.458 12c1.274 4.057 5.064 7 9.542 7 1.455 0 2.848-.396 4.125-1.075M12 5c.482 0 .95.053 1.405.151m6.012 1.343A9.97 9.97 0 0121.542 12c-1.274 4.057-5.064 7-9.542 7a9.97 9.97 0 01-2.283-.284M2.458 12A9.97 9.97 0 0112 5c1.455 0 2.848.396 4.125 1.075m0 0l-2.282 2.282m0 0l-2.282-2.282m2.282 2.282l2.282 2.282" />
+  </svg>
+);

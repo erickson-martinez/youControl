@@ -192,7 +192,7 @@ const HomePage: React.FC<HomePageProps> = ({ user, permissions, onNavigate }) =>
     return (
         <div className="space-y-8">
             <div>
-                <h1 className="text-3xl font-bold text-white">Bem-vindo(a) ao FinControl, {user.name}!</h1>
+                <h1 className="text-3xl font-bold text-white">Bem-vindo(a) ao Seu Controle, {user.name}!</h1>
                 <p className="mt-2 text-gray-400">Aqui está um resumo das soluções que oferecemos. Acesse os módulos aos quais você tem permissão ou contate um administrador para solicitar acesso a outros.</p>
             </div>
 
