@@ -20,9 +20,10 @@ interface TransactionFormModalProps {
   type: TransactionType;
   transactionToEdit?: Transaction | null;
   currentDateForForm: Date;
+  currentUserPhone?: string;
 }
 
-const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onClose, onSubmit, type, transactionToEdit, currentDateForForm }) => {
+const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onClose, onSubmit, type, transactionToEdit, currentDateForForm, currentUserPhone }) => {
   const [formData, setFormData] = useState<FormDataType>({
     name: '',
     amount: '',
@@ -80,6 +81,14 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    
+    // Validação Client-Side: Impedir criação para o mesmo usuário
+    if (formData.isControlled && currentUserPhone && formData.counterpartyPhone === currentUserPhone) {
+        alert("Não é permitido criar cobrança para o mesmo usuário.");
+        setIsSubmitting(false);
+        return;
+    }
+
     try {
         const repeatCount = formData.repeat ? parseInt(formData.repeatCount, 10) : 0;
         
@@ -107,6 +116,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
         await onSubmit(submissionData);
     } catch (error) {
         console.error("Falha ao submeter o formulário de transação", error);
+        // O alerta aqui já deve pegar a mensagem do erro lançado no Dashboard
         alert(`Ocorreu um erro: ${(error as Error).message}`);
     } finally {
         setIsSubmitting(false);

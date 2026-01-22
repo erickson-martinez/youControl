@@ -90,8 +90,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
     if (isRegisterMode) {
       // --- Registration Logic ---
+      const cleanPhone = phone.replace(/\D/g, '');
+
       if (!name.trim() || !phone.trim() || !password.trim()) {
         setError('Nome, telefone e senha são obrigatórios.');
+        setLoading(false);
+        return;
+      }
+
+      if (cleanPhone.length < 10 || cleanPhone.length > 11) {
+        setError('O telefone deve ter 10 ou 11 dígitos (DDD + número).');
         setLoading(false);
         return;
       }
@@ -107,8 +115,15 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         });
 
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ message: 'Erro ao cadastrar. O telefone já pode estar em uso.' }));
-          throw new Error(errorData.message || 'Falha no cadastro');
+          let errorMessage = 'Erro ao cadastrar. O telefone já pode estar em uso.';
+          try {
+            const errorData = await response.json();
+            // Prioriza o campo 'error' que vem da API com as validações de senha
+            errorMessage = errorData.error || errorData.message || errorMessage;
+          } catch (e) {
+            console.error("Erro ao processar resposta de erro JSON", e);
+          }
+          throw new Error(errorMessage);
         }
 
         setMessage('Cadastro realizado com sucesso! Por favor, faça o login.');
@@ -251,7 +266,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         <div className="text-sm text-center">
             <button 
               onClick={handleModeToggle}
-              className="font-medium text-blue-400 bg-transparent border-none cursor-pointer hover:text-blue-300 focus:outline-none"
+              className="font-medium text-blue-400 bg-transparent border-none cursor-pointer hover:text-blue-300 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-blue-400"
               disabled={loading}
             >
               {isRegisterMode ? 'Já tem uma conta? Entrar' : 'Cadastrar'}

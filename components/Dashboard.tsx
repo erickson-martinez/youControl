@@ -187,7 +187,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
     const createTransactionPayload = (data: typeof baseTransactionData) => {
       if (isControlled) {
-        return { ownerPhone: user.phone, counterpartyPhone: data.counterpartyPhone, name: data.name, amount: data.amount, date: data.date };
+        return { 
+          ownerPhone: user.phone, 
+          counterpartyPhone: data.counterpartyPhone, 
+          name: data.name, 
+          amount: data.amount, 
+          date: data.date,
+          type: data.type,
+          status: data.status
+        };
       } else {
         return { ownerPhone: user.phone, type: data.type, name: data.name, amount: data.amount, date: data.date, status: data.status };
       }
@@ -210,8 +218,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       const responses = await Promise.all(transactionPromises);
       for (const response of responses) {
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ message: `Falha ao adicionar uma das transações recorrentes` }));
-          throw new Error(errorData.message || 'Falha ao adicionar transação recorrente');
+            let errorMessage = 'Falha ao adicionar transação.';
+            try {
+                const errorData = await response.json();
+                // Prioriza 'error', depois 'message'
+                errorMessage = errorData.error || errorData.message || errorMessage;
+            } catch (e) {
+                 // Ignora erro de parse e usa mensagem padrão
+            }
+            throw new Error(errorMessage);
         }
       }
       await fetchTransactions();
@@ -464,7 +479,17 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         </div>
       </div>
 
-      {isModalOpen && ( <TransactionFormModal isOpen={isModalOpen} onClose={handleModalClose} onSubmit={handleModalSubmit} type={editingTransaction?.type ?? modalType} transactionToEdit={editingTransaction} currentDateForForm={currentDate} /> )}
+      {isModalOpen && ( 
+        <TransactionFormModal 
+            isOpen={isModalOpen} 
+            onClose={handleModalClose} 
+            onSubmit={handleModalSubmit} 
+            type={editingTransaction?.type ?? modalType} 
+            transactionToEdit={editingTransaction} 
+            currentDateForForm={currentDate} 
+            currentUserPhone={user.phone} 
+        /> 
+      )}
       <ShareModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} onShare={(sharedUserInfo) => onShare(sharedUserInfo.phone, sharedUserInfo.aggregate)} />
       <ConfirmationModal isOpen={isConfirmModalOpen} onClose={() => setIsConfirmModalOpen(false)} onConfirm={handleConfirmDelete} title="Confirmar Exclusão" message={`Tem certeza de que deseja excluir a transação "${transactionToDelete?.name}"? Esta ação não pode ser desfeita.`} />
       {isAddValueModalOpen && transactionToAddValueTo && (
