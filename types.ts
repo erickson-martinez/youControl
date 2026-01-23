@@ -37,6 +37,7 @@ export interface Transaction {
 export interface User {
   phone: string;
   name: string;
+  id?: string; // Adicionado ID para suportar a API de Listas
 }
 
 export interface MenuPermissions {
@@ -47,6 +48,7 @@ export interface MenuPermissions {
   aprovarHoras: boolean;
   chamados: boolean;
   empresa: boolean;
+  lojas: boolean;
   listPurcharse: boolean;
   settings: boolean;
   exemplo: boolean;
@@ -66,6 +68,17 @@ export interface Empresa {
   status: 'ativo' | 'inativo';
   owner: string;
   isOwnedByCurrentUser?: boolean;
+}
+
+export interface Loja {
+  id: string;
+  name: string;
+  address?: string;
+  number?: string;
+  zip?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  status: 'active' | 'inactive';
 }
 
 export enum PontoStatus {
@@ -115,13 +128,13 @@ export interface SharedUser {
 }
 
 export interface UserCompanyLink {
-  _id?: string; // Made optional to support new API response
+  _id?: string;
   userPhone: string;
   empresaId: string;
   status: 'ativo' | 'inativo' | 'pendente';
 }
 
-export type ActivePage = 'home' | 'financeiro' | 'rh' | 'os' | 'settings' | 'empresa' | 'ponto' | 'aprovar-horas' | 'chamados' | 'listPurcharse' | 'exemplo' | 'financialManual';
+export type ActivePage = 'home' | 'financeiro' | 'rh' | 'os' | 'settings' | 'empresa' | 'lojas' | 'ponto' | 'aprovar-horas' | 'chamados' | 'listPurcharse' | 'exemplo' | 'financialManual';
 
 // Tipos para Lista de Compras
 export interface Market {
@@ -130,16 +143,27 @@ export interface Market {
 }
 
 export interface Product {
-  id: string;
+  _id?: string;
+  id?: string; // Fallback for old local storage logic if needed
   name: string;
+  type?: string;
   quantity: number;
-  price: number;
+  brand?: string;
+  packQuantity?: number;
+  value: number; // Unit price
+  total?: number;
+  price?: number; // Fallback for old local storage logic
 }
 
 export interface ShoppingList {
-  id: string;
+  _id: string;
+  id?: string; // Fallback
   name: string;
   marketId: string;
-  date: string; // YYYY-MM-DD
+  idUser: string;
+  date?: string; // Optional in API response
   products: Product[];
+  completed: boolean;
+  createdAt: string;
+  updatedAt?: string;
 }

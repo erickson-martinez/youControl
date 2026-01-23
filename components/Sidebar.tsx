@@ -1,7 +1,7 @@
 
 import React from 'react';
 import type { User, MenuPermissions, ActivePage } from '../types';
-import { HomeIcon, CashIcon, UsersIcon, ClipboardListIcon, CogIcon, XIcon, OfficeBuildingIcon, ClockIcon, LogoutIcon, ClipboardCheckIcon, InboxInIcon, DocumentTextIcon, ShoppingCartIcon, BookOpenIcon } from './icons';
+import { HomeIcon, CashIcon, UsersIcon, ClipboardListIcon, CogIcon, XIcon, OfficeBuildingIcon, ClockIcon, LogoutIcon, ClipboardCheckIcon, InboxInIcon, DocumentTextIcon, ShoppingCartIcon, BookOpenIcon, BuildingStoreIcon } from './icons';
 
 interface SidebarProps {
   user: User;
@@ -61,6 +61,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, isOpen, onClose, perm
               {permissions.os && <li><NavLink page="os" onNavigate={onNavigate} icon={<ClipboardListIcon className="w-6 h-6" />} label="OS" active={activePage === 'os'} /></li>}
               {permissions.chamados && <li><NavLink page="chamados" onNavigate={onNavigate} icon={<InboxInIcon className="w-6 h-6" />} label="Chamados" active={activePage === 'chamados'} /></li>}
               {permissions.empresa && <li><NavLink page="empresa" onNavigate={onNavigate} icon={<OfficeBuildingIcon className="w-6 h-6" />} label="Empresa" active={activePage === 'empresa'} /></li>}
+              {permissions.lojas && <li><NavLink page="lojas" onNavigate={onNavigate} icon={<BuildingStoreIcon className="w-6 h-6" />} label="Lojas" active={activePage === 'lojas'} /></li>}
               {permissions.settings && <li><NavLink page="settings" onNavigate={onNavigate} icon={<CogIcon className="w-6 h-6" />} label="Configurações" active={activePage === 'settings'} /></li>}
               {permissions.exemplo && <li><NavLink page="exemplo" onNavigate={onNavigate} icon={<DocumentTextIcon className="w-6 h-6" />} label="Exemplos" active={activePage === 'exemplo'} /></li>}
             </ul>

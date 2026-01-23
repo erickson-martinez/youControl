@@ -4,6 +4,7 @@ import LoginScreen from './components/LoginScreen';
 import Dashboard from './components/Dashboard';
 import Sidebar from './components/Sidebar';
 import EmpresaPage from './components/EmpresaPage';
+import LojasPage from './components/LojasPage';
 import RHPage from './components/RHPage';
 import PontoPage from './components/PontoPage';
 import AprovarHorasPage from './components/AprovarHorasPage';
@@ -20,7 +21,7 @@ import { API_BASE_URL, FALLBACK_PERMISSIONS, NEW_COLLABORATOR_PERMISSIONS } from
 import { PontoStatus as PontoStatusEnum, OSStatus } from './types';
 
 const apiToFrontendPermissions = (apiPerms: string[] | null | undefined, userPhone?: string): MenuPermissions => {
-    const frontendPerms: MenuPermissions = { rh: false, financeiro: false, os: false, ponto: false, aprovarHoras: false, chamados: false, empresa: false, listPurcharse: false, settings: false, exemplo: false, financialManual: false };
+    const frontendPerms: MenuPermissions = { rh: false, financeiro: false, os: false, ponto: false, aprovarHoras: false, chamados: false, empresa: false, lojas: false, listPurcharse: false, settings: false, exemplo: false, financialManual: false };
     if (Array.isArray(apiPerms)) {
         for (const key of apiPerms) {
             if (key in frontendPerms) {
@@ -426,12 +427,13 @@ const App: React.FC = () => {
               {activePage === 'home' && <HomePage user={user} permissions={userPermissions} onNavigate={handleNavigate} />}
               {activePage === 'financeiro' && userPermissions.financeiro && <Dashboard user={user}/>}
               {activePage === 'empresa' && userPermissions.empresa && <EmpresaPage empresas={companiesForManagement} onSave={handleSaveEmpresa} onUpdate={handleUpdateEmpresa} onDelete={handleDeleteEmpresa} onUpdateStatus={handleUpdateEmpresaStatus}/>}
+              {activePage === 'lojas' && userPermissions.lojas && <LojasPage user={user} />}
               {activePage === 'rh' && userPermissions.rh && <RHPage user={user} empresas={companiesForManagement} onCurrentUserUpdate={handleCurrentUserUpdate} />}
               {activePage === 'ponto' && userPermissions.ponto && linkedCompanyId && userCompany && <PontoPage user={user} empresa={userCompany} onPontoUpdate={handlePontoUpdate} />}
               {activePage === 'aprovar-horas' && userPermissions.aprovarHoras && <AprovarHorasPage user={user} empresas={companiesForApproval} currentDate={aprovarHorasDate} setCurrentDate={setAprovarHorasDate} />}
               {activePage === 'os' && userPermissions.os && <OSPage user={user} empresas={empresas} userCompany={userCompany} />}
               {activePage === 'chamados' && userPermissions.chamados && <ChamadosPage managedEmpresas={companiesForManagement} user={user} />}
-              {activePage === 'listPurcharse' && userPermissions.listPurcharse && <ListPurcharsePage />}
+              {activePage === 'listPurcharse' && userPermissions.listPurcharse && <ListPurcharsePage user={user} />}
               {activePage === 'settings' && userPermissions.settings && <SettingsPage currentUser={user} onCurrentUserPermissionsUpdate={handleCurrentUserPermissionsUpdate} />}
               {activePage === 'exemplo' && userPermissions.exemplo && <ExemploPage />}
               {activePage === 'financialManual' && userPermissions.financialManual && <FinancialManualPage />}

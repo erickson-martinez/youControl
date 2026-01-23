@@ -13,6 +13,7 @@ export const ALL_PERMISSION_KEYS_WITH_LABELS: { key: keyof MenuPermissions, labe
     { key: 'aprovarHoras', label: 'Aprovar Horas' },
     { key: 'chamados', label: 'Chamados' },
     { key: 'empresa', label: 'Empresa' },
+    { key: 'lojas', label: 'Lojas' },
     { key: 'settings', label: 'Configurações' },
     { key: 'exemplo', label: 'Exemplos' },
 ];

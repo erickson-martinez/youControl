@@ -4,7 +4,7 @@ import type { User, MenuPermissions, ActivePage } from '../types';
 import { 
     CashIcon, UsersIcon, ClockIcon, ClipboardCheckIcon, ClipboardListIcon, 
     InboxInIcon, OfficeBuildingIcon, ShoppingCartIcon, CogIcon, LockClosedIcon, 
-    DocumentTextIcon, ChevronLeftIcon, ChevronRightIcon
+    DocumentTextIcon, ChevronLeftIcon, ChevronRightIcon, BuildingStoreIcon
 } from './icons';
 
 interface HomePageProps {
@@ -77,6 +77,13 @@ const features: Feature[] = [
         description: 'Cadastre e gerencie os dados das suas empresas diretamente no sistema.',
         icon: <OfficeBuildingIcon className="w-8 h-8 text-blue-accent" />,
         permissionKey: 'empresa'
+    },
+    {
+        key: 'lojas',
+        title: 'Gestão de Lojas',
+        description: 'Cadastre e gerencie suas lojas, mantendo endereços e status atualizados.',
+        icon: <BuildingStoreIcon className="w-8 h-8 text-green-accent" />,
+        permissionKey: 'lojas'
     },
     {
         key: 'settings',

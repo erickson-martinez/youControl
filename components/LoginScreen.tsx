@@ -169,6 +169,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         const user: User = {
           phone: phone.trim(),
           name: data.name || `Usuário ${phone.trim()}`,
+          id: data.id || data._id // Store ID for features that require it (like Shopping Lists)
         };
 
         localStorage.setItem('currentUser', JSON.stringify(user));

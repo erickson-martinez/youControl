@@ -1,129 +1,245 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import type { Market, ShoppingList, Product } from '../types';
-import { PlusIcon, PencilIcon, TrashIcon, ShoppingCartIcon, ChevronLeftIcon } from './icons';
+import type { Market, ShoppingList, Product, User, SharedUser } from '../types';
+import { PlusIcon, PencilIcon, TrashIcon, ChevronDownIcon, ShoppingCartIcon, CheckCircleIcon, ShareIcon } from './icons';
 import ConfirmationModal from './ConfirmationModal';
 import MarketModal from './MarketModal';
 import ShoppingListModal from './ShoppingListModal';
 import ProductModal from './ProductModal';
+import ShareModal from './ShareModal';
+import { API_BASE_URL } from '../constants';
 
 const formatCurrency = (value: number) => {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 };
 
-const formatDate = (dateString: string) => {
-    const [year, month, day] = dateString.split('-');
-    return `${day}/${month}/${year}`;
-};
+interface ListPurcharsePageProps {
+    user: User;
+}
 
-// Hook para interagir com o localStorage
-const useLocalStorage = <T,>(key: string, initialValue: T): [T, (value: T) => void] => {
-    const [storedValue, setStoredValue] = useState<T>(() => {
-        try {
-            const item = window.localStorage.getItem(key);
-            return item ? JSON.parse(item) : initialValue;
-        } catch (error) {
-            console.error(error);
-            return initialValue;
-        }
-    });
-
-    const setValue = (value: T) => {
-        try {
-            const valueToStore = value instanceof Function ? value(storedValue) : value;
-            setStoredValue(valueToStore);
-            window.localStorage.setItem(key, JSON.stringify(valueToStore));
-        } catch (error) {
-            console.error(error);
-        }
-    };
-    return [storedValue, setValue];
-};
-
-const ListPurcharsePage: React.FC = () => {
-    const [markets, setMarkets] = useLocalStorage<Market[]>('markets', []);
-    const [shoppingLists, setShoppingLists] = useLocalStorage<ShoppingList[]>('shoppingLists', []);
+const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
+    const [markets, setMarkets] = useState<Market[]>([]);
+    const [shoppingLists, setShoppingLists] = useState<ShoppingList[]>([]);
     
-    const [selectedList, setSelectedList] = useState<ShoppingList | null>(null);
+    // UI States
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [expandedListId, setExpandedListId] = useState<string | null>(null);
 
-    // Estados dos modais
+    // Modais
     const [isMarketModalOpen, setMarketModalOpen] = useState(false);
     const [isListModalOpen, setListModalOpen] = useState(false);
     const [isProductModalOpen, setProductModalOpen] = useState(false);
     const [isConfirmModalOpen, setConfirmModalOpen] = useState(false);
+    const [isShareModalOpen, setShareModalOpen] = useState(false);
 
-    // Estados para edição e exclusão
+    // Edição / Seleção
     const [editingMarket, setEditingMarket] = useState<Market | null>(null);
     const [editingList, setEditingList] = useState<ShoppingList | null>(null);
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+    const [selectedListForProduct, setSelectedListForProduct] = useState<ShoppingList | null>(null);
+    const [listToShare, setListToShare] = useState<ShoppingList | null>(null);
     const [deletingItem, setDeletingItem] = useState<{ type: 'market' | 'list' | 'product', item: any } | null>(null);
-    
-    const marketMap = useMemo(() => {
-        return markets.reduce((acc, market) => {
-            acc[market.id] = market.name;
-            return acc;
-        }, {} as Record<string, string>);
-    }, [markets]);
 
-    // Funções de CRUD para Mercados
+    // --- API Helpers ---
+    const apiFetch = useCallback(async (url: string, options: RequestInit = {}) => {
+        const response = await fetch(url, {
+            ...options,
+            cache: 'no-store',
+            headers: { 'Content-Type': 'application/json', ...options.headers },
+        });
+        if (!response.ok) {
+            const errorJson = await response.json().catch(() => ({}));
+            const message = errorJson.error || errorJson.message || `Erro do servidor (HTTP ${response.status}).`;
+            throw new Error(message);
+        }
+        return response;
+    }, []);
+
+    // --- Fetch Data ---
+    const fetchData = useCallback(async () => {
+        if (!user.id) {
+            setError("ID do usuário não encontrado. Por favor, faça login novamente.");
+            setIsLoading(false);
+            return;
+        }
+
+        setIsLoading(true);
+        setError(null);
+        try {
+            // Fetch Markets
+            const marketsRes = await apiFetch(`${API_BASE_URL}/markets`);
+            const marketsData = await marketsRes.json();
+            const mappedMarkets = (marketsData || []).map((m: any) => ({ ...m, id: m._id }));
+            setMarkets(mappedMarkets);
+
+            // Fetch Shopping Lists
+            const listsRes = await apiFetch(`${API_BASE_URL}/shopping-lists/${user.id}`);
+            const listsData = await listsRes.json();
+            // Map lists and calculate totals
+            const mappedLists = (listsData || []).map((list: any) => {
+                const products = (list.products || []).map((p: any) => ({
+                    ...p,
+                    id: p._id,
+                    // Garante que value e quantity são números
+                    value: Number(p.value || 0),
+                    quantity: Number(p.quantity || 0),
+                    total: Number(p.total || (Number(p.value || 0) * Number(p.quantity || 0)))
+                }));
+                
+                const total = products.reduce((sum: number, p: Product) => sum + (p.total || 0), 0);
+
+                return {
+                    ...list,
+                    id: list._id,
+                    products,
+                    total
+                };
+            });
+            setShoppingLists(mappedLists);
+
+        } catch (err) {
+            console.error(err);
+            setError((err as Error).message);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [apiFetch, user.id]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
+    // --- Handlers: Markets ---
     const handleSaveMarket = async (marketData: { name: string }) => {
-        if (editingMarket) {
-            setMarkets(markets.map(m => m.id === editingMarket.id ? { ...m, ...marketData } : m));
-        } else {
-            setMarkets([...markets, { id: new Date().toISOString(), ...marketData }]);
-        }
-        setEditingMarket(null);
-        setMarketModalOpen(false);
+        try {
+            if (editingMarket) {
+                await apiFetch(`${API_BASE_URL}/markets/${editingMarket.id}`, { method: 'PATCH', body: JSON.stringify({ ...marketData, phone: user.phone }) });
+            } else {
+                await apiFetch(`${API_BASE_URL}/markets`, { method: 'POST', body: JSON.stringify({ ...marketData, phone: user.phone }) });
+            }
+            await fetchData();
+            setMarketModalOpen(false);
+            setEditingMarket(null);
+        } catch (e) { alert((e as Error).message); }
     };
 
-    const handleDeleteMarket = (marketId: string) => {
-        setMarkets(markets.filter(m => m.id !== marketId));
-        setShoppingLists(shoppingLists.filter(l => l.marketId !== marketId)); // Remove listas associadas
+    const handleDeleteMarket = async (id: string) => {
+        try {
+            await apiFetch(`${API_BASE_URL}/markets?id=${id}&phone=${user.phone}`, { method: 'DELETE' });
+            await fetchData();
+        } catch (e) { alert((e as Error).message); }
     };
 
-    // Funções de CRUD para Listas de Compras
+    // --- Handlers: Lists ---
     const handleSaveList = async (listData: { name: string; marketId: string; date: string }) => {
-        if (editingList) {
-            setShoppingLists(shoppingLists.map(l => l.id === editingList.id ? { ...l, ...listData } : l));
-        } else {
-            setShoppingLists([...shoppingLists, { id: new Date().toISOString(), ...listData, products: [] }]);
+        try {
+            const payload = {
+                ...listData,
+                idUser: user.id,
+                products: [], // New lists start empty
+                completed: false,
+                createdAt: new Date().toISOString() // Or backend handles it
+            };
+
+            if (editingList) {
+                alert("Edição de cabeçalho de lista ainda não implementada na API de exemplo.");
+            } else {
+                await apiFetch(`${API_BASE_URL}/shopping-lists`, { method: 'POST', body: JSON.stringify(payload) });
+            }
+            await fetchData();
+            setListModalOpen(false);
+            setEditingList(null);
+        } catch (e) { alert((e as Error).message); }
+    };
+
+    const handleDeleteList = async (id: string) => {
+        try {
+             await apiFetch(`${API_BASE_URL}/shopping-lists/${id}`, { method: 'DELETE' });
+             await fetchData();
+        } catch(e) {
+             console.error(e);
+             alert("Erro ao excluir lista.");
         }
-        setEditingList(null);
-        setListModalOpen(false);
+    };
+    
+    const handleToggleListComplete = async (list: ShoppingList) => {
+        if (!user.id) return;
+        try {
+            const newStatus = !list.completed;
+            await apiFetch(`${API_BASE_URL}/shopping-lists/${list.id}/complete`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    idUser: user.id,
+                    completed: newStatus
+                })
+            });
+            await fetchData();
+        } catch (e) {
+            alert(`Erro ao atualizar status: ${(e as Error).message}`);
+        }
     };
 
-    const handleDeleteList = (listId: string) => {
-        setShoppingLists(shoppingLists.filter(l => l.id !== listId));
+    const handleShareList = async (sharedUser: SharedUser) => {
+        if (!listToShare || !user.id) return;
+        try {
+            await apiFetch(`${API_BASE_URL}/shopping-lists/${listToShare.id}/share`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    idUser: user.id,
+                    sharedWithPhone: sharedUser.phone
+                })
+            });
+            alert(`Lista compartilhada com sucesso com ${sharedUser.phone}!`);
+            setListToShare(null);
+            setShareModalOpen(false);
+        } catch (e) {
+            throw e; // Modal will catch and alert
+        }
     };
 
-    // Funções de CRUD para Produtos
-    const handleSaveProduct = async (productData: { name: string; quantity: number; price: number }) => {
-        if (!selectedList) return;
+    // --- Handlers: Products ---
+    const handleSaveProduct = async (productData: Omit<Product, 'id' | '_id'>) => {
+        if (!selectedListForProduct || !user.id) return;
         
-        let updatedProducts: Product[];
-        if (editingProduct) {
-             updatedProducts = selectedList.products.map(p => p.id === editingProduct.id ? { ...p, ...productData } : p);
-        } else {
-             updatedProducts = [...selectedList.products, { id: new Date().toISOString(), ...productData }];
+        try {
+            const payload = {
+                idUser: user.id,
+                listId: selectedListForProduct.id,
+                product: {
+                    name: productData.name,
+                    brand: productData.brand,
+                    type: productData.type,
+                    quantity: productData.quantity,
+                    packQuantity: productData.packQuantity,
+                    value: productData.value,
+                    total: productData.total
+                }
+            };
+
+            if (editingProduct) {
+                alert("Edição de item existente requer implementação de endpoint específico.");
+                return;
+            }
+
+            await apiFetch(`${API_BASE_URL}/shopping-lists/${selectedListForProduct.id}/products`, {
+                method: 'PUT',
+                body: JSON.stringify(payload)
+            });
+
+            await fetchData();
+            setProductModalOpen(false);
+            setEditingProduct(null);
+        } catch (e) {
+            alert(`Erro ao salvar produto: ${(e as Error).message}`);
         }
-
-        const updatedList = { ...selectedList, products: updatedProducts };
-        setShoppingLists(shoppingLists.map(l => l.id === selectedList.id ? updatedList : l));
-        setSelectedList(updatedList);
-        setEditingProduct(null);
-        setProductModalOpen(false);
     };
-    
-    const handleDeleteProduct = (productId: string) => {
-        if (!selectedList) return;
-        const updatedProducts = selectedList.products.filter(p => p.id !== productId);
-        const updatedList = { ...selectedList, products: updatedProducts };
 
-        setShoppingLists(shoppingLists.map(l => l.id === selectedList.id ? updatedList : l));
-        setSelectedList(updatedList);
+    const handleDeleteProduct = (product: Product) => {
+         alert("Remoção de produto requer endpoint específico.");
     };
-    
-    // Funções de controle de modais
+
+    // --- Modal Controls ---
     const openConfirmModal = (type: 'market' | 'list' | 'product', item: any) => {
         setDeletingItem({ type, item });
         setConfirmModalOpen(true);
@@ -132,125 +248,131 @@ const ListPurcharsePage: React.FC = () => {
     const handleConfirmDelete = async () => {
         if (!deletingItem) return;
         const { type, item } = deletingItem;
-        if (type === 'market') handleDeleteMarket(item.id);
-        else if (type === 'list') handleDeleteList(item.id);
-        else if (type === 'product') handleDeleteProduct(item.id);
+        if (type === 'market') await handleDeleteMarket(item.id);
+        else if (type === 'list') await handleDeleteList(item.id);
+        else if (type === 'product') handleDeleteProduct(item);
+        
         setConfirmModalOpen(false);
         setDeletingItem(null);
     };
 
-    const totalCost = useMemo(() => {
-        if (!selectedList) return 0;
-        return selectedList.products.reduce((total, product) => total + product.price * product.quantity, 0);
-    }, [selectedList]);
+    const toggleList = (listId: string) => {
+        setExpandedListId(expandedListId === listId ? null : listId);
+    };
 
     return (
-        <>
-            {selectedList ? (
-                <div className="p-4 bg-gray-800 rounded-lg">
-                    <button onClick={() => setSelectedList(null)} className="flex items-center mb-4 text-sm text-blue-400 hover:text-blue-300">
-                        <ChevronLeftIcon className="w-5 h-5 mr-1" />
-                        Voltar para Listas
-                    </button>
-                    <div className="flex flex-col justify-between gap-4 mb-6 md:flex-row md:items-center">
-                        <div>
-                            <h2 className="text-2xl font-bold text-white">{selectedList.name}</h2>
-                            <p className="text-gray-400">{marketMap[selectedList.marketId] || 'Mercado desconhecido'} - {formatDate(selectedList.date)}</p>
-                        </div>
-                        <div className="p-3 text-right bg-gray-700 rounded-lg">
-                            <p className="text-sm text-gray-400">Total da Lista</p>
-                            <p className="text-xl font-bold text-green-accent">{formatCurrency(totalCost)}</p>
-                        </div>
-                    </div>
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold text-white">Produtos</h3>
-                        <button onClick={() => { setEditingProduct(null); setProductModalOpen(true); }} className="flex items-center px-3 py-2 text-sm font-semibold text-white transition-colors rounded-lg bg-blue-accent hover:bg-blue-accent/90">
-                            <PlusIcon className="w-4 h-4 mr-1" />
-                            Adicionar Produto
-                        </button>
-                    </div>
-                    <div className="space-y-3">
-                        {selectedList.products.length > 0 ? (
-                            selectedList.products.map(product => (
-                                <div key={product.id} className="flex items-center justify-between p-3 bg-gray-700 rounded-lg">
-                                    <div>
-                                        <p className="font-semibold text-white">{product.name}</p>
-                                        <p className="text-sm text-gray-400">{product.quantity} x {formatCurrency(product.price)}</p>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                        <p className="font-bold text-white">{formatCurrency(product.quantity * product.price)}</p>
-                                        <button onClick={() => { setEditingProduct(product); setProductModalOpen(true); }} className="p-2 text-gray-400 rounded-md hover:bg-gray-600 hover:text-white"><PencilIcon className="w-4 h-4" /></button>
-                                        <button onClick={() => openConfirmModal('product', product)} className="p-2 text-gray-400 rounded-md hover:bg-gray-600 hover:text-red-accent"><TrashIcon className="w-4 h-4" /></button>
-                                    </div>
-                                </div>
-                            ))
-                        ) : (
-                            <p className="text-center text-gray-500">Nenhum produto na lista.</p>
-                        )}
-                    </div>
-                </div>
+        <div className="p-4 bg-gray-800 rounded-lg">
+            <div className="flex items-center justify-between mb-6">
+                <h1 className="text-2xl font-bold text-white">Lista de Compras</h1>
+                <button 
+                    onClick={() => { setEditingList(null); setListModalOpen(true); }}
+                    className="flex items-center px-4 py-2 font-semibold text-white transition-colors rounded-lg bg-blue-accent hover:bg-blue-accent/90"
+                >
+                    <PlusIcon className="w-5 h-5 mr-2" />
+                    Cadastrar Lista
+                </button>
+            </div>
+
+            {isLoading ? (
+                <p className="text-center text-gray-400">Carregando listas...</p>
+            ) : error ? (
+                <p className="text-center text-red-accent">Erro: {error}</p>
             ) : (
-                <div className="p-4 bg-gray-800 rounded-lg">
-                    <h1 className="mb-6 text-2xl font-bold text-white">Lista de Compras</h1>
-                    <div className="mb-8">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-xl font-semibold text-white">Mercados</h2>
-                            <button onClick={() => { setEditingMarket(null); setMarketModalOpen(true); }} className="flex items-center px-3 py-2 text-sm font-semibold text-white transition-colors rounded-lg bg-blue-accent hover:bg-blue-accent/90">
-                                <PlusIcon className="w-4 h-4 mr-1" />
-                                Adicionar Mercado
-                            </button>
-                        </div>
-                        <div className="space-y-2">
-                            {markets.length > 0 ? (
-                                markets.map(market => (
-                                    <div key={market.id} className="flex items-center justify-between p-3 bg-gray-700 rounded-lg">
-                                        <p className="font-medium text-white">{market.name}</p>
-                                        <div className="space-x-2">
-                                            <button onClick={() => { setEditingMarket(market); setMarketModalOpen(true); }} className="p-2 text-gray-400 rounded-md hover:bg-gray-600 hover:text-white"><PencilIcon className="w-4 h-4" /></button>
-                                            <button onClick={() => openConfirmModal('market', market)} className="p-2 text-gray-400 rounded-md hover:bg-gray-600 hover:text-red-accent"><TrashIcon className="w-4 h-4" /></button>
+                <div className="space-y-4">
+                    {/* Lista de Compras Accordion */}
+                    <div className="space-y-2">
+                        {shoppingLists.length > 0 ? shoppingLists.map(list => {
+                            const isExpanded = expandedListId === list.id;
+                            const isCompleted = list.completed;
+                            return (
+                                <div key={list.id} className={`bg-gray-700 rounded-lg overflow-hidden border-l-4 ${isCompleted ? 'border-green-accent' : 'border-transparent'}`}>
+                                    {/* Header */}
+                                    <div 
+                                        className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-600 transition-colors"
+                                        onClick={() => toggleList(list.id || '')}
+                                    >
+                                        <div className="flex-1 flex items-center gap-3">
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); handleToggleListComplete(list); }}
+                                                className={`p-1 rounded-full hover:bg-gray-500 transition-colors ${isCompleted ? 'text-green-accent' : 'text-gray-400'}`}
+                                                title={isCompleted ? "Reabrir lista" : "Concluir lista"}
+                                            >
+                                                <CheckCircleIcon className="w-6 h-6" />
+                                            </button>
+                                            <h3 className={`font-bold text-lg ${isCompleted ? 'text-green-accent line-through opacity-70' : 'text-white'}`}>
+                                                {list.name}
+                                            </h3>
+                                        </div>
+                                        <div className="flex items-center gap-3 sm:gap-4">
+                                            <span className={`font-bold whitespace-nowrap ${isCompleted ? 'text-gray-400' : 'text-white'}`}>
+                                                {formatCurrency(list.total || 0)}
+                                            </span>
+                                            
+                                            {/* Actions Menu (Prevent accordion toggle) */}
+                                            <div className="flex items-center space-x-1" onClick={(e) => e.stopPropagation()}>
+                                                <button 
+                                                    onClick={() => { setListToShare(list); setShareModalOpen(true); }} 
+                                                    className="p-1 text-gray-400 hover:text-blue-accent rounded-md transition-colors"
+                                                    title="Compartilhar Lista"
+                                                >
+                                                    <ShareIcon className="w-4 h-4" />
+                                                </button>
+                                                <button 
+                                                    onClick={() => openConfirmModal('list', list)} 
+                                                    className="p-1 text-gray-400 hover:text-red-accent rounded-md transition-colors"
+                                                    title="Excluir Lista"
+                                                >
+                                                    <TrashIcon className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                            
+                                            <ChevronDownIcon className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                                         </div>
                                     </div>
-                                ))
-                            ) : (
-                                <p className="text-sm text-center text-gray-500">Nenhum mercado cadastrado.</p>
-                            )}
-                        </div>
-                    </div>
-                    <div>
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-xl font-semibold text-white">Minhas Listas</h2>
-                            <button onClick={() => { setEditingList(null); setListModalOpen(true); }} disabled={markets.length === 0} className="flex items-center px-3 py-2 text-sm font-semibold text-white transition-colors rounded-lg bg-blue-accent hover:bg-blue-accent/90 disabled:bg-gray-600 disabled:cursor-not-allowed">
-                                <PlusIcon className="w-4 h-4 mr-1" />
-                                Nova Lista de Compras
-                            </button>
-                        </div>
-                        {markets.length === 0 && <p className="mb-4 text-xs text-center text-yellow-accent">É necessário cadastrar um mercado antes de criar uma lista.</p>}
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                            {shoppingLists.length > 0 ? (
-                                shoppingLists.map(list => {
-                                    const total = list.products.reduce((sum, p) => sum + p.price * p.quantity, 0);
-                                    return (
-                                    <div key={list.id} className="flex flex-col justify-between p-4 bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-600" onClick={() => setSelectedList(list)}>
-                                        <div>
-                                            <h3 className="font-bold text-white">{list.name}</h3>
-                                            <p className="text-sm text-blue-300">{marketMap[list.marketId] || 'Mercado desconhecido'}</p>
-                                            <p className="text-xs text-gray-400">{formatDate(list.date)}</p>
+
+                                    {/* Body (Products) */}
+                                    {isExpanded && (
+                                        <div className="p-4 bg-gray-750 border-t border-gray-600">
+                                            {list.products.length > 0 ? (
+                                                <ul className="space-y-2">
+                                                    {list.products.map((product, idx) => (
+                                                        <li key={product._id || idx} className="flex justify-between items-center py-2 border-b border-gray-600 last:border-0">
+                                                            <div>
+                                                                <p className="text-white font-medium">{product.name} {product.brand ? `- ${product.brand}` : ''}</p>
+                                                                <p className="text-sm text-gray-400">
+                                                                    {product.quantity} {product.type || 'un'} x {formatCurrency(product.value)}
+                                                                    {product.packQuantity ? ` (Pct: ${product.packQuantity})` : ''}
+                                                                </p>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <p className="text-white font-bold">{formatCurrency(product.total || 0)}</p>
+                                                            </div>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            ) : (
+                                                <p className="text-center text-gray-500 py-2">Nenhum produto nesta lista.</p>
+                                            )}
+                                            
+                                            {!isCompleted && (
+                                                <div className="mt-4 flex justify-end">
+                                                    <button 
+                                                        onClick={() => { setSelectedListForProduct(list); setEditingProduct(null); setProductModalOpen(true); }}
+                                                        className="text-sm text-blue-400 hover:text-blue-300 font-medium flex items-center"
+                                                    >
+                                                        <PlusIcon className="w-4 h-4 mr-1" /> Adicionar Produto
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
-                                        <div className="flex items-end justify-between mt-4">
-                                            <div>
-                                                <p className="text-sm font-bold text-green-accent">{formatCurrency(total)}</p>
-                                            </div>
-                                            <div className="flex space-x-1">
-                                                <button onClick={(e) => { e.stopPropagation(); setEditingList(list); setListModalOpen(true); }} className="p-2 text-gray-400 rounded-md hover:bg-gray-800 hover:text-white"><PencilIcon className="w-4 h-4" /></button>
-                                                <button onClick={(e) => { e.stopPropagation(); openConfirmModal('list', list); }} className="p-2 text-gray-400 rounded-md hover:bg-gray-800 hover:text-red-accent"><TrashIcon className="w-4 h-4" /></button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )})
-                            ) : (
-                                <p className="text-sm text-center text-gray-500 md:col-span-3">Nenhuma lista de compras criada.</p>
-                            )}
-                        </div>
+                                    )}
+                                </div>
+                            );
+                        }) : (
+                            <div className="p-8 text-center bg-gray-700 rounded-lg">
+                                <p className="text-gray-400">Nenhuma lista de compras encontrada.</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -259,6 +381,14 @@ const ListPurcharsePage: React.FC = () => {
             <MarketModal isOpen={isMarketModalOpen} onClose={() => setMarketModalOpen(false)} onSave={handleSaveMarket} marketToEdit={editingMarket} />
             <ShoppingListModal isOpen={isListModalOpen} onClose={() => setListModalOpen(false)} onSave={handleSaveList} listToEdit={editingList} markets={markets} />
             <ProductModal isOpen={isProductModalOpen} onClose={() => setProductModalOpen(false)} onSave={handleSaveProduct} productToEdit={editingProduct} />
+            
+            <ShareModal 
+                isOpen={isShareModalOpen} 
+                onClose={() => { setShareModalOpen(false); setListToShare(null); }} 
+                onShare={handleShareList}
+                showAggregate={false}
+            />
+
             <ConfirmationModal 
                 isOpen={isConfirmModalOpen}
                 onClose={() => setConfirmModalOpen(false)}
@@ -266,7 +396,7 @@ const ListPurcharsePage: React.FC = () => {
                 title={`Confirmar Exclusão`}
                 message={`Tem certeza que deseja excluir "${deletingItem?.item.name}"? Esta ação não pode ser desfeita.`}
             />
-        </>
+        </div>
     );
 };
 

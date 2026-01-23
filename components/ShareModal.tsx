@@ -6,9 +6,10 @@ interface ShareModalProps {
   isOpen: boolean;
   onClose: () => void;
   onShare: (sharedUserInfo: SharedUser) => Promise<void>;
+  showAggregate?: boolean;
 }
 
-const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, onShare }) => {
+const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, onShare, showAggregate = true }) => {
   const [phone, setPhone] = useState('');
   const [aggregate, setAggregate] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
@@ -43,7 +44,7 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, onShare }) => 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75">
       <div className="w-full max-w-lg p-6 mx-4 bg-gray-800 rounded-lg shadow-xl">
-        <h2 className="mb-4 text-2xl font-bold text-white">Compartilhar Finanças</h2>
+        <h2 className="mb-4 text-2xl font-bold text-white">Compartilhar</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="share-phone" className="block mb-1 text-sm font-medium text-gray-300">Telefone do Usuário</label>
@@ -61,18 +62,20 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, onShare }) => 
             />
           </div>
 
-          <div className="flex items-center">
-            <input 
-                type="checkbox" 
-                name="aggregate" 
-                id="aggregate" 
-                checked={aggregate} 
-                onChange={(e) => setAggregate(e.target.checked)} 
-                disabled={isSharing}
-                className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50" 
-            />
-            <label htmlFor="aggregate" className={`ml-2 text-sm text-gray-300 ${isSharing ? 'opacity-50' : ''}`}>Somar valores do usuário compartilhado ao seu saldo</label>
-          </div>
+          {showAggregate && (
+            <div className="flex items-center">
+                <input 
+                    type="checkbox" 
+                    name="aggregate" 
+                    id="aggregate" 
+                    checked={aggregate} 
+                    onChange={(e) => setAggregate(e.target.checked)} 
+                    disabled={isSharing}
+                    className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50" 
+                />
+                <label htmlFor="aggregate" className={`ml-2 text-sm text-gray-300 ${isSharing ? 'opacity-50' : ''}`}>Somar valores do usuário compartilhado ao seu saldo</label>
+            </div>
+          )}
 
           <div className="flex justify-end pt-4 space-x-3">
             <button type="button" onClick={onClose} disabled={isSharing} className="px-4 py-2 font-medium text-gray-300 bg-gray-600 rounded-md hover:bg-gray-700 disabled:opacity-50">Cancelar</button>
