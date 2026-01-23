@@ -7,6 +7,7 @@ import MarketModal from './MarketModal';
 import ShoppingListModal from './ShoppingListModal';
 import ProductModal from './ProductModal';
 import ShareModal from './ShareModal';
+import CompleteListModal from './CompleteListModal';
 import { API_BASE_URL } from '../constants';
 
 const formatCurrency = (value: number) => {
@@ -32,6 +33,7 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
     const [isProductModalOpen, setProductModalOpen] = useState(false);
     const [isConfirmModalOpen, setConfirmModalOpen] = useState(false);
     const [isShareModalOpen, setShareModalOpen] = useState(false);
+    const [isCompleteModalOpen, setCompleteModalOpen] = useState(false);
 
     // Edição / Seleção
     const [editingMarket, setEditingMarket] = useState<Market | null>(null);
@@ -39,6 +41,7 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
     const [selectedListForProduct, setSelectedListForProduct] = useState<ShoppingList | null>(null);
     const [listToShare, setListToShare] = useState<ShoppingList | null>(null);
+    const [listToComplete, setListToComplete] = useState<ShoppingList | null>(null);
     const [deletingItem, setDeletingItem] = useState<{ type: 'market' | 'list' | 'product', item: any } | null>(null);
 
     // --- API Helpers ---
@@ -142,14 +145,40 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
                 createdAt: new Date().toISOString() // Or backend handles it
             };
 
+            let createdList: ShoppingList | null = null;
+
             if (editingList) {
                 alert("Edição de cabeçalho de lista ainda não implementada na API de exemplo.");
+                return;
             } else {
-                await apiFetch(`${API_BASE_URL}/shopping-lists`, { method: 'POST', body: JSON.stringify(payload) });
+                // Captura a resposta para obter a lista criada
+                const response = await apiFetch(`${API_BASE_URL}/shopping-lists`, { method: 'POST', body: JSON.stringify(payload) });
+                const data = await response.json();
+                
+                // Mapeia o retorno para o objeto ShoppingList
+                const rawList = data.shoppingList || data.list || data;
+                if (rawList && (rawList._id || rawList.id)) {
+                    createdList = {
+                        ...rawList,
+                        id: rawList._id || rawList.id,
+                        products: rawList.products || [],
+                        total: 0
+                    };
+                }
             }
+            
             await fetchData();
             setListModalOpen(false);
             setEditingList(null);
+
+            // Se uma nova lista foi criada, abre o modal de produto imediatamente
+            if (createdList) {
+                setSelectedListForProduct(createdList);
+                setEditingProduct(null);
+                // Pequeno delay para garantir transição suave de UI
+                setTimeout(() => setProductModalOpen(true), 100);
+            }
+
         } catch (e) { alert((e as Error).message); }
     };
 
@@ -163,20 +192,68 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
         }
     };
     
-    const handleToggleListComplete = async (list: ShoppingList) => {
+    // Inicia o processo de conclusão ou reabertura
+    const handleToggleListCompleteClick = (list: ShoppingList) => {
+        // VALIDAÇÃO: Não permite concluir se a lista não tiver produtos
+        if (!list.completed && (!list.products || list.products.length === 0)) {
+            alert("Não é possível concluir uma lista sem produtos. Adicione itens antes de finalizar.");
+            return;
+        }
+
+        if (list.completed) {
+            // Se já está completa, apenas reabre (sem gerar despesa negativa)
+            updateListStatus(list, false);
+        } else {
+            // Se vai concluir, abre o modal para gerar despesa
+            setListToComplete(list);
+            setCompleteModalOpen(true);
+        }
+    };
+
+    const updateListStatus = async (list: ShoppingList, status: boolean) => {
         if (!user.id) return;
         try {
-            const newStatus = !list.completed;
             await apiFetch(`${API_BASE_URL}/shopping-lists/${list.id}/complete`, {
                 method: 'PUT',
                 body: JSON.stringify({
                     idUser: user.id,
-                    completed: newStatus
+                    completed: status
                 })
             });
             await fetchData();
         } catch (e) {
             alert(`Erro ao atualizar status: ${(e as Error).message}`);
+        }
+    };
+
+    // Callback do Modal de Conclusão
+    const handleConfirmCompleteList = async (financialData: any) => {
+        if (!listToComplete) return;
+
+        try {
+            // 1. Criar a Transação Financeira (SE NÃO FOR SKIPPED)
+            if (!financialData.skipTransaction) {
+                if (financialData.mode === 'new') {
+                    await apiFetch(`${API_BASE_URL}/transactions/simple`, {
+                        method: 'POST',
+                        body: JSON.stringify(financialData.data)
+                    });
+                } else {
+                    // Adicionar a existente
+                    const { transactionId, ...addValueData } = financialData.data;
+                    await apiFetch(`${API_BASE_URL}/transactions/${transactionId}/add-value`, {
+                        method: 'PATCH',
+                        body: JSON.stringify(addValueData)
+                    });
+                }
+            }
+
+            // 2. Marcar a lista como concluída
+            await updateListStatus(listToComplete, true);
+            setListToComplete(null);
+            
+        } catch (e) {
+            throw e; // O modal vai capturar e mostrar o alerta
         }
     };
 
@@ -203,24 +280,27 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
         if (!selectedListForProduct || !user.id) return;
         
         try {
+            const productPayload = {
+                name: productData.name,
+                brand: productData.brand,
+                type: productData.type,
+                quantity: productData.quantity,
+                packQuantity: productData.packQuantity,
+                value: productData.value,
+                total: productData.total,
+                _id: undefined as string | undefined
+            };
+
+            // Se for edição, anexa o ID do produto
+            if (editingProduct) {
+                productPayload._id = editingProduct._id || editingProduct.id;
+            }
+
             const payload = {
                 idUser: user.id,
                 listId: selectedListForProduct.id,
-                product: {
-                    name: productData.name,
-                    brand: productData.brand,
-                    type: productData.type,
-                    quantity: productData.quantity,
-                    packQuantity: productData.packQuantity,
-                    value: productData.value,
-                    total: productData.total
-                }
+                product: productPayload
             };
-
-            if (editingProduct) {
-                alert("Edição de item existente requer implementação de endpoint específico.");
-                return;
-            }
 
             await apiFetch(`${API_BASE_URL}/shopping-lists/${selectedListForProduct.id}/products`, {
                 method: 'PUT',
@@ -235,8 +315,20 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
         }
     };
 
-    const handleDeleteProduct = (product: Product) => {
-         alert("Remoção de produto requer endpoint específico.");
+    const handleDeleteProduct = async (product: Product, listId: string) => {
+         if (!user.id) return;
+         try {
+            await apiFetch(`${API_BASE_URL}/shopping-lists/${listId}/products`, {
+                method: 'DELETE',
+                body: JSON.stringify({
+                    idUser: user.id,
+                    productId: product._id || product.id
+                })
+            });
+            await fetchData();
+         } catch (e) {
+             alert(`Erro ao remover produto: ${(e as Error).message}`);
+         }
     };
 
     // --- Modal Controls ---
@@ -248,9 +340,13 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
     const handleConfirmDelete = async () => {
         if (!deletingItem) return;
         const { type, item } = deletingItem;
+        
         if (type === 'market') await handleDeleteMarket(item.id);
         else if (type === 'list') await handleDeleteList(item.id);
-        else if (type === 'product') handleDeleteProduct(item);
+        else if (type === 'product') {
+            // Para produto, o 'item' foi enriquecido com 'parentListId' antes de abrir o modal
+            await handleDeleteProduct(item, item.parentListId);
+        }
         
         setConfirmModalOpen(false);
         setDeletingItem(null);
@@ -258,6 +354,17 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
 
     const toggleList = (listId: string) => {
         setExpandedListId(expandedListId === listId ? null : listId);
+    };
+
+    const handleEditProductClick = (list: ShoppingList, product: Product) => {
+        setSelectedListForProduct(list);
+        setEditingProduct(product);
+        setProductModalOpen(true);
+    };
+
+    const handleDeleteProductClick = (list: ShoppingList, product: Product) => {
+        // Passamos o ID da lista junto com o produto para o estado de deleção
+        openConfirmModal('product', { ...product, parentListId: list.id });
     };
 
     return (
@@ -285,26 +392,34 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
                             const isExpanded = expandedListId === list.id;
                             const isCompleted = list.completed;
                             return (
-                                <div key={list.id} className={`bg-gray-700 rounded-lg overflow-hidden border-l-4 ${isCompleted ? 'border-green-accent' : 'border-transparent'}`}>
+                                <div key={list.id} className="bg-gray-700 rounded-lg overflow-hidden">
                                     {/* Header */}
                                     <div 
-                                        className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-600 transition-colors"
+                                        className="p-3 sm:p-4 flex items-center justify-between cursor-pointer hover:bg-gray-600 transition-colors"
                                         onClick={() => toggleList(list.id || '')}
                                     >
-                                        <div className="flex-1 flex items-center gap-3">
-                                            <button 
-                                                onClick={(e) => { e.stopPropagation(); handleToggleListComplete(list); }}
-                                                className={`p-1 rounded-full hover:bg-gray-500 transition-colors ${isCompleted ? 'text-green-accent' : 'text-gray-400'}`}
-                                                title={isCompleted ? "Reabrir lista" : "Concluir lista"}
+                                        <div className="flex-1 flex items-center gap-2 sm:gap-3 min-w-0">
+                                            {/* CHECKBOX DE CONCLUSÃO (Substituindo o antigo botão CheckCircle) */}
+                                            <label
+                                                onClick={(e) => e.stopPropagation()} 
+                                                className="flex items-center space-x-1 sm:space-x-2 cursor-pointer z-10 flex-shrink-0"
+                                                title={isCompleted ? "Reabrir lista" : "Concluir lista e gerar despesa"}
                                             >
-                                                <CheckCircleIcon className="w-6 h-6" />
-                                            </button>
-                                            <h3 className={`font-bold text-lg ${isCompleted ? 'text-green-accent line-through opacity-70' : 'text-white'}`}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isCompleted}
+                                                    onChange={() => handleToggleListCompleteClick(list)}
+                                                    className="w-4 h-4 sm:w-5 sm:h-5 text-green-accent bg-gray-600 border-gray-500 rounded focus:ring-green-accent focus:ring-offset-gray-800"
+                                                />
+                                                <span className={`text-xs sm:text-sm font-medium ${isCompleted ? 'text-gray-400' : 'text-gray-300'}`}>Concluir</span>
+                                            </label>
+
+                                            <h3 className={`font-bold text-base sm:text-lg border-l border-gray-600 pl-2 sm:pl-3 ml-1 truncate ${isCompleted ? 'text-green-accent opacity-70' : 'text-white'}`}>
                                                 {list.name}
                                             </h3>
                                         </div>
-                                        <div className="flex items-center gap-3 sm:gap-4">
-                                            <span className={`font-bold whitespace-nowrap ${isCompleted ? 'text-gray-400' : 'text-white'}`}>
+                                        <div className="flex items-center gap-2 sm:gap-4 ml-2 flex-shrink-0">
+                                            <span className={`font-bold text-sm sm:text-base whitespace-nowrap ${isCompleted ? 'text-gray-400' : 'text-white'}`}>
                                                 {formatCurrency(list.total || 0)}
                                             </span>
                                             
@@ -318,9 +433,16 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
                                                     <ShareIcon className="w-4 h-4" />
                                                 </button>
                                                 <button 
-                                                    onClick={() => openConfirmModal('list', list)} 
-                                                    className="p-1 text-gray-400 hover:text-red-accent rounded-md transition-colors"
-                                                    title="Excluir Lista"
+                                                    onClick={() => {
+                                                        if (isCompleted) {
+                                                            alert("Listas concluídas não podem ser excluídas.");
+                                                            return;
+                                                        }
+                                                        openConfirmModal('list', list);
+                                                    }} 
+                                                    className={`p-1 rounded-md transition-colors ${isCompleted ? 'text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-red-accent'}`}
+                                                    title={isCompleted ? "Listas concluídas não podem ser excluídas" : "Excluir Lista"}
+                                                    disabled={isCompleted}
                                                 >
                                                     <TrashIcon className="w-4 h-4" />
                                                 </button>
@@ -336,16 +458,40 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
                                             {list.products.length > 0 ? (
                                                 <ul className="space-y-2">
                                                     {list.products.map((product, idx) => (
-                                                        <li key={product._id || idx} className="flex justify-between items-center py-2 border-b border-gray-600 last:border-0">
-                                                            <div>
-                                                                <p className="text-white font-medium">{product.name} {product.brand ? `- ${product.brand}` : ''}</p>
-                                                                <p className="text-sm text-gray-400">
+                                                        <li key={product._id || idx} className="flex justify-between items-center py-2 border-b border-gray-600 last:border-0 group">
+                                                            <div 
+                                                                className="flex-1 cursor-pointer min-w-0 pr-2"
+                                                                onClick={() => handleEditProductClick(list, product)}
+                                                                title="Ver detalhes / Editar"
+                                                            >
+                                                                <p className="text-white font-medium truncate">{product.name} {product.brand ? `- ${product.brand}` : ''}</p>
+                                                                <p className="text-sm text-gray-400 truncate">
                                                                     {product.quantity} {product.type || 'un'} x {formatCurrency(product.value)}
                                                                     {product.packQuantity ? ` (Pct: ${product.packQuantity})` : ''}
                                                                 </p>
                                                             </div>
-                                                            <div className="text-right">
-                                                                <p className="text-white font-bold">{formatCurrency(product.total || 0)}</p>
+                                                            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+                                                                <p className="text-white font-bold whitespace-nowrap">{formatCurrency(product.total || 0)}</p>
+                                                                
+                                                                {/* Botões de Ação do Produto (Sempre visíveis se não concluído) */}
+                                                                {!isCompleted && (
+                                                                    <div className="flex items-center gap-1 sm:gap-2 pl-1 sm:pl-2">
+                                                                        <button 
+                                                                            onClick={(e) => { e.stopPropagation(); handleEditProductClick(list, product); }}
+                                                                            className="p-1.5 text-gray-400 hover:text-blue-400 hover:bg-gray-700 rounded-md transition-colors"
+                                                                            title="Editar Produto"
+                                                                        >
+                                                                            <PencilIcon className="w-4 h-4" />
+                                                                        </button>
+                                                                        <button 
+                                                                            onClick={(e) => { e.stopPropagation(); handleDeleteProductClick(list, product); }}
+                                                                            className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded-md transition-colors"
+                                                                            title="Excluir Produto"
+                                                                        >
+                                                                            <TrashIcon className="w-4 h-4" />
+                                                                        </button>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </li>
                                                     ))}
@@ -387,6 +533,15 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
                 onClose={() => { setShareModalOpen(false); setListToShare(null); }} 
                 onShare={handleShareList}
                 showAggregate={false}
+            />
+
+            <CompleteListModal 
+                isOpen={isCompleteModalOpen}
+                onClose={() => { setCompleteModalOpen(false); setListToComplete(null); }}
+                onConfirm={handleConfirmCompleteList}
+                listName={listToComplete?.name || ''}
+                totalAmount={listToComplete?.total || 0}
+                userPhone={user.phone}
             />
 
             <ConfirmationModal 

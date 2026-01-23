@@ -14,8 +14,8 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, pr
     // Campos do formulário
     const [name, setName] = useState('');
     const [brand, setBrand] = useState('');
-    const [type, setType] = useState('pacote');
-    const [quantity, setQuantity] = useState('1');
+    const [type, setType] = useState('');
+    const [quantity, setQuantity] = useState('');
     const [packQuantity, setPackQuantity] = useState('');
     const [price, setPrice] = useState(''); // Valor Unitário
     const [total, setTotal] = useState('');
@@ -35,7 +35,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, pr
             if (productToEdit) {
                 setName(productToEdit.name);
                 setBrand(productToEdit.brand || '');
-                setType(productToEdit.type || 'pacote');
+                setType(productToEdit.type || 'unidade');
                 setQuantity(String(productToEdit.quantity));
                 setPackQuantity(productToEdit.packQuantity ? String(productToEdit.packQuantity) : '');
                 setPrice(String(productToEdit.value));
@@ -49,8 +49,8 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, pr
     const resetForm = () => {
         setName('');
         setBrand('');
-        setType('pacote');
-        setQuantity('1');
+        setType('');
+        setQuantity('');
         setPackQuantity('');
         setPrice('');
         setTotal('');
@@ -138,26 +138,29 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, pr
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const numQuantity = parseFloat(quantity);
-        const numPrice = parseFloat(price);
-        const numPackQuantity = packQuantity ? parseFloat(packQuantity) : undefined;
-        const numTotal = parseFloat(total);
-
-        if (!name.trim() || isNaN(numQuantity) || numQuantity <= 0 || isNaN(numPrice) || numPrice < 0) {
-            alert('Por favor, preencha os campos obrigatórios (Nome, Quantidade, Valor Unitário).');
+        
+        // Validação Apenas Nome Obrigatório
+        if (!name.trim()) {
+            alert('Por favor, preencha o nome do produto.');
             return;
         }
+
+        // Default values para campos opcionais
+        const numQuantity = quantity ? parseFloat(quantity) : 0;
+        const numPrice = price ? parseFloat(price) : 0;
+        const numPackQuantity = packQuantity ? parseFloat(packQuantity) : undefined;
+        const numTotal = total ? parseFloat(total) : 0;
 
         setIsSaving(true);
         try {
             await onSave({ 
                 name: name.trim(), 
                 brand: brand.trim(),
-                type,
-                quantity: numQuantity,
+                type: type, // Opcional, passa string vazia se não selecionado
+                quantity: isNaN(numQuantity) ? 0 : numQuantity,
                 packQuantity: numPackQuantity,
-                value: numPrice,
-                total: numTotal
+                value: isNaN(numPrice) ? 0 : numPrice,
+                total: isNaN(numTotal) ? 0 : numTotal
             });
         } catch (error) {
             alert(`Falha ao salvar: ${(error as Error).message}`);
@@ -252,40 +255,44 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, pr
                                 onChange={(e) => setType(e.target.value)} 
                                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
                             >
+                                <option value="" disabled>Selecione uma opção (Opcional)</option>
                                 {productTypes.map(t => (
                                     <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
                                 ))}
                             </select>
                         </div>
 
-                        {/* Quantidade (Pacote) */}
+                        {/* Quantidade */}
                         <div>
-                            <label htmlFor="product-quantity" className="block mb-1 text-sm font-bold text-gray-300">Quantidade ({type})</label>
+                            <label htmlFor="product-quantity" className="block mb-1 text-sm font-bold text-gray-300">
+                                Quantidade {type ? `(${type})` : ''}
+                            </label>
                             <input 
                                 id="product-quantity" 
                                 type="number" 
                                 value={quantity} 
                                 onChange={(e) => setQuantity(e.target.value)} 
-                                required 
-                                min="0.001" 
+                                min="0" 
                                 step="any" 
                                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
                             />
                         </div>
 
-                        {/* Quantidade no Pacote */}
-                        <div>
-                            <label htmlFor="product-pack-qty" className="block mb-1 text-sm font-bold text-gray-300">Quantidade no Pacote/Caixa</label>
-                            <input 
-                                id="product-pack-qty" 
-                                type="number" 
-                                value={packQuantity} 
-                                onChange={(e) => setPackQuantity(e.target.value)} 
-                                min="1" 
-                                step="1" 
-                                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
-                            />
-                        </div>
+                        {/* Quantidade no Pacote - Condicional */}
+                        {(type === 'pacote' || type === 'caixa') && (
+                            <div>
+                                <label htmlFor="product-pack-qty" className="block mb-1 text-sm font-bold text-gray-300">Quantidade no Pacote/Caixa</label>
+                                <input 
+                                    id="product-pack-qty" 
+                                    type="number" 
+                                    value={packQuantity} 
+                                    onChange={(e) => setPackQuantity(e.target.value)} 
+                                    min="1" 
+                                    step="1" 
+                                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
+                                />
+                            </div>
+                        )}
 
                         {/* Valor Unitário */}
                         <div>
@@ -295,7 +302,6 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, pr
                                 type="number" 
                                 value={price} 
                                 onChange={(e) => setPrice(e.target.value)} 
-                                required 
                                 min="0" 
                                 step="0.01" 
                                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
@@ -310,7 +316,6 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, pr
                                 type="number" 
                                 value={total} 
                                 onChange={(e) => setTotal(e.target.value)} 
-                                required 
                                 step="0.01" 
                                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
                             />
