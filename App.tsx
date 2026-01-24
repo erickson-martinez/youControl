@@ -15,6 +15,7 @@ import SettingsPage from './components/SettingsPage';
 import HomePage from './components/HomePage';
 import ExemploPage from './components/ExemploPage';
 import FinancialManualPage from './components/FinancialManualPage';
+import GraphicsPage from './components/GraphicsPage';
 import LandingPage from './components/LandingPage';
 import { MenuIcon, XCircleIcon } from './components/icons';
 import type { User, MenuPermissions, Empresa, WorkRecord, ActivePage, PontoStatus, OrdemServico, UserCompanyLink } from './types';
@@ -22,7 +23,7 @@ import { API_BASE_URL, FALLBACK_PERMISSIONS, NEW_COLLABORATOR_PERMISSIONS } from
 import { PontoStatus as PontoStatusEnum, OSStatus } from './types';
 
 const apiToFrontendPermissions = (apiPerms: string[] | null | undefined, userPhone?: string): MenuPermissions => {
-    const frontendPerms: MenuPermissions = { rh: false, financeiro: false, os: false, ponto: false, aprovarHoras: false, chamados: false, empresa: false, lojas: false, listPurcharse: false, settings: false, exemplo: false, financialManual: false };
+    const frontendPerms: MenuPermissions = { rh: false, financeiro: false, graficos: false, os: false, ponto: false, aprovarHoras: false, chamados: false, empresa: false, lojas: false, listPurcharse: false, settings: false, exemplo: false, financialManual: false };
     if (Array.isArray(apiPerms)) {
         for (const key of apiPerms) {
             if (key in frontendPerms) {
@@ -123,7 +124,7 @@ const App: React.FC = () => {
             console.warn(`User ${phone} has no permissions. Granting default 'financeiro' access.`);
             await apiFetch(`${API_BASE_URL}/permissions?phone=${phone}&add=true`, {
                 method: 'PATCH',
-                body: JSON.stringify({ permissions: ["financeiro"] }),
+                body: JSON.stringify({ permissions: ["financeiro", "graficos"] }),
             });
             
             const refetchedResponse = await apiFetch(`${API_BASE_URL}/permissions?userPhone=${phone}`);
@@ -144,7 +145,7 @@ const App: React.FC = () => {
             try {
                 await apiFetch(`${API_BASE_URL}/permissions?phone=${phone}&add=true`, {
                     method: 'PATCH',
-                    body: JSON.stringify({ permissions: ["financeiro"] }),
+                    body: JSON.stringify({ permissions: ["financeiro", "graficos"] }),
                 });
 
                 const refetchedResponse = await apiFetch(`${API_BASE_URL}/permissions?userPhone=${phone}`);
@@ -433,6 +434,7 @@ const App: React.FC = () => {
             <>
               {activePage === 'home' && <HomePage user={user} permissions={userPermissions} onNavigate={handleNavigate} />}
               {activePage === 'financeiro' && userPermissions.financeiro && <Dashboard user={user}/>}
+              {activePage === 'graficos' && userPermissions.graficos && <GraphicsPage user={user}/>}
               {activePage === 'empresa' && userPermissions.empresa && <EmpresaPage empresas={companiesForManagement} onSave={handleSaveEmpresa} onUpdate={handleUpdateEmpresa} onDelete={handleDeleteEmpresa} onUpdateStatus={handleUpdateEmpresaStatus}/>}
               {activePage === 'lojas' && userPermissions.lojas && <LojasPage user={user} />}
               {activePage === 'rh' && userPermissions.rh && <RHPage user={user} empresas={companiesForManagement} onCurrentUserUpdate={handleCurrentUserUpdate} />}

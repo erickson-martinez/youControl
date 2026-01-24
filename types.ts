@@ -43,6 +43,7 @@ export interface User {
 export interface MenuPermissions {
   rh: boolean;
   financeiro: boolean;
+  graficos: boolean;
   os: boolean;
   ponto: boolean;
   aprovarHoras: boolean;
@@ -134,7 +135,7 @@ export interface UserCompanyLink {
   status: 'ativo' | 'inativo' | 'pendente';
 }
 
-export type ActivePage = 'home' | 'financeiro' | 'rh' | 'os' | 'settings' | 'empresa' | 'lojas' | 'ponto' | 'aprovar-horas' | 'chamados' | 'listPurcharse' | 'exemplo' | 'financialManual';
+export type ActivePage = 'home' | 'financeiro' | 'graficos' | 'rh' | 'os' | 'settings' | 'empresa' | 'lojas' | 'ponto' | 'aprovar-horas' | 'chamados' | 'listPurcharse' | 'exemplo' | 'financialManual';
 
 // Tipos para Lista de Compras
 export interface Market {

@@ -1,7 +1,7 @@
 
 import React from 'react';
 import type { User, MenuPermissions, ActivePage } from '../types';
-import { HomeIcon, CashIcon, UsersIcon, ClipboardListIcon, CogIcon, XIcon, OfficeBuildingIcon, ClockIcon, LogoutIcon, ClipboardCheckIcon, InboxInIcon, DocumentTextIcon, ShoppingCartIcon, BookOpenIcon, BuildingStoreIcon } from './icons';
+import { HomeIcon, CashIcon, UsersIcon, ClipboardListIcon, CogIcon, XIcon, OfficeBuildingIcon, ClockIcon, LogoutIcon, ClipboardCheckIcon, InboxInIcon, DocumentTextIcon, ShoppingCartIcon, BookOpenIcon, BuildingStoreIcon, ChartBarIcon } from './icons';
 
 interface SidebarProps {
   user: User;
@@ -53,6 +53,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, isOpen, onClose, perm
             <ul className="space-y-2 font-medium">
               <li><NavLink page="home" onNavigate={onNavigate} icon={<HomeIcon className="w-6 h-6" />} label="Início" active={activePage === 'home'} /></li>
               {permissions.financeiro && <li><NavLink page="financeiro" onNavigate={onNavigate} icon={<CashIcon className="w-6 h-6" />} label="Financeiro" active={activePage === 'financeiro'} /></li>}
+              {permissions.graficos && <li><NavLink page="graficos" onNavigate={onNavigate} icon={<ChartBarIcon className="w-6 h-6" />} label="Relatórios" active={activePage === 'graficos'} /></li>}
               {permissions.financialManual && <li><NavLink page="financialManual" onNavigate={onNavigate} icon={<BookOpenIcon className="w-6 h-6" />} label="Manual Financeiro" active={activePage === 'financialManual'} /></li>}
               {permissions.listPurcharse && <li><NavLink page="listPurcharse" onNavigate={onNavigate} icon={<ShoppingCartIcon className="w-6 h-6" />} label="Lista de Compras" active={activePage === 'listPurcharse'} /></li>}
               {permissions.rh && <li><NavLink page="rh" onNavigate={onNavigate} icon={<UsersIcon className="w-6 h-6" />} label="RH" active={activePage === 'rh'} /></li>}
