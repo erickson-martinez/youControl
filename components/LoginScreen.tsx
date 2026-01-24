@@ -6,13 +6,14 @@ import { EyeIcon, EyeSlashIcon } from './icons';
 
 interface LoginScreenProps {
   onLoginSuccess: (user: User) => void;
+  initialRegisterMode?: boolean;
 }
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
+const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, initialRegisterMode = false }) => {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState(''); // For registration
-  const [isRegisterMode, setIsRegisterMode] = useState(false);
+  const [isRegisterMode, setIsRegisterMode] = useState(initialRegisterMode);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);

@@ -15,6 +15,7 @@ import SettingsPage from './components/SettingsPage';
 import HomePage from './components/HomePage';
 import ExemploPage from './components/ExemploPage';
 import FinancialManualPage from './components/FinancialManualPage';
+import LandingPage from './components/LandingPage';
 import { MenuIcon, XCircleIcon } from './components/icons';
 import type { User, MenuPermissions, Empresa, WorkRecord, ActivePage, PontoStatus, OrdemServico, UserCompanyLink } from './types';
 import { API_BASE_URL, FALLBACK_PERMISSIONS, NEW_COLLABORATOR_PERMISSIONS } from './constants';
@@ -36,6 +37,7 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [activePage, setActivePage] = useState<ActivePage>('home');
+  const [authMode, setAuthMode] = useState<'login' | 'register' | null>(null);
   
   const [userPermissions, setUserPermissions] = useState<MenuPermissions | null>(null);
 
@@ -223,6 +225,7 @@ const App: React.FC = () => {
 
   const handleLoginSuccess = (loggedInUser: User) => {
     setUser(loggedInUser);
+    setAuthMode(null);
   };
 
   const companiesForManagement = useMemo(() => {
@@ -298,6 +301,7 @@ const App: React.FC = () => {
     setEmpresas([]);
     setActivePage('home');
     setLinkedCompanyId(null);
+    setAuthMode(null);
     localStorage.removeItem('activeWorkSession');
     localStorage.removeItem('currentUser');
   };
@@ -390,7 +394,10 @@ const App: React.FC = () => {
   }
 
   if (!user) {
-    return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
+    if (authMode) {
+      return <LoginScreen onLoginSuccess={handleLoginSuccess} initialRegisterMode={authMode === 'register'} />;
+    }
+    return <LandingPage onLoginClick={() => setAuthMode('login')} onRegisterClick={() => setAuthMode('register')} />;
   }
   
   let userCompany = empresas.find(e => e.id === linkedCompanyId);
