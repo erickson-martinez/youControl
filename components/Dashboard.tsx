@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import type { User, Transaction, SharedUser, Addition } from '../types';
+import type { User, Transaction, SharedUser, Addition, ActivePage } from '../types';
 import { TransactionType, PaymentStatus } from '../types';
 import MonthNavigator from './MonthNavigator';
 import SummaryCards from './SummaryCards';
@@ -12,14 +12,15 @@ import ConfirmationModal from './ConfirmationModal';
 import AddValueModal from './AddValueModal';
 import OverdueNoticeModal from './OverdueNoticeModal';
 import PendingApprovalModal from './PendingApprovalModal';
-import { XCircleIcon } from './icons';
+import { XCircleIcon, ChartBarIcon } from './icons';
 import { API_BASE_URL } from '../constants';
 
 interface DashboardProps {
   user: User;
+  onNavigate: (page: ActivePage) => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ user }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<TransactionType>(TransactionType.REVENUE);
@@ -432,9 +433,19 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
   return (
     <>
-      <MonthNavigator currentDate={currentDate} setCurrentDate={setCurrentDate} />
+      <MonthNavigator 
+        currentDate={currentDate} 
+        setCurrentDate={setCurrentDate}
+      />
+
       <SummaryCards revenue={summary.revenue} expenses={summary.expenses} balance={summary.balance} total={summary.total} isFutureMonth={isFutureMonth} />
-      <ActionButtons onAddRevenue={() => openModal(TransactionType.REVENUE)} onAddExpense={() => openModal(TransactionType.EXPENSE)} onShare={() => setIsShareModalOpen(true)} isPastMonth={isPastMonth} />
+      <ActionButtons 
+        onAddRevenue={() => openModal(TransactionType.REVENUE)} 
+        onAddExpense={() => openModal(TransactionType.EXPENSE)} 
+        onShare={() => setIsShareModalOpen(true)} 
+        isPastMonth={isPastMonth} 
+        onViewReports={() => onNavigate('graficos')}
+      />
       
       {sharedUsersInfo.length > 0 && (
           <div className="p-4 mb-6 bg-gray-800 rounded-lg">

@@ -13,69 +13,127 @@ const formatCurrency = (value: number) => {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 };
 
-// Componente simples para Gráfico de Barras (CSS puro)
-const BarChart: React.FC<{ revenue: number; expense: number }> = ({ revenue, expense }) => {
-    const total = Math.max(revenue, expense, 1); // Evitar divisão por zero
-    const revHeight = (revenue / total) * 100;
-    const expHeight = (expense / total) * 100;
-
-    return (
-        <div className="flex items-end justify-center h-48 gap-8 mt-4">
-            <div className="w-16 flex flex-col items-center group">
-                <div className="text-xs text-green-400 mb-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {formatCurrency(revenue)}
+// Componente de Gráfico de Rosca (Donut) usando CSS conic-gradient
+const DonutChart: React.FC<{ revenue: number; expense: number }> = ({ revenue, expense }) => {
+    const total = revenue + expense;
+    
+    // Fallback se não houver dados
+    if (total === 0) {
+        return (
+            <div className="flex items-center justify-center h-64 text-gray-500">
+                <div className="w-40 h-40 rounded-full border-4 border-gray-700 flex items-center justify-center">
+                    Sem dados
                 </div>
-                <div 
-                    className="w-full bg-green-500 rounded-t-lg transition-all duration-500 hover:bg-green-400" 
-                    style={{ height: `${Math.max(revHeight, 2)}%` }}
-                ></div>
-                <p className="mt-2 text-sm font-bold text-gray-300">Receitas</p>
             </div>
-            <div className="w-16 flex flex-col items-center group">
-                <div className="text-xs text-red-400 mb-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {formatCurrency(expense)}
-                </div>
+        );
+    }
+
+    const revenuePercent = (revenue / total) * 100;
+    const balance = revenue - expense;
+    
+    return (
+        <div className="flex flex-col items-center justify-center py-6">
+            <div className="relative w-56 h-56">
+                {/* Círculo do Gráfico */}
                 <div 
-                    className="w-full bg-red-500 rounded-t-lg transition-all duration-500 hover:bg-red-400" 
-                    style={{ height: `${Math.max(expHeight, 2)}%` }}
+                    className="w-full h-full rounded-full shadow-2xl transition-all duration-1000 ease-out"
+                    style={{
+                        background: `conic-gradient(#22c55e 0% ${revenuePercent}%, #ef4444 ${revenuePercent}% 100%)`
+                    }}
                 ></div>
-                <p className="mt-2 text-sm font-bold text-gray-300">Despesas</p>
+                {/* Buraco do Donut (Centro) */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center m-auto bg-gray-800 rounded-full w-44 h-44">
+                    <span className="text-sm text-gray-400">Saldo Líquido</span>
+                    <span className={`text-xl font-bold ${balance >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
+                        {formatCurrency(balance)}
+                    </span>
+                </div>
+            </div>
+
+            {/* Legenda */}
+            <div className="flex justify-center gap-8 mt-8 w-full">
+                <div className="flex flex-col items-center">
+                    <div className="flex items-center gap-2 mb-1">
+                        <div className="w-3 h-3 rounded-full bg-red-accent shadow-[0_0_8px_rgba(239,68,68,0.6)]"></div>
+                        <span className="text-xs font-bold text-red-400 uppercase tracking-wide">Despesas</span>
+                    </div>
+                    <span className="text-lg font-bold text-white">{formatCurrency(expense)}</span>
+                    <span className="text-xs text-gray-500">{(100 - revenuePercent).toFixed(1)}%</span>
+                </div>
+                <div className="w-px bg-gray-700 h-12"></div>
+                <div className="flex flex-col items-center">
+                    <div className="flex items-center gap-2 mb-1">
+                        <div className="w-3 h-3 rounded-full bg-green-accent shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
+                        <span className="text-xs font-bold text-green-400 uppercase tracking-wide">Receitas</span>
+                    </div>
+                    <span className="text-lg font-bold text-white">{formatCurrency(revenue)}</span>
+                    <span className="text-xs text-gray-500">{(revenuePercent).toFixed(1)}%</span>
+                </div>
             </div>
         </div>
     );
 };
 
-// Componente simples para Tendência Diária (SVG Polyline)
-const TrendChart: React.FC<{ dailyData: { day: number, balance: number }[] }> = ({ dailyData }) => {
-    if (dailyData.length === 0) return <p className="text-center text-gray-500">Sem dados suficientes.</p>;
+// Componente para Gráfico de Colunas de Transações Diárias (SVG)
+const TransactionColumnChart: React.FC<{ dailyData: { day: number, value: number }[] }> = ({ dailyData }) => {
+    if (dailyData.length === 0) return <p className="text-center text-gray-500 py-8">Sem dados suficientes.</p>;
 
-    const height = 150;
-    const width = 300;
-    const maxVal = Math.max(...dailyData.map(d => d.balance));
-    const minVal = Math.min(...dailyData.map(d => d.balance));
-    const range = maxVal - minVal || 1;
-
-    // Normaliza os pontos
-    const points = dailyData.map((d, index) => {
-        const x = (index / (dailyData.length - 1)) * width;
-        // Inverte Y porque SVG 0 é topo
-        const y = height - ((d.balance - minVal) / range) * height;
-        return `${x},${y}`;
-    }).join(' ');
+    const height = 250;
+    const values = dailyData.map(d => d.value);
+    const maxVal = Math.max(...values, 0);
+    const minVal = Math.min(...values, 0);
+    
+    // Total range with padding
+    const range = (maxVal - minVal) * 1.1; 
+    const effectiveRange = range === 0 ? 100 : range;
+    
+    // Zero line Y position
+    const zeroY = height - ((0 - minVal * 1.1) / effectiveRange) * height; // Adjusted for padding
 
     return (
-        <div className="w-full overflow-hidden">
-            <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto text-blue-500 stroke-current" style={{ minHeight: '150px' }}>
-                <polyline
-                    fill="none"
-                    strokeWidth="3"
-                    points={points}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                />
-            </svg>
-            <div className="flex justify-between mt-2 text-xs text-gray-500">
+        <div className="w-full h-72 flex flex-col pt-4">
+            <div className="flex-1 relative w-full overflow-hidden">
+                <svg 
+                    width="100%" 
+                    height="100%" 
+                    viewBox={`0 0 ${dailyData.length * 12} ${height}`} 
+                    preserveAspectRatio="none"
+                    className="overflow-visible"
+                >
+                    {/* Linhas de Grade (opcional) */}
+                    <line x1="0" y1={zeroY} x2={dailyData.length * 12} y2={zeroY} stroke="#4B5563" strokeWidth="1" strokeDasharray="4" />
+                    
+                    {dailyData.map((d, i) => {
+                        const barHeight = (Math.abs(d.value) / effectiveRange) * height;
+                        const y = d.value >= 0 ? zeroY - barHeight : zeroY;
+                        const color = d.value >= 0 ? '#22c55e' : '#ef4444';
+                        // Width calculation: 12 units per day, bar width 8, spacing 4
+                        const x = i * 12 + 2; 
+                        
+                        return (
+                            <g key={i} className="group">
+                                {/* Invisible hover target for easier tooltip access */}
+                                <rect x={x - 2} y="0" width="12" height={height} fill="transparent" />
+                                
+                                <rect
+                                    x={x}
+                                    y={y}
+                                    width={8}
+                                    height={Math.max(barHeight, 2)} 
+                                    fill={color}
+                                    rx="2"
+                                    className="opacity-80 group-hover:opacity-100 transition-all duration-300 ease-out"
+                                />
+                                <title>{`Dia ${d.day}: ${formatCurrency(d.value)}`}</title>
+                            </g>
+                        );
+                    })}
+                </svg>
+            </div>
+            {/* X Axis Labels */}
+            <div className="flex justify-between mt-2 text-xs text-gray-500 px-2 border-t border-gray-700 pt-2">
                 <span>Dia 1</span>
+                <span>Meio do Mês</span>
                 <span>Fim do Mês</span>
             </div>
         </div>
@@ -117,7 +175,6 @@ const GraphicsPage: React.FC<GraphicsPageProps> = ({ user }) => {
             
             setTransactions(mappedTransactions);
             
-            // Recalcula resumo baseando-se nas transações retornadas (para garantir consistência visual)
             let rev = 0;
             let exp = 0;
             mappedTransactions.forEach((t: Transaction) => {
@@ -142,41 +199,30 @@ const GraphicsPage: React.FC<GraphicsPageProps> = ({ user }) => {
         fetchData();
     }, [fetchData]);
 
-    // Dados Processados para os Gráficos
-    const dailyBalance = useMemo(() => {
-        // Agrupa por dia
+    // Dados Processados
+    const dailyMovement = useMemo(() => {
         const daysMap: Record<number, number> = {};
         const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
         
-        // Inicializa com 0
         for (let i = 1; i <= daysInMonth; i++) daysMap[i] = 0;
 
-        // Acumula saldo dia a dia
-        let accumulated = 0;
-        // Ordena por data
-        const sorted = [...transactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-        
-        sorted.forEach(t => {
+        transactions.forEach(t => {
             const day = parseInt(t.date.split('-')[2]);
             const val = t.type === 'revenue' ? t.amount : -t.amount;
-            // Simplificação: Soma tudo no dia
             if (daysMap[day] !== undefined) {
                 daysMap[day] += val;
             }
         });
 
-        // Transforma em saldo acumulado
         const result = [];
         for (let i = 1; i <= daysInMonth; i++) {
-            accumulated += daysMap[i];
-            result.push({ day: i, balance: accumulated });
+            result.push({ day: i, value: daysMap[i] });
         }
         return result;
     }, [transactions, currentDate]);
 
     const topExpenses = useMemo(() => {
         const expenses = transactions.filter(t => t.type === 'expense');
-        // Agrupa por nome para simular "categoria"
         const grouped: Record<string, number> = {};
         expenses.forEach(t => {
             grouped[t.name] = (grouped[t.name] || 0) + t.amount;
@@ -189,13 +235,15 @@ const GraphicsPage: React.FC<GraphicsPageProps> = ({ user }) => {
     }, [transactions]);
 
     return (
-        <div className="space-y-6">
-            <div className="p-4 bg-gray-800 rounded-lg flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                    <ChartBarIcon className="w-8 h-8 text-blue-accent" />
+        <div className="space-y-6 animate-fade-in">
+            <div className="p-4 bg-gray-800 rounded-lg flex justify-between items-center shadow-lg border border-gray-700/50">
+                <div className="flex items-center gap-4">
+                    <div className="p-3 bg-blue-900/30 rounded-full">
+                        <ChartBarIcon className="w-8 h-8 text-blue-accent" />
+                    </div>
                     <div>
                         <h1 className="text-xl font-bold text-white">Relatórios Mensais</h1>
-                        <p className="text-sm text-gray-400">Visão gráfica das suas finanças</p>
+                        <p className="text-sm text-gray-400">Análise detalhada das suas finanças</p>
                     </div>
                 </div>
             </div>
@@ -203,54 +251,74 @@ const GraphicsPage: React.FC<GraphicsPageProps> = ({ user }) => {
             <MonthNavigator currentDate={currentDate} setCurrentDate={setCurrentDate} />
 
             {isLoading ? (
-                <div className="p-8 text-center bg-gray-800 rounded-lg">Carregando gráficos...</div>
+                <div className="flex flex-col items-center justify-center p-12 bg-gray-800 rounded-lg shadow-lg">
+                    <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="mt-4 text-gray-400">Carregando gráficos...</p>
+                </div>
             ) : error ? (
-                <div className="p-8 text-center bg-gray-800 rounded-lg text-red-400">Erro: {error}</div>
+                <div className="p-8 text-center bg-gray-800 rounded-lg text-red-400 border border-red-900/50">
+                    <p className="font-bold">Ocorreu um erro</p>
+                    <p className="text-sm mt-2">{error}</p>
+                </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Gráfico 1: Balanço */}
-                    <div className="p-6 bg-gray-800 rounded-lg shadow-lg">
-                        <h3 className="text-lg font-bold text-white mb-4 text-center">Entradas vs Saídas</h3>
-                        <div className="flex justify-between items-center mb-2 px-4">
-                            <span className="text-green-400 font-bold flex items-center"><ArrowUpCircleIcon className="w-4 h-4 mr-1"/> {formatCurrency(summary.revenue)}</span>
-                            <span className="text-red-400 font-bold flex items-center"><ArrowDownCircleIcon className="w-4 h-4 mr-1"/> {formatCurrency(summary.expenses)}</span>
-                        </div>
-                        <BarChart revenue={summary.revenue} expense={summary.expenses} />
-                        <p className={`text-center mt-4 font-bold ${summary.balance >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
-                            Saldo: {formatCurrency(summary.balance)}
-                        </p>
+                    {/* Gráfico 1: Balanço (Pizza/Rosca) */}
+                    <div className="p-6 bg-gray-800 rounded-lg shadow-lg border border-gray-700/50">
+                        <h3 className="text-lg font-bold text-white mb-2 text-center">Visão Geral</h3>
+                        <p className="text-xs text-center text-gray-500 mb-4">Distribuição de Receitas e Despesas</p>
+                        <DonutChart revenue={summary.revenue} expense={summary.expenses} />
                     </div>
 
-                    {/* Gráfico 2: Top Despesas */}
-                    <div className="p-6 bg-gray-800 rounded-lg shadow-lg">
-                        <h3 className="text-lg font-bold text-white mb-4">Onde você mais gastou</h3>
-                        {topExpenses.length > 0 ? (
-                            <div className="space-y-4">
-                                {topExpenses.map((item, idx) => (
-                                    <div key={idx}>
-                                        <div className="flex justify-between text-sm mb-1">
-                                            <span className="text-gray-300 truncate w-2/3">{item.name}</span>
-                                            <span className="text-white font-bold">{formatCurrency(item.value)}</span>
-                                        </div>
-                                        <div className="w-full bg-gray-700 rounded-full h-2.5">
-                                            <div 
-                                                className="bg-red-500 h-2.5 rounded-full" 
-                                                style={{ width: `${(item.value / summary.expenses) * 100}%` }}
-                                            ></div>
-                                        </div>
+                    {/* Gráfico 2: Top Despesas (Barras Horizontais) */}
+                    <div className="p-6 bg-gray-800 rounded-lg shadow-lg border border-gray-700/50 flex flex-col">
+                        <h3 className="text-lg font-bold text-white mb-2">Maiores Despesas</h3>
+                        <p className="text-xs text-gray-500 mb-6">Onde seu dinheiro está indo</p>
+                        
+                        <div className="flex-1 flex flex-col justify-center">
+                            {topExpenses.length > 0 ? (
+                                <div className="space-y-5">
+                                    {topExpenses.map((item, idx) => {
+                                        const percentage = Math.min((item.value / summary.expenses) * 100, 100);
+                                        return (
+                                            <div key={idx} className="group">
+                                                <div className="flex justify-between text-sm mb-1.5">
+                                                    <span className="text-gray-200 font-medium truncate w-2/3">{item.name}</span>
+                                                    <span className="text-white font-bold">{formatCurrency(item.value)}</span>
+                                                </div>
+                                                <div className="w-full bg-gray-700/50 rounded-full h-3 overflow-hidden">
+                                                    <div 
+                                                        className="h-full rounded-full transition-all duration-1000 ease-out bg-gradient-to-r from-red-600 to-red-400 shadow-[0_0_10px_rgba(239,68,68,0.4)]"
+                                                        style={{ width: `${Math.max(percentage, 1)}%` }}
+                                                    ></div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div className="text-center py-10">
+                                    <div className="inline-block p-4 rounded-full bg-gray-700/30 mb-3">
+                                        <ArrowDownCircleIcon className="w-8 h-8 text-gray-500" />
                                     </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <p className="text-gray-500 text-center py-8">Nenhuma despesa registrada.</p>
-                        )}
+                                    <p className="text-gray-400">Nenhuma despesa registrada neste mês.</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
-                    {/* Gráfico 3: Evolução do Saldo (Full Width) */}
-                    <div className="p-6 bg-gray-800 rounded-lg shadow-lg md:col-span-2">
-                        <h3 className="text-lg font-bold text-white mb-2">Evolução do Saldo Acumulado (Mês)</h3>
-                        <p className="text-xs text-gray-400 mb-6">Visualização da trajetória do seu saldo dia a dia.</p>
-                        <TrendChart dailyData={dailyBalance} />
+                    {/* Gráfico 3: Movimentação Diária (Barras Verticais) */}
+                    <div className="p-6 bg-gray-800 rounded-lg shadow-lg border border-gray-700/50 md:col-span-2">
+                        <div className="flex justify-between items-end mb-4">
+                            <div>
+                                <h3 className="text-lg font-bold text-white">Fluxo Diário</h3>
+                                <p className="text-xs text-gray-500">Saldo do dia (Entradas - Saídas)</p>
+                            </div>
+                            <div className="flex gap-4 text-xs">
+                                <div className="flex items-center gap-1"><div className="w-2 h-2 bg-green-500 rounded-full"></div>Positivo</div>
+                                <div className="flex items-center gap-1"><div className="w-2 h-2 bg-red-500 rounded-full"></div>Negativo</div>
+                            </div>
+                        </div>
+                        <TransactionColumnChart dailyData={dailyMovement} />
                     </div>
                 </div>
             )}

@@ -1,18 +1,19 @@
 
 import React from 'react';
-import { PlusIcon, MinusIcon, UsersIcon } from './icons';
+import { PlusIcon, MinusIcon, UsersIcon, ChartBarIcon } from './icons';
 
 interface ActionButtonsProps {
   onAddRevenue: () => void;
   onAddExpense: () => void;
   onShare: () => void;
+  onViewReports: () => void;
   isPastMonth: boolean;
 }
 
-const ActionButtons: React.FC<ActionButtonsProps> = ({ onAddRevenue, onAddExpense, onShare, isPastMonth }) => {
+const ActionButtons: React.FC<ActionButtonsProps> = ({ onAddRevenue, onAddExpense, onShare, onViewReports, isPastMonth }) => {
 
   return (
-    <div className="flex gap-4 mb-6">
+    <div className="flex gap-2 mb-6 md:gap-4">
       <button
         onClick={onAddRevenue}
         disabled={isPastMonth}
@@ -42,6 +43,13 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({ onAddRevenue, onAddExpens
           <span className="hidden md:inline">Compartilhar</span>
         </button>
       )}
+      <button
+        onClick={onViewReports}
+        className="flex items-center justify-center px-4 py-2 text-white transition-colors bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 hover:text-purple-400"
+        title="Ver Relatórios e Gráficos"
+      >
+        <ChartBarIcon className="w-6 h-6" />
+      </button>
     </div>
   );
 };

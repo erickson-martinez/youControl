@@ -433,7 +433,7 @@ const App: React.FC = () => {
           ) : (
             <>
               {activePage === 'home' && <HomePage user={user} permissions={userPermissions} onNavigate={handleNavigate} />}
-              {activePage === 'financeiro' && userPermissions.financeiro && <Dashboard user={user}/>}
+              {activePage === 'financeiro' && userPermissions.financeiro && <Dashboard user={user} onNavigate={handleNavigate}/>}
               {activePage === 'graficos' && userPermissions.graficos && <GraphicsPage user={user}/>}
               {activePage === 'empresa' && userPermissions.empresa && <EmpresaPage empresas={companiesForManagement} onSave={handleSaveEmpresa} onUpdate={handleUpdateEmpresa} onDelete={handleDeleteEmpresa} onUpdateStatus={handleUpdateEmpresaStatus}/>}
               {activePage === 'lojas' && userPermissions.lojas && <LojasPage user={user} />}
