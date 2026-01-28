@@ -99,6 +99,23 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
     }, {} as Record<string, string>);
   }, [allUsers]);
 
+  const calculateMonthlyTotals = useCallback((transactionsList: any[]) => {
+      let r = 0;
+      let e = 0;
+      transactionsList.forEach((tx: any) => {
+          const amt = Number(tx.amount || 0);
+          const isMine = tx.ownerPhone === user.phone;
+          // Include if mine OR (shared with me AND aggregate is true)
+          const isSharedWithMe = tx.sharerPhone === user.phone && tx.ownerPhone !== user.phone;
+          
+          if (isMine || (isSharedWithMe && tx.aggregate === true)) {
+              if (tx.type === TransactionType.REVENUE) r += amt;
+              else if (tx.type === TransactionType.EXPENSE) e += amt;
+          }
+      });
+      return { revenue: r, expenses: e };
+  }, [user.phone]);
+
   const fetchTransactions = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -129,28 +146,49 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
         }));
         setTransactions(mappedTransactions);
         
-        const revenue = data.summary?.totalRevenue || 0;
-        const expenses = data.summary?.totalExpense || 0;
+        // Extract shared users info from transactions shared WITH me
+        const sharedInfoMap = new Map<string, SharedUser>();
+        mappedTransactions.forEach((tx: Transaction) => {
+            if (tx.sharerPhone === user.phone && tx.ownerPhone !== user.phone) {
+                sharedInfoMap.set(tx.ownerPhone, { phone: tx.ownerPhone, aggregate: !!tx.aggregate });
+            }
+        });
+        setSharedUsersInfo(Array.from(sharedInfoMap.values()));
+        
+        // Calculate totals manually to respect 'aggregate' flag strictly
+        const { revenue, expenses } = calculateMonthlyTotals(data.transactions || []);
         
         if (isPastMonth) {
             setSummary({
                 revenue,
                 expenses,
-                balance: data.summary?.monthlyBalance || 0,
+                balance: revenue - expenses,
+                // accumulatedBalance from backend might include non-aggregated data, 
+                // but we can't easily re-calc history. Using it as best effort baseline.
                 total: data.summary?.accumulatedBalance || 0,
             });
         } else {
             const today = new Date();
-            const currentMonthData = (currentDate.getMonth() === today.getMonth() && currentDate.getFullYear() === today.getFullYear())
-                ? data 
-                : await (await apiFetch(`${API_BASE_URL}/transactions?phone=${user.phone}&includeShared=true&month=${today.getMonth() + 1}&year=${today.getFullYear()}`)).json();
+            let currentMonthData = data;
             
-            const realBalanceUpToLastMonth = (currentMonthData.summary?.accumulatedBalance || 0) - (currentMonthData.summary?.monthlyBalance || 0);
+            // If looking at a future month, fetch current month data to find baseline balance
+            if (currentDate.getMonth() !== today.getMonth() || currentDate.getFullYear() !== today.getFullYear()) {
+                 const cmResponse = await apiFetch(`${API_BASE_URL}/transactions?phone=${user.phone}&includeShared=true&month=${today.getMonth() + 1}&year=${today.getFullYear()}`);
+                 if (cmResponse.ok) currentMonthData = await cmResponse.json();
+            }
+            
+            const baseAccumulated = currentMonthData.summary?.accumulatedBalance || 0;
+            const baseMonthly = currentMonthData.summary?.monthlyBalance || 0; // This might be "wrong" if backend sums all
+            
+            // We try to approximate the "Start of Current Month" balance
+            // Note: This assumes history is what it is.
+            const realBalanceUpToLastMonth = baseAccumulated - baseMonthly;
             
             let forecastTotal = realBalanceUpToLastMonth;
             const startMonthLoop = new Date(today.getFullYear(), today.getMonth(), 1);
             const endMonthLoop = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
             
+            // Loop from current month up to viewing month to sum predicted balances
             for (let d = new Date(startMonthLoop); d <= endMonthLoop; d.setMonth(d.getMonth() + 1)) {
                 const loopMonth = d.getMonth() + 1;
                 const loopYear = d.getFullYear();
@@ -162,7 +200,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
                     const loopResponse = await apiFetch(`${API_BASE_URL}/transactions?phone=${user.phone}&includeShared=true&month=${loopMonth}&year=${loopYear}`);
                     if (loopResponse.ok) loopData = await loopResponse.json();
                 }
-                if (loopData) forecastTotal += (loopData.summary?.totalRevenue || 0) - (loopData.summary?.totalExpense || 0);
+                
+                if (loopData) {
+                    const { revenue: mRev, expenses: mExp } = calculateMonthlyTotals(loopData.transactions || []);
+                    forecastTotal += (mRev - mExp);
+                }
             }
             
             setSummary({ revenue, expenses, balance: revenue - expenses, total: forecastTotal });
@@ -172,7 +214,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
     } finally {
         setIsLoading(false);
     }
-  }, [currentDate, user.phone, apiFetch, isPastMonth]);
+  }, [currentDate, user.phone, apiFetch, isPastMonth, calculateMonthlyTotals]);
 
 
   useEffect(() => {
@@ -322,8 +364,68 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
     }
   };
 
-  const onShare = async (shareePhone: string, aggregate: boolean) => { console.log("Sharing logic to be implemented via API"); };
-  const onUnshare = (phoneToUnshare: string) => { console.log("Unsharing logic to be implemented via API"); };
+  const onShare = async (shareePhone: string, aggregate: boolean) => {
+    try {
+        // Backend: ownerPhone = myPhone, sharerPhone = targetPhone
+        // Ação: Compartilhar MINHAS transações com OUTRA PESSOA.
+        // myPhone = user.phone (Eu, o dono)
+        // targetPhone = shareePhone (O visualizador)
+        
+        // CORREÇÃO: URL ajustada para /transactions/follow conforme instrução
+        const response = await apiFetch(`${API_BASE_URL}/transactions/follow`, {
+            method: 'POST',
+            body: JSON.stringify({
+                myPhone: user.phone, 
+                targetPhone: shareePhone,
+                aggregate
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: 'Erro na requisição.' }));
+            throw new Error(errorData.error || errorData.message || 'Falha ao compartilhar.');
+        }
+
+        const data = await response.json();
+        alert(`Sucesso! Agora ${shareePhone} pode visualizar suas transações.`);
+        // Não é necessário fetchTransactions() aqui pois compartilhar minhas transações não muda o que eu vejo na minha tela.
+        
+    } catch (error) {
+        console.error("Erro ao compartilhar:", error);
+        alert((error as Error).message);
+    }
+  };
+
+  const onUnshare = async (phoneToUnshare: string) => {
+      // Esta função é chamada na lista "Compartilhado Comigo".
+      // Significa que EU (user.phone) estou vendo as transações de ALGUÉM (phoneToUnshare).
+      // Quero parar de seguir/ver.
+      // O backend mapeia myPhone->Owner, targetPhone->Sharer.
+      // Owner = phoneToUnshare. Sharer = Me.
+      
+      if (!confirm(`Deseja parar de acompanhar as finanças de ${phoneToUnshare}?`)) return;
+
+      try {
+          // CORREÇÃO: URL ajustada para /transactions/follow conforme instrução (assumindo mesma base)
+          const response = await apiFetch(`${API_BASE_URL}/transactions/follow`, {
+              method: 'DELETE',
+              body: JSON.stringify({
+                  myPhone: phoneToUnshare,
+                  targetPhone: user.phone
+              })
+          });
+
+          if (!response.ok) {
+             throw new Error('Falha ao deixar de seguir usuário.');
+          }
+          
+          await fetchTransactions(); // Atualiza a lista para remover o usuário
+          alert(`Você deixou de acompanhar ${phoneToUnshare}.`);
+
+      } catch (error) {
+          alert((error as Error).message);
+      }
+  };
 
   const openModal = (type: TransactionType) => { setEditingTransaction(null); setModalType(type); setIsModalOpen(true); };
   const handleStartEdit = (transaction: Transaction) => { setEditingTransaction(transaction); setIsModalOpen(true); };
@@ -369,7 +471,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
 
   const { personalTransactions, sharedTransactions } = useMemo(() => {
     const personal = transactions.filter(t => t.ownerPhone === user.phone);
-    const shared = transactions.filter(t => t.sharerPhone === user.phone);
+    // Shared transactions are those where I am the sharer (viewer) but not the owner
+    const shared = transactions.filter(t => t.sharerPhone === user.phone && t.ownerPhone !== user.phone);
     return { personalTransactions: personal, sharedTransactions: shared };
   }, [transactions, user.phone]);
 
@@ -449,15 +552,20 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
       
       {sharedUsersInfo.length > 0 && (
           <div className="p-4 mb-6 bg-gray-800 rounded-lg">
-              <h3 className="mb-2 text-sm font-semibold text-white">Compartilhando com:</h3>
+              <h3 className="mb-2 text-sm font-semibold text-white">Compartilhado Comigo (Você segue):</h3>
               <ul className="space-y-2">
                   {sharedUsersInfo.map(sharedUser => (
                       <li key={sharedUser.phone} className="flex items-center justify-between p-2 text-sm bg-gray-700 rounded-md">
                           <div>
-                            <span>{sharedUser.phone}</span>
+                            <span className="font-medium text-white">{userMap[sharedUser.phone] || sharedUser.phone}</span>
                             {sharedUser.aggregate && <span className="ml-2 text-xs text-blue-300">(Somando valores)</span>}
                           </div>
-                          <button onClick={() => onUnshare(sharedUser.phone)} className="text-red-400 transition-colors hover:text-red-300" aria-label={`Parar de compartilhar com ${sharedUser.phone}`}>
+                          <button 
+                            onClick={() => onUnshare(sharedUser.phone)} 
+                            className="text-red-400 transition-colors hover:text-red-300" 
+                            aria-label={`Parar de compartilhar com ${sharedUser.phone}`}
+                            title="Parar de seguir"
+                          >
                             <XCircleIcon className="w-5 h-5" />
                           </button>
                       </li>

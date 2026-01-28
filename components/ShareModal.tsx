@@ -44,10 +44,13 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, onShare, showA
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75">
       <div className="w-full max-w-lg p-6 mx-4 bg-gray-800 rounded-lg shadow-xl">
-        <h2 className="mb-4 text-2xl font-bold text-white">Compartilhar</h2>
+        <h2 className="mb-4 text-2xl font-bold text-white">Compartilhar Suas Finanças</h2>
+        <p className="mb-4 text-sm text-gray-400">
+            Digite o telefone da pessoa que poderá <strong>visualizar</strong> suas transações no painel dela.
+        </p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="share-phone" className="block mb-1 text-sm font-medium text-gray-300">Telefone do Usuário</label>
+            <label htmlFor="share-phone" className="block mb-1 text-sm font-medium text-gray-300">Telefone do Visualizador</label>
             <input 
                 type="tel" 
                 name="phone" 
@@ -73,14 +76,14 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, onShare, showA
                     disabled={isSharing}
                     className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50" 
                 />
-                <label htmlFor="aggregate" className={`ml-2 text-sm text-gray-300 ${isSharing ? 'opacity-50' : ''}`}>Somar valores do usuário compartilhado ao seu saldo</label>
+                <label htmlFor="aggregate" className={`ml-2 text-sm text-gray-300 ${isSharing ? 'opacity-50' : ''}`}>Permitir que ela some seus valores ao total dela</label>
             </div>
           )}
 
           <div className="flex justify-end pt-4 space-x-3">
             <button type="button" onClick={onClose} disabled={isSharing} className="px-4 py-2 font-medium text-gray-300 bg-gray-600 rounded-md hover:bg-gray-700 disabled:opacity-50">Cancelar</button>
             <button type="submit" disabled={isSharing} className="px-4 py-2 font-medium text-white rounded-md bg-blue-accent hover:bg-blue-accent/90 disabled:bg-gray-500 disabled:cursor-wait">
-                {isSharing ? 'Compartilhando...' : 'Compartilhar'}
+                {isSharing ? 'Compartilhando...' : 'Conceder Acesso'}
             </button>
           </div>
         </form>

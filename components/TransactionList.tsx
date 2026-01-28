@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import type { Transaction, Addition } from '../types';
 import { TransactionType, PaymentStatus } from '../types';
-import { CheckCircleIcon, ClockIcon, ArrowUpCircleIcon, ArrowDownCircleIcon, XCircleIcon, ShareIcon, PencilIcon, TrashIcon, ChevronDownIcon, PlusIcon, MinusIcon, BellIcon } from './icons';
+import { CheckCircleIcon, ClockIcon, ArrowUpCircleIcon, ArrowDownCircleIcon, XCircleIcon, ShareIcon, PencilIcon, TrashIcon, ChevronDownIcon, PlusIcon, MinusIcon, BellIcon, EyeIcon } from './icons';
 import ConfirmationModal from './ConfirmationModal';
 
 interface TransactionListProps {
@@ -51,6 +51,10 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
 
     const isRevenue = transaction.type === TransactionType.REVENUE;
     const isPaid = transaction.status === PaymentStatus.PAID;
+    
+    // Logic for shared transactions aggregation visualization
+    const isSharedWithMe = transaction.ownerPhone !== currentUserPhone;
+    const isAggregated = transaction.aggregate === true;
 
     // True when I am the creditor of a controlled revenue and the debtor has sent a payment request. My action is required.
     const isPendingApprovalFromMe = transaction.isControlled && isRevenue && transaction.status === PaymentStatus.PENDING && transaction.ownerPhone === currentUserPhone;
@@ -65,6 +69,11 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
         : isRevenue ? "Adicionar item à receita" : "Adicionar item à despesa";
 
     const activeAdditions = useMemo(() => transaction.additions?.filter(a => !a.removed) || [], [transaction.additions]);
+
+    // Determine styles based on aggregation status
+    const amountClass = (isSharedWithMe && !isAggregated)
+        ? 'text-gray-500 line-through decoration-gray-500/50 opacity-60' // Crossed out if not aggregating
+        : (isRevenue ? 'text-green-accent' : 'text-red-accent'); // Normal colors
 
     const handleSimpleToggle = () => {
         if (isPaid) {
@@ -142,10 +151,16 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
         }
         
         // Case 4: Default for simple (non-controlled) transactions
-        const isSimpleToggleDisabled = isPastMonth && isPaid;
-        const simpleTitle = isSimpleToggleDisabled 
-            ? "Não é possível alterar o status em meses anteriores."
-            : isPaid ? "Marcar como Não Pago" : "Marcar como Pago";
+        // Disable if past month and paid, OR if shared and not aggregated (view only)
+        const isSimpleToggleDisabled = (isPastMonth && isPaid) || (isSharedWithMe && !isAggregated);
+        
+        let simpleTitle = isPaid ? "Marcar como Não Pago" : "Marcar como Pago";
+        if (isPastMonth && isPaid) {
+            simpleTitle = "Não é possível alterar o status em meses anteriores.";
+        } else if (isSharedWithMe && !isAggregated) {
+            simpleTitle = "Apenas visualização. Não é possível alterar o status.";
+        }
+
         return (
              <label 
                 htmlFor={`paid-toggle-${transaction.id}`} 
@@ -214,9 +229,26 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
 
                 {/* RIGHT SIDE - Mobile: space-between, Desktop: justify-end */}
                 <div className="flex flex-wrap items-center justify-between w-full gap-x-4 gap-y-2 sm:w-auto sm:justify-end">
-                    <p className={`font-bold text-base whitespace-nowrap ${isRevenue ? 'text-green-accent' : 'text-red-accent'}`}>
-                        {formatCurrency(transaction.amount)}
-                    </p>
+                    
+                    {/* Amount Display with Aggregation Info */}
+                    <div className="flex flex-col items-end">
+                        <p className={`font-bold text-base whitespace-nowrap ${amountClass}`}>
+                            {formatCurrency(transaction.amount)}
+                        </p>
+                        {isSharedWithMe && (
+                            <div className="mt-1">
+                                {isAggregated ? (
+                                    <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-blue-300 bg-blue-900/40 px-1.5 py-0.5 rounded border border-blue-500/30">
+                                        <PlusIcon className="w-3 h-3" /> Soma no Total
+                                    </span>
+                                ) : (
+                                    <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-gray-400 bg-gray-800/50 px-1.5 py-0.5 rounded border border-gray-600">
+                                        <EyeIcon className="w-3 h-3" /> Apenas Visão
+                                    </span>
+                                )}
+                            </div>
+                        )}
+                    </div>
                     
                     <div className="flex items-center flex-wrap justify-end gap-x-3 gap-y-2">
                         {transaction.isControlled && transaction.ownerPhone === currentUserPhone && transaction.type === TransactionType.EXPENSE && transaction.status === PaymentStatus.UNPAID && (
