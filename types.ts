@@ -167,4 +167,5 @@ export interface ShoppingList {
   completed: boolean;
   createdAt: string;
   updatedAt?: string;
+  total?: number;
 }

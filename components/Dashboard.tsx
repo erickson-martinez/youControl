@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import type { User, Transaction, SharedUser, Addition, ActivePage } from '../types';
 import { TransactionType, PaymentStatus } from '../types';
 import MonthNavigator from './MonthNavigator';
@@ -40,6 +40,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Cache para armazenar respostas da API (Key: "mes-ano", Value: Response Data)
+  const transactionsCache = useRef<Record<string, any>>({});
+
+  const clearCache = () => {
+      transactionsCache.current = {};
+  };
 
   const apiFetch = useCallback(async (url: string, options: RequestInit = {}) => {
     if (!user) throw new Error("Usuário não está logado.");
@@ -122,14 +129,23 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
     try {
         const month = currentDate.getMonth() + 1;
         const year = currentDate.getFullYear();
-        const response = await apiFetch(`${API_BASE_URL}/transactions?phone=${user.phone}&includeShared=true&month=${month}&year=${year}`);
-
-        if (!response.ok) {
-            const errData = await response.json().catch(() => ({ message: 'Falha ao buscar transações.' }));
-            throw new Error(errData.message || 'Erro de rede');
-        }
+        const cacheKey = `${month}-${year}`;
         
-        const data = await response.json();
+        let data;
+
+        // Tenta pegar do cache primeiro
+        if (transactionsCache.current[cacheKey]) {
+            data = transactionsCache.current[cacheKey];
+        } else {
+            const response = await apiFetch(`${API_BASE_URL}/transactions?phone=${user.phone}&includeShared=true&month=${month}&year=${year}`);
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({ message: 'Falha ao buscar transações.' }));
+                throw new Error(errData.message || 'Erro de rede');
+            }
+            data = await response.json();
+            // Salva no cache
+            transactionsCache.current[cacheKey] = data;
+        }
         
         const mappedTransactions = (data.transactions || []).map((tx: any) => ({
             id: tx._id, ownerPhone: tx.ownerPhone, type: tx.type, name: tx.name, amount: tx.amount,
@@ -173,15 +189,22 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
             
             // If looking at a future month, fetch current month data to find baseline balance
             if (currentDate.getMonth() !== today.getMonth() || currentDate.getFullYear() !== today.getFullYear()) {
-                 const cmResponse = await apiFetch(`${API_BASE_URL}/transactions?phone=${user.phone}&includeShared=true&month=${today.getMonth() + 1}&year=${today.getFullYear()}`);
-                 if (cmResponse.ok) currentMonthData = await cmResponse.json();
+                 const cmKey = `${today.getMonth() + 1}-${today.getFullYear()}`;
+                 if (transactionsCache.current[cmKey]) {
+                     currentMonthData = transactionsCache.current[cmKey];
+                 } else {
+                     const cmResponse = await apiFetch(`${API_BASE_URL}/transactions?phone=${user.phone}&includeShared=true&month=${today.getMonth() + 1}&year=${today.getFullYear()}`);
+                     if (cmResponse.ok) {
+                         currentMonthData = await cmResponse.json();
+                         transactionsCache.current[cmKey] = currentMonthData;
+                     }
+                 }
             }
             
             const baseAccumulated = currentMonthData.summary?.accumulatedBalance || 0;
-            const baseMonthly = currentMonthData.summary?.monthlyBalance || 0; // This might be "wrong" if backend sums all
+            const baseMonthly = currentMonthData.summary?.monthlyBalance || 0; 
             
             // We try to approximate the "Start of Current Month" balance
-            // Note: This assumes history is what it is.
             const realBalanceUpToLastMonth = baseAccumulated - baseMonthly;
             
             let forecastTotal = realBalanceUpToLastMonth;
@@ -192,13 +215,22 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
             for (let d = new Date(startMonthLoop); d <= endMonthLoop; d.setMonth(d.getMonth() + 1)) {
                 const loopMonth = d.getMonth() + 1;
                 const loopYear = d.getFullYear();
+                const loopKey = `${loopMonth}-${loopYear}`;
                 
                 let loopData;
+                // Check direct match
                 if (loopYear === year && loopMonth === month) loopData = data;
                 else if (loopYear === today.getFullYear() && loopMonth === today.getMonth() + 1) loopData = currentMonthData;
-                else {
+                else if (transactionsCache.current[loopKey]) {
+                    // Check Cache
+                    loopData = transactionsCache.current[loopKey];
+                } else {
+                    // Fetch and Cache
                     const loopResponse = await apiFetch(`${API_BASE_URL}/transactions?phone=${user.phone}&includeShared=true&month=${loopMonth}&year=${loopYear}`);
-                    if (loopResponse.ok) loopData = await loopResponse.json();
+                    if (loopResponse.ok) {
+                        loopData = await loopResponse.json();
+                        transactionsCache.current[loopKey] = loopData;
+                    }
                 }
                 
                 if (loopData) {
@@ -264,14 +296,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
             let errorMessage = 'Falha ao adicionar transação.';
             try {
                 const errorData = await response.json();
-                // Prioriza 'error', depois 'message'
                 errorMessage = errorData.error || errorData.message || errorMessage;
-            } catch (e) {
-                 // Ignora erro de parse e usa mensagem padrão
-            }
+            } catch (e) { }
             throw new Error(errorMessage);
         }
       }
+      clearCache(); // Limpa cache após mutação
       await fetchTransactions();
     } catch (error) {
       alert((error as Error).message);
@@ -282,6 +312,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
      try {
       const response = await apiFetch(`${API_BASE_URL}/transactions/${updatedTransaction.id}`, { method: 'PUT', body: JSON.stringify(updatedTransaction) });
       if (!response.ok) throw new Error('Falha ao editar transação');
+      clearCache(); // Limpa cache após mutação
       await fetchTransactions();
     } catch (error) {
       alert((error as Error).message);
@@ -304,6 +335,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
           const errorData = await response.json().catch(() => ({ message: 'Erro ao decodificar a resposta de erro da API.'}));
           throw new Error(errorData.message || 'Falha ao excluir transação');
         }
+        clearCache(); // Limpa cache após mutação
         await fetchTransactions();
     } catch (error) {
         alert((error as Error).message);
@@ -323,6 +355,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
         const errorData = await response.json().catch(() => ({ message: 'Falha ao atualizar status. O servidor não respondeu com detalhes.' }));
         throw new Error(errorData.message || errorData.error || 'Falha ao atualizar status.');
       }
+      clearCache(); // Limpa cache após mutação
       await fetchTransactions();
     } catch (error) {
       alert((error as Error).message);
@@ -342,6 +375,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
         const errorData = await response.json().catch(() => ({ message: 'Falha ao atualizar o status da transação.' }));
         throw new Error(errorData.message || 'Falha ao atualizar status');
       }
+      clearCache(); // Limpa cache após mutação
       await fetchTransactions();
     } catch (error) {
       alert((error as Error).message);
@@ -358,6 +392,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
             const errorData = await response.json().catch(() => ({ message: 'Falha ao remover item da transação.' }));
             throw new Error(errorData.message || 'Falha ao remover item.');
         }
+        clearCache(); // Limpa cache após mutação
         await fetchTransactions();
     } catch (error) {
         alert((error as Error).message);
@@ -366,12 +401,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
 
   const onShare = async (shareePhone: string, aggregate: boolean) => {
     try {
-        // Backend: ownerPhone = myPhone, sharerPhone = targetPhone
-        // Ação: Compartilhar MINHAS transações com OUTRA PESSOA.
-        // myPhone = user.phone (Eu, o dono)
-        // targetPhone = shareePhone (O visualizador)
-        
-        // CORREÇÃO: URL ajustada para /transactions/follow conforme instrução
         const response = await apiFetch(`${API_BASE_URL}/transactions/follow`, {
             method: 'POST',
             body: JSON.stringify({
@@ -388,7 +417,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
 
         const data = await response.json();
         alert(`Sucesso! Agora ${shareePhone} pode visualizar suas transações.`);
-        // Não é necessário fetchTransactions() aqui pois compartilhar minhas transações não muda o que eu vejo na minha tela.
         
     } catch (error) {
         console.error("Erro ao compartilhar:", error);
@@ -397,16 +425,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   };
 
   const onUnshare = async (phoneToUnshare: string) => {
-      // Esta função é chamada na lista "Compartilhado Comigo".
-      // Significa que EU (user.phone) estou vendo as transações de ALGUÉM (phoneToUnshare).
-      // Quero parar de seguir/ver.
-      // O backend mapeia myPhone->Owner, targetPhone->Sharer.
-      // Owner = phoneToUnshare. Sharer = Me.
-      
       if (!confirm(`Deseja parar de acompanhar as finanças de ${phoneToUnshare}?`)) return;
 
       try {
-          // CORREÇÃO: URL ajustada para /transactions/follow conforme instrução (assumindo mesma base)
           const response = await apiFetch(`${API_BASE_URL}/transactions/follow`, {
               method: 'DELETE',
               body: JSON.stringify({
@@ -419,7 +440,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
              throw new Error('Falha ao deixar de seguir usuário.');
           }
           
-          await fetchTransactions(); // Atualiza a lista para remover o usuário
+          clearCache(); // Limpa cache pois a lista de compartilhados mudou
+          await fetchTransactions();
           alert(`Você deixou de acompanhar ${phoneToUnshare}.`);
 
       } catch (error) {
@@ -460,6 +482,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
         const errorData = await response.json().catch(() => ({ message: 'Falha ao adicionar valor.' }));
         throw new Error(errorData.message || 'Falha ao adicionar valor.');
       }
+      clearCache(); // Limpa cache após mutação
       await fetchTransactions();
     } catch (error) {
       alert((error as Error).message);
@@ -471,17 +494,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
 
   const { personalTransactions, sharedTransactions } = useMemo(() => {
     const personal = transactions.filter(t => t.ownerPhone === user.phone);
-    // Shared transactions are those where I am the sharer (viewer) but not the owner
     const shared = transactions.filter(t => t.sharerPhone === user.phone && t.ownerPhone !== user.phone);
     return { personalTransactions: personal, sharedTransactions: shared };
   }, [transactions, user.phone]);
 
   const overdueTransactions = useMemo(() => {
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Normalize to the start of the day
+    today.setHours(0, 0, 0, 0); 
     return personalTransactions.filter(t => {
       if (t.status !== PaymentStatus.UNPAID) return false;
-      // Parse YYYY-MM-DD as local date to avoid timezone issues with `new Date()`
       const parts = t.date.split('-').map(p => parseInt(p, 10));
       const dueDate = new Date(parts[0], parts[1] - 1, parts[2]);
       return dueDate < today;
@@ -489,7 +510,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   }, [personalTransactions]);
 
   useEffect(() => {
-    if (isLoading) return; // Only run after initial load is complete
+    if (isLoading) return; 
 
     const hasShownModal = sessionStorage.getItem('overdueModalShown');
     if (overdueTransactions.length > 0 && !hasShownModal) {
@@ -502,7 +523,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
     return transactions.filter(t =>
       t.isControlled &&
       t.status === PaymentStatus.PENDING &&
-      t.ownerPhone === user.phone && // Eu sou o credor
+      t.ownerPhone === user.phone && 
       t.type === TransactionType.REVENUE
     );
   }, [transactions, user.phone]);
