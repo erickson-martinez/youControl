@@ -48,6 +48,23 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
       transactionsCache.current = {};
   };
 
+  // Remove do cache apenas o mês especificado pela data "YYYY-MM-DD"
+  const invalidateCache = (dateString: string) => {
+      if (!dateString) return;
+      try {
+          const [year, month] = dateString.split('-');
+          // A chave do cache é "mês-ano" (ex: 10-2026), onde mês não tem zero à esquerda se for < 10 no parse atual, 
+          // mas vamos garantir consistência com o fetchTransactions que usa (month + 1).
+          // O split retorna strings. parseInt remove zeros à esquerda.
+          const key = `${parseInt(month)}-${year}`;
+          if (transactionsCache.current[key]) {
+              delete transactionsCache.current[key];
+          }
+      } catch (e) {
+          console.error("Erro ao invalidar cache para data:", dateString);
+      }
+  };
+
   const apiFetch = useCallback(async (url: string, options: RequestInit = {}) => {
     if (!user) throw new Error("Usuário não está logado.");
     return fetch(url, {
@@ -285,11 +302,16 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
     try {
       const transactionPromises = [];
       const totalTransactions = (repeatCount || 0) + 1;
+      
+      // Se houver repetição, invalidamos tudo por segurança pois afeta múltiplos meses futuros
+      const shouldClearAllCache = totalTransactions > 1;
+
       for (let i = 0; i < totalTransactions; i++) {
         const transactionForMonth = { ...baseTransactionData, date: addMonths(baseTransactionData.date, i) };
         const payload = createTransactionPayload(transactionForMonth);
         transactionPromises.push(apiFetch(endpoint, { method: 'POST', body: JSON.stringify(payload) }));
       }
+      
       const responses = await Promise.all(transactionPromises);
       for (const response of responses) {
         if (!response.ok) {
@@ -301,7 +323,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
             throw new Error(errorMessage);
         }
       }
-      clearCache(); // Limpa cache após mutação
+      
+      if (shouldClearAllCache) {
+          clearCache();
+      } else {
+          // Limpa apenas o mês da transação adicionada
+          invalidateCache(baseTransactionData.date);
+      }
+      
       await fetchTransactions();
     } catch (error) {
       alert((error as Error).message);
@@ -312,7 +341,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
      try {
       const response = await apiFetch(`${API_BASE_URL}/transactions/${updatedTransaction.id}`, { method: 'PUT', body: JSON.stringify(updatedTransaction) });
       if (!response.ok) throw new Error('Falha ao editar transação');
-      clearCache(); // Limpa cache após mutação
+      
+      // Invalida o mês da nova data
+      invalidateCache(updatedTransaction.date);
+      
+      // Se a data original era diferente, invalida o mês antigo também
+      if (editingTransaction && editingTransaction.date !== updatedTransaction.date) {
+          invalidateCache(editingTransaction.date);
+      }
+
       await fetchTransactions();
     } catch (error) {
       alert((error as Error).message);
@@ -335,7 +372,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
           const errorData = await response.json().catch(() => ({ message: 'Erro ao decodificar a resposta de erro da API.'}));
           throw new Error(errorData.message || 'Falha ao excluir transação');
         }
-        clearCache(); // Limpa cache após mutação
+        
+        // Limpa cache apenas do mês da transação excluída
+        invalidateCache(transactionToDelete.date);
+        
         await fetchTransactions();
     } catch (error) {
         alert((error as Error).message);
@@ -355,7 +395,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
         const errorData = await response.json().catch(() => ({ message: 'Falha ao atualizar status. O servidor não respondeu com detalhes.' }));
         throw new Error(errorData.message || errorData.error || 'Falha ao atualizar status.');
       }
-      clearCache(); // Limpa cache após mutação
+      
+      invalidateCache(transaction.date);
+      
       await fetchTransactions();
     } catch (error) {
       alert((error as Error).message);
@@ -375,7 +417,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
         const errorData = await response.json().catch(() => ({ message: 'Falha ao atualizar o status da transação.' }));
         throw new Error(errorData.message || 'Falha ao atualizar status');
       }
-      clearCache(); // Limpa cache após mutação
+      
+      invalidateCache(transaction.date);
+      
       await fetchTransactions();
     } catch (error) {
       alert((error as Error).message);
@@ -384,6 +428,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   
   const onDeleteSubTransaction = async (transactionId: string, description: string, ownerPhone: string) => {
     try {
+        const transaction = transactions.find(t => t.id === transactionId);
+        
         const response = await apiFetch(`${API_BASE_URL}/transactions/${transactionId}/subtract-value`, {
             method: 'PATCH',
             body: JSON.stringify({ description, ownerPhone }),
@@ -392,7 +438,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
             const errorData = await response.json().catch(() => ({ message: 'Falha ao remover item da transação.' }));
             throw new Error(errorData.message || 'Falha ao remover item.');
         }
-        clearCache(); // Limpa cache após mutação
+        
+        if (transaction) {
+            invalidateCache(transaction.date);
+        } else {
+            clearCache(); // Fallback se não encontrar a transação no state atual
+        }
+
         await fetchTransactions();
     } catch (error) {
         alert((error as Error).message);
@@ -440,7 +492,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
              throw new Error('Falha ao deixar de seguir usuário.');
           }
           
-          clearCache(); // Limpa cache pois a lista de compartilhados mudou
+          clearCache(); // Limpa tudo pois afeta o conjunto de dados globalmente
           await fetchTransactions();
           alert(`Você deixou de acompanhar ${phoneToUnshare}.`);
 
@@ -482,7 +534,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
         const errorData = await response.json().catch(() => ({ message: 'Falha ao adicionar valor.' }));
         throw new Error(errorData.message || 'Falha ao adicionar valor.');
       }
-      clearCache(); // Limpa cache após mutação
+      
+      invalidateCache(transactionToAddValueTo.date);
+      
       await fetchTransactions();
     } catch (error) {
       alert((error as Error).message);
