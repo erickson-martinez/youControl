@@ -207,9 +207,11 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
                                 {transaction.isControlled && (
                                     <span className="flex items-center ml-2" title={`Transação controlada com: ${transaction.counterpartyPhone}`}>
                                         <ShareIcon className="w-3.5 h-3.5 text-purple-400" />
-                                        <span className="ml-1.5 text-xs">
-                                            {transaction.counterpartyPhone}
-                                        </span>
+                                        {transaction.counterpartyPhone !== '67984726821' && (
+                                            <span className="ml-1.5 text-xs">
+                                                {transaction.counterpartyPhone}
+                                            </span>
+                                        )}
                                     </span>
                                 )}
                             </p>
