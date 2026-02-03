@@ -135,7 +135,7 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
     };
 
     // --- Handlers: Lists ---
-    const handleSaveList = async (listData: { name: string; marketId: string; date: string }) => {
+    const handleSaveList = async (listData: { name: string; marketId: string; date: string; latitude?: number | null; longitude?: number | null }) => {
         try {
             const payload = {
                 ...listData,
