@@ -1,7 +1,12 @@
 
 import React from 'react';
 import type { User, MenuPermissions, ActivePage } from '../types';
-import { HomeIcon, CashIcon, UsersIcon, ClipboardListIcon, CogIcon, XIcon, OfficeBuildingIcon, ClockIcon, LogoutIcon, ClipboardCheckIcon, InboxInIcon, DocumentTextIcon, ShoppingCartIcon, BookOpenIcon, BuildingStoreIcon, ChartBarIcon } from './icons';
+import { 
+    HomeIcon, CashIcon, UsersIcon, ClipboardListIcon, CogIcon, XIcon, 
+    OfficeBuildingIcon, ClockIcon, LogoutIcon, ClipboardCheckIcon, 
+    InboxInIcon, DocumentTextIcon, ShoppingCartIcon, BookOpenIcon, 
+    BuildingStoreIcon, ChartBarIcon, BurgerIcon, MotorcycleIcon, MonitorIcon, TagIcon 
+} from './icons';
 
 interface SidebarProps {
   user: User;
@@ -30,6 +35,7 @@ const NavLink: React.FC<{ page: ActivePage, onNavigate: (page: ActivePage) => vo
 );
 
 const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, isOpen, onClose, permissions, activePage, onNavigate, canClockIn }) => {
+  
   return (
     <>
       {/* Overlay para fechar em modo mobile */}
@@ -52,6 +58,19 @@ const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, isOpen, onClose, perm
           <nav className="flex-1">
             <ul className="space-y-2 font-medium">
               <li><NavLink page="home" onNavigate={onNavigate} icon={<HomeIcon className="w-6 h-6" />} label="Início" active={activePage === 'home'} /></li>
+              
+              {/* Módulo Lanchonete */}
+              {(permissions.burgerDashboard || permissions.burgerPOS || permissions.burgerProducts || permissions.burgerClient) && (
+                  <li className="px-4 pt-4 pb-2 text-xs font-semibold text-gray-500 uppercase">Lanchonete</li>
+              )}
+              {permissions.burgerDashboard && <li><NavLink page="burgerDashboard" onNavigate={onNavigate} icon={<ChartBarIcon className="w-6 h-6" />} label="Dash Lanchonete" active={activePage === 'burgerDashboard'} /></li>}
+              {permissions.burgerPOS && <li><NavLink page="burgerPOS" onNavigate={onNavigate} icon={<MonitorIcon className="w-6 h-6" />} label="Caixa / Pedidos" active={activePage === 'burgerPOS'} /></li>}
+              {permissions.burgerWaiter && <li><NavLink page="burgerWaiter" onNavigate={onNavigate} icon={<UsersIcon className="w-6 h-6" />} label="Garçom" active={activePage === 'burgerWaiter'} /></li>}
+              {permissions.burgerProducts && <li><NavLink page="burgerProducts" onNavigate={onNavigate} icon={<TagIcon className="w-6 h-6" />} label="Produtos Burger" active={activePage === 'burgerProducts'} /></li>}
+              {permissions.burgerDelivery && <li><NavLink page="burgerDelivery" onNavigate={onNavigate} icon={<MotorcycleIcon className="w-6 h-6" />} label="Entregas" active={activePage === 'burgerDelivery'} /></li>}
+              {permissions.burgerClient && <li><NavLink page="burgerClient" onNavigate={onNavigate} icon={<BurgerIcon className="w-6 h-6" />} label="Fazer Pedido (Cardápio)" active={activePage === 'burgerClient'} /></li>}
+
+              <li className="px-4 pt-4 pb-2 text-xs font-semibold text-gray-500 uppercase">Geral</li>
               {permissions.financeiro && <li><NavLink page="financeiro" onNavigate={onNavigate} icon={<CashIcon className="w-6 h-6" />} label="Financeiro" active={activePage === 'financeiro'} /></li>}
               {permissions.graficos && <li><NavLink page="graficos" onNavigate={onNavigate} icon={<ChartBarIcon className="w-6 h-6" />} label="Relatórios" active={activePage === 'graficos'} /></li>}
               {permissions.financialManual && <li><NavLink page="financialManual" onNavigate={onNavigate} icon={<BookOpenIcon className="w-6 h-6" />} label="Manual Financeiro" active={activePage === 'financialManual'} /></li>}

@@ -17,13 +17,27 @@ import ExemploPage from './components/ExemploPage';
 import FinancialManualPage from './components/FinancialManualPage';
 import GraphicsPage from './components/GraphicsPage';
 import LandingPage from './components/LandingPage';
+// Burger Imports
+import BurgerProductsPage from './components/BurgerProductsPage';
+import BurgerPOSPage from './components/BurgerPOSPage';
+import BurgerWaiterPage from './components/BurgerWaiterPage';
+import BurgerDeliveryPage from './components/BurgerDeliveryPage';
+import BurgerDashboardPage from './components/BurgerDashboardPage';
+import BurgerClientOrderPage from './components/BurgerClientOrderPage';
+
 import { MenuIcon, XCircleIcon } from './components/icons';
 import type { User, MenuPermissions, Empresa, WorkRecord, ActivePage, PontoStatus, OrdemServico, UserCompanyLink } from './types';
 import { API_BASE_URL, FALLBACK_PERMISSIONS, NEW_COLLABORATOR_PERMISSIONS } from './constants';
 import { PontoStatus as PontoStatusEnum, OSStatus } from './types';
 
 const apiToFrontendPermissions = (apiPerms: string[] | null | undefined, userPhone?: string): MenuPermissions => {
-    const frontendPerms: MenuPermissions = { rh: false, financeiro: false, graficos: false, os: false, ponto: false, aprovarHoras: false, chamados: false, empresa: false, lojas: false, listPurcharse: false, settings: false, exemplo: false, financialManual: false };
+    // Default structure including burger perms
+    const frontendPerms: MenuPermissions = { 
+        rh: false, financeiro: false, graficos: false, os: false, ponto: false, aprovarHoras: false, 
+        chamados: false, empresa: false, lojas: false, listPurcharse: false, settings: false, 
+        exemplo: false, financialManual: false,
+        burgerProducts: false, burgerPOS: false, burgerWaiter: false, burgerDelivery: false, burgerDashboard: false, burgerClient: false
+    };
     if (Array.isArray(apiPerms)) {
         for (const key of apiPerms) {
             if (key in frontendPerms) {
@@ -35,6 +49,15 @@ const apiToFrontendPermissions = (apiPerms: string[] | null | undefined, userPho
 };
 
 const App: React.FC = () => {
+  // --- ROTA PÚBLICA (CARDÁPIO DIGITAL) ---
+  // Verifica se a URL é do cardápio público (removido /burger conforme solicitado)
+  const isPublicMenu = window.location.pathname === '/cardapio' || window.location.search.includes('view=menu');
+
+  if (isPublicMenu) {
+    return <BurgerClientOrderPage />;
+  }
+  // ---------------------------------------
+
   const [user, setUser] = useState<User | null>(null);
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [activePage, setActivePage] = useState<ActivePage>('home');
@@ -47,7 +70,7 @@ const App: React.FC = () => {
   const [linkedCompanyId, setLinkedCompanyId] = useState<string | null>(null);
   const [aprovarHorasDate, setAprovarHorasDate] = useState(new Date());
   
-  const [isLoading, setIsLoading] = useState(true); // Start with loading true
+  const [isLoading, setIsLoading] = useState(true); 
   const [apiError, setApiError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -58,15 +81,15 @@ const App: React.FC = () => {
         if (savedUser && savedUser.phone && savedUser.name) {
           setUser(savedUser);
         } else {
-          setIsLoading(false); // Stop loading if user data is invalid
+          setIsLoading(false); 
         }
       } else {
-        setIsLoading(false); // Stop loading if no user is saved
+        setIsLoading(false); 
       }
     } catch (error) {
       console.error("Failed to parse user from localStorage", error);
       localStorage.removeItem('currentUser');
-      setIsLoading(false); // Stop loading on error
+      setIsLoading(false); 
     }
   }, []);
 
@@ -104,7 +127,6 @@ const App: React.FC = () => {
       const serverErrorMessage = errorJson.error || errorJson.message || `Erro do servidor (HTTP ${response.status}).`;
       console.error(`API call to ${url} failed with status ${response.status}:`, serverErrorMessage);
       
-      // Don't set global error for 404s, as they are often handled locally
       if (response.status !== 404 && !apiError) {
         setApiError(serverErrorMessage);
       }
@@ -195,7 +217,6 @@ const App: React.FC = () => {
     } catch (error) {
         if (!(error as Error).message.includes('404')) {
           console.error("Falha ao buscar empresas.", error);
-          // Don't re-throw for 404s, just return empty.
         } else {
            throw error;
         }
@@ -233,12 +254,9 @@ const App: React.FC = () => {
     if (!user || !userPermissions) return [];
 
     const managedCompanies = new Map<string, Empresa>();
-
-    // Add all owned companies
     const owned = empresas.filter(e => e.isOwnedByCurrentUser);
     owned.forEach(e => managedCompanies.set(e.id, e));
 
-    // Add the linked company if the user has management permissions
     const canManage = userPermissions.rh || userPermissions.empresa || userPermissions.chamados;
     if (canManage && linkedCompanyId) {
         const linkedCompany = empresas.find(e => e.id === linkedCompanyId);
@@ -254,12 +272,9 @@ const App: React.FC = () => {
     if (!user || !userPermissions) return [];
 
     const approvalCompanies = new Map<string, Empresa>();
-
-    // Add all owned companies
     const owned = empresas.filter(e => e.isOwnedByCurrentUser);
     owned.forEach(e => approvalCompanies.set(e.id, e));
     
-    // Add the linked company if the user has approval permissions
     const hasApprovalPerms = userPermissions.aprovarHoras;
     if (hasApprovalPerms && linkedCompanyId) {
         const linkedCompany = empresas.find(e => e.id === linkedCompanyId);
@@ -370,7 +385,6 @@ const App: React.FC = () => {
   }, [user, refreshCompanies, fetchUserPermissions]);
   
   const handlePontoUpdate = useCallback(async () => {
-    // This function is now a placeholder. The AprovarHorasPage will refetch its own data.
   }, []);
 
   const handleCurrentUserPermissionsUpdate = useCallback(async () => {
@@ -446,6 +460,15 @@ const App: React.FC = () => {
               {activePage === 'settings' && userPermissions.settings && <SettingsPage currentUser={user} onCurrentUserPermissionsUpdate={handleCurrentUserPermissionsUpdate} />}
               {activePage === 'exemplo' && userPermissions.exemplo && <ExemploPage />}
               {activePage === 'financialManual' && userPermissions.financialManual && <FinancialManualPage />}
+              
+              {/* Lanchonete Modules */}
+              {activePage === 'burgerProducts' && userPermissions.burgerProducts && <BurgerProductsPage user={user} />}
+              {activePage === 'burgerPOS' && userPermissions.burgerPOS && <BurgerPOSPage user={user} />}
+              {activePage === 'burgerWaiter' && userPermissions.burgerWaiter && <BurgerWaiterPage />}
+              {activePage === 'burgerDelivery' && userPermissions.burgerDelivery && <BurgerDeliveryPage user={user} />}
+              {activePage === 'burgerDashboard' && userPermissions.burgerDashboard && <BurgerDashboardPage />}
+              {/* Agora o BurgerClientOrderPage é renderizado internamente quando selecionado no menu */}
+              {activePage === 'burgerClient' && userPermissions.burgerClient && <BurgerClientOrderPage />}
             </>
           )}
         </main>

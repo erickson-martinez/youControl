@@ -54,6 +54,13 @@ export interface MenuPermissions {
   settings: boolean;
   exemplo: boolean;
   financialManual: boolean;
+  // Módulo Hamburgueria
+  burgerProducts: boolean;
+  burgerPOS: boolean;
+  burgerWaiter: boolean;
+  burgerDelivery: boolean;
+  burgerDashboard: boolean;
+  burgerClient: boolean;
 }
 
 export interface Empresa {
@@ -135,7 +142,7 @@ export interface UserCompanyLink {
   status: 'ativo' | 'inativo' | 'pendente';
 }
 
-export type ActivePage = 'home' | 'financeiro' | 'graficos' | 'rh' | 'os' | 'settings' | 'empresa' | 'lojas' | 'ponto' | 'aprovar-horas' | 'chamados' | 'listPurcharse' | 'exemplo' | 'financialManual';
+export type ActivePage = 'home' | 'financeiro' | 'graficos' | 'rh' | 'os' | 'settings' | 'empresa' | 'lojas' | 'ponto' | 'aprovar-horas' | 'chamados' | 'listPurcharse' | 'exemplo' | 'financialManual' | 'burgerProducts' | 'burgerPOS' | 'burgerWaiter' | 'burgerDelivery' | 'burgerDashboard' | 'burgerClient';
 
 // Tipos para Lista de Compras
 export interface Market {
@@ -168,4 +175,47 @@ export interface ShoppingList {
   createdAt: string;
   updatedAt?: string;
   total?: number;
+}
+
+// Tipos Hamburgueria
+export interface BurgerProduct {
+  id: number;
+  name: string;
+  price: number;
+  description?: string;
+  image?: string;
+  status: 'Ativo' | 'Inativo';
+}
+
+export interface BurgerOrderItem {
+  id: number;
+  qty: number;
+}
+
+export interface BurgerOrder {
+  id: number;
+  time: string;
+  name: string;
+  phone?: string;
+  paymentMethod: string;
+  delivery: boolean;
+  address?: {
+    address: string;
+    number: string;
+    neighborhood?: string;
+  } | null;
+  items: BurgerOrderItem[];
+  total: number;
+  deliveryFee?: number;
+  status: 'Aguardando' | 'Preparando' | 'Em preparo' | 'Pronto' | 'A caminho' | 'Entregue' | 'Recebido' | 'Aberto' | 'Fechamento' | 'Cancelado' | 'Retirada';
+  payment: boolean;
+  statusHistory?: Record<string, { start: string; end: string | null }>;
+  tableNumber?: string;
+  notes?: string;
+  pickupTime?: string;
+}
+
+export interface BurgerTable {
+  id: number;
+  occupied: boolean;
 }

@@ -2,6 +2,9 @@
 import type { MenuPermissions } from './types';
 
 export const API_BASE_URL = 'https://stok-5ytv.onrender.com';
+export const BURGER_API_URL = 'https://stok-5ytv.onrender.com'; // URL da API da Lanchonete atualizada para produção
+// Imagem atualizada para um Hamburguer Gourmet com Bacon e Queijo derretido (Estilo Artesanal)
+export const DEFAULT_BURGER_IMAGE = 'https://images.unsplash.com/photo-1594212699903-ec8a3eca50f5?q=80&w=800&auto=format&fit=crop';
 
 export const ALL_PERMISSION_KEYS_WITH_LABELS: { key: keyof MenuPermissions, label: string }[] = [
     { key: 'financeiro', label: 'Financeiro' },
@@ -17,6 +20,12 @@ export const ALL_PERMISSION_KEYS_WITH_LABELS: { key: keyof MenuPermissions, labe
     { key: 'lojas', label: 'Lojas' },
     { key: 'settings', label: 'Configurações' },
     { key: 'exemplo', label: 'Exemplos' },
+    { key: 'burgerProducts', label: 'Burguer: Produtos' },
+    { key: 'burgerPOS', label: 'Burguer: Caixa/Pedidos' },
+    { key: 'burgerWaiter', label: 'Burguer: Garçom' },
+    { key: 'burgerDelivery', label: 'Burguer: Entrega' },
+    { key: 'burgerDashboard', label: 'Burguer: Dashboard' },
+    { key: 'burgerClient', label: 'Burguer: Cliente (Cardápio)' },
 ];
 
 export const ALL_PERMISSION_KEYS = ALL_PERMISSION_KEYS_WITH_LABELS.map(p => p.key);
