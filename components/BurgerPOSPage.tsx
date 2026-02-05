@@ -236,21 +236,38 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                 }
             }
 
-            // 2. Gera registros individuais para o histórico do caixa
+            // 2. Fecha o status do pedido de abertura para evitar reabertura automática
+            if (activeRegisterOrder) {
+                 const userNameParam = encodeURIComponent(user.name);
+                 try {
+                    await fetch(`${BURGER_API_URL}/api/orders/${activeRegisterOrder.id}/status/${userNameParam}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ newStatus: 'Fechado', currentStatus: 'Aberto' })
+                    });
+                 } catch (err) {
+                     console.error("Erro ao fechar status do pedido de abertura", err);
+                 }
+            }
+
+            // 3. Gera registros individuais para o histórico do caixa
             const now = new Date().toISOString();
             
+            // Subtrai o valor da abertura do dinheiro para o registro visual
+            const cashForRecord = currentTotals.cash - (openingAmount - currentTotals.withdrawals) ;
+
             // Array com os registros que devem ser criados
             const recordsToCreate = [
                 { type: 'Cartão', value: currentTotals.credit + currentTotals.debit },
                 { type: 'Pix', value: currentTotals.pix },
-                { type: 'Dinheiro', value: currentTotals.cash },
+                { type: 'Dinheiro', value: cashForRecord }, // Valor ajustado (Vendas - Retiradas)
                 { type: 'Taxa de Entrega', value: currentTotals.deliveryFees }
             ];
 
-            // Itera e cria apenas os que têm valor > 0
+            // Itera e cria apenas os que têm valor diferente de 0
             for (let i = 0; i < recordsToCreate.length; i++) {
                 const record = recordsToCreate[i];
-                if (record.value > 0) {
+                if (record.value !== 0) {
                     try {
                         const closingOrderPayload = {
                             id: Date.now() + i, // Incrementa ID para evitar colisão
