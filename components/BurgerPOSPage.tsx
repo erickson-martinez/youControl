@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { BURGER_API_URL } from '../constants';
 import type { BurgerOrder, BurgerProduct, User } from '../types';
@@ -38,6 +37,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
     // Estado para Abertura de Caixa
     const [isOpeningModalOpen, setIsOpeningModalOpen] = useState(false);
     const [initialCash, setInitialCash] = useState('');
+    const [openingName, setOpeningName] = useState(''); // Novo estado para o nome da abertura
     const [isOpeningRegister, setIsOpeningRegister] = useState(false);
 
     // Estado para Fechamento de Caixa
@@ -228,6 +228,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
             }
 
             setInitialCash('');
+            setOpeningName(`ABERTURA DE CAIXA (${user.name})`);
             setIsOpeningModalOpen(true);
         }
     };
@@ -285,6 +286,34 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                 }
             }
 
+            // 6. NOVO: Cria um registro visual de Fechamento no momento atual para aparecer no topo da lista
+            try {
+                const now = new Date().toISOString();
+                const closingOrderPayload = {
+                    id: Date.now(),
+                    time: now,
+                    name: `FECHAMENTO DE CAIXA (${user.name})`,
+                    items: [],
+                    total: currentTotals.cash, // Registra o valor em dinheiro que está sendo encerrado
+                    status: 'Fechamento',
+                    payment: true,
+                    paymentMethod: 'Dinheiro',
+                    delivery: false,
+                    notes: `Caixa fechado. Total Movimentado: R$ ${currentTotals.total.toFixed(2)}`,
+                    phone: user.phone,
+                    onclient: false,
+                    burger: config?.burger
+                };
+
+                await fetch(`${BURGER_API_URL}/api/orders`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(closingOrderPayload)
+                });
+            } catch (err) {
+                console.error("Erro ao criar registro visual de fechamento", err);
+            }
+
             setIsRegisterOpen(false);
             setRegisterOpenTime(null);
             localStorage.setItem('cashRegisterOpen', 'false');
@@ -317,6 +346,11 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
             return;
         }
 
+        if (!openingName.trim()) {
+            alert("Por favor, insira uma descrição para a abertura.");
+            return;
+        }
+
         setIsOpeningRegister(true);
         try {
             const now = new Date().toISOString();
@@ -325,7 +359,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
             const openingOrderPayload = {
                 id: Date.now(),
                 time: now,
-                name: `ABERTURA DE CAIXA (${user.name})`,
+                name: openingName, // Usa o nome digitado no modal
                 items: [],
                 total: amount,
                 status: 'Aberto', // Status definido como Aberto
@@ -504,8 +538,8 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
     const totals = getTotals();
 
     const renderActionButtons = (order: BurgerOrder) => {
-        // Não mostrar ações para Abertura de Caixa ou Retirada
-        if (order.name.includes('ABERTURA DE CAIXA') || order.status === 'Retirada') return null;
+        // Não mostrar ações para Abertura/Fechamento de Caixa ou Retirada
+        if (order.name.includes('ABERTURA DE CAIXA') || order.name.includes('FECHAMENTO DE CAIXA') || order.status === 'Retirada') return null;
 
         const actions = [];
         if (!order.payment) {
@@ -635,7 +669,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                         {orders.length === 0 ? (
                             <tr><td colSpan={4} className="p-4 text-center">Nenhum pedido.</td></tr>
                         ) : orders.map(order => {
-                            const isOpening = order.name.includes('ABERTURA DE CAIXA');
+                            const isOpening = order.name.includes('ABERTURA DE CAIXA') || order.name.includes('FECHAMENTO DE CAIXA');
                             const isWithdraw = order.status === 'Retirada';
                             return (
                             <React.Fragment key={order.id}>
@@ -652,7 +686,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                                     <td className="px-4 py-3">{new Date(order.time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
                                     <td className="px-4 py-3">
                                         <span className={`px-2 py-1 text-xs rounded ${
-                                            order.status === 'Entregue' || order.status === 'Aberto' ? 'bg-green-900 text-green-200' : 
+                                            order.status === 'Entregue' || order.status === 'Aberto' || order.status === 'Fechamento' ? 'bg-green-900 text-green-200' : 
                                             order.status === 'Cancelado' ? 'bg-red-900 text-red-200' :
                                             order.status === 'Retirada' ? 'bg-red-900 text-white' :
                                             'bg-yellow-900 text-yellow-200'
@@ -824,6 +858,197 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                                     Confirmar Recebimento
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Abertura de Caixa */}
+            {isOpeningModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 backdrop-blur-sm px-4">
+                    <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-sm overflow-hidden animate-fade-in-up border border-gray-700">
+                        <div className="p-6">
+                            <h3 className="text-lg font-bold text-white mb-4">Abrir Caixa</h3>
+                            <form onSubmit={handleConfirmOpenRegister}>
+                                <div className="mb-4">
+                                    <label htmlFor="openingName" className="block text-sm font-medium text-gray-300 mb-1">
+                                        Nome do Caixa / Operador
+                                    </label>
+                                    <input
+                                        type="text"
+                                        id="openingName"
+                                        required
+                                        value={openingName}
+                                        onChange={(e) => setOpeningName(e.target.value)}
+                                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder-gray-400"
+                                        placeholder="Ex: Caixa Manhã - João"
+                                        autoFocus
+                                    />
+                                </div>
+                                <div className="mb-4">
+                                    <label htmlFor="initialCash" className="block text-sm font-medium text-gray-300 mb-1">
+                                        Fundo de Troco (R$)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        id="initialCash"
+                                        step="0.01"
+                                        min="0"
+                                        required
+                                        value={initialCash}
+                                        onChange={(e) => setInitialCash(e.target.value)}
+                                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder-gray-400"
+                                        placeholder="0.00"
+                                    />
+                                </div>
+                                <div className="flex justify-end gap-3">
+                                    <button 
+                                        type="button"
+                                        onClick={() => setIsOpeningModalOpen(false)}
+                                        disabled={isOpeningRegister}
+                                        className="px-4 py-2 bg-gray-600 text-gray-300 text-sm font-medium rounded-md hover:bg-gray-500 transition-colors"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button 
+                                        type="submit"
+                                        disabled={isOpeningRegister}
+                                        className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                                    >
+                                        {isOpeningRegister && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                                        Abrir
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Fechamento de Caixa */}
+            {isCloseModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 backdrop-blur-sm px-4">
+                    <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-md overflow-hidden animate-fade-in-up border border-gray-700">
+                        <div className="p-6">
+                            <h3 className="text-xl font-bold text-white mb-4">Fechamento de Caixa</h3>
+                            
+                            <div className="space-y-4 mb-6">
+                                <div className="bg-gray-700 p-3 rounded-lg border border-gray-600">
+                                    <p className="text-sm text-gray-400 mb-1">Data do Fechamento</p>
+                                    <p className="text-lg font-bold text-white">{new Date().toLocaleDateString('pt-BR')}</p>
+                                </div>
+
+                                <div className="bg-gray-700 p-3 rounded-lg border border-gray-600">
+                                    <p className="text-sm text-gray-400 mb-2">Resumo de Valores</p>
+                                    <div className="space-y-1">
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-gray-300">Dinheiro:</span>
+                                            <span className="font-medium text-green-400">R$ {totals.cash.toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-gray-300">PIX:</span>
+                                            <span className="font-medium text-blue-400">R$ {totals.pix.toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-gray-300">Cartão:</span>
+                                            <span className="font-medium text-yellow-400">R$ {(totals.credit + totals.debit).toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm text-red-300">
+                                            <span>Retiradas:</span>
+                                            <span>R$ {totals.withdrawals.toFixed(2)}</span>
+                                        </div>
+                                        <div className="border-t border-gray-600 mt-2 pt-2 flex justify-between text-base">
+                                            <span className="font-bold text-white">Total Líquido:</span>
+                                            <span className="font-bold text-white">R$ {totals.total.toFixed(2)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-gray-400 italic">
+                                    Ao confirmar, uma receita no valor total será lançada automaticamente no seu módulo financeiro.
+                                </p>
+                            </div>
+
+                            <div className="flex justify-end gap-3">
+                                <button 
+                                    type="button"
+                                    onClick={() => setIsCloseModalOpen(false)}
+                                    disabled={isClosingRegister}
+                                    className="px-4 py-2 bg-gray-600 text-gray-300 text-sm font-medium rounded-md hover:bg-gray-500 transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button 
+                                    type="button"
+                                    onClick={handleConfirmCloseRegister}
+                                    disabled={isClosingRegister}
+                                    className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                                >
+                                    {isClosingRegister && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                                    Confirmar Fechamento
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Retirada (Sangria) */}
+            {isWithdrawModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 backdrop-blur-sm px-4">
+                    <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-sm overflow-hidden animate-fade-in-up border border-gray-700">
+                        <div className="p-6">
+                            <h3 className="text-lg font-bold text-white mb-4">Sangria / Retirada do Caixa</h3>
+                            <form onSubmit={handleConfirmWithdraw}>
+                                <div className="mb-4">
+                                    <label htmlFor="withdrawName" className="block text-sm font-medium text-gray-300 mb-1">
+                                        Nome/Motivo
+                                    </label>
+                                    <input
+                                        type="text"
+                                        id="withdrawName"
+                                        required
+                                        value={withdrawName}
+                                        onChange={(e) => setWithdrawName(e.target.value)}
+                                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 text-white placeholder-gray-400"
+                                        placeholder="Ex: Pagamento Fornecedor"
+                                        autoFocus
+                                    />
+                                </div>
+                                <div className="mb-4">
+                                    <label htmlFor="withdrawAmount" className="block text-sm font-medium text-gray-300 mb-1">
+                                        Valor da Retirada (R$)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        id="withdrawAmount"
+                                        step="0.01"
+                                        min="0.01"
+                                        required
+                                        value={withdrawAmount}
+                                        onChange={(e) => setWithdrawAmount(e.target.value)}
+                                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 text-white placeholder-gray-400"
+                                        placeholder="0.00"
+                                    />
+                                </div>
+                                <div className="flex justify-end gap-3">
+                                    <button 
+                                        type="button"
+                                        onClick={() => setIsWithdrawModalOpen(false)}
+                                        disabled={isWithdrawing}
+                                        className="px-4 py-2 bg-gray-600 text-gray-300 text-sm font-medium rounded-md hover:bg-gray-500 transition-colors"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button 
+                                        type="submit"
+                                        disabled={isWithdrawing}
+                                        className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                                    >
+                                        {isWithdrawing && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                                        Retirar
+                                    </button>
+                                </div>
+                            </form>
                         </div>
                     </div>
                 </div>
