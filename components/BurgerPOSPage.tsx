@@ -581,11 +581,11 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
             {isRegisterOpen && (
                 <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
                     <div className="bg-gray-700 p-3 rounded">
-                        <span className="text-gray-400 text-xs">Total Geral (Líquido)</span>
+                        <span className="text-gray-400 text-xs">Total</span>
                         <p className="text-xl font-bold text-white">R$ {totals.total.toFixed(2)}</p>
                     </div>
                     <div className="bg-gray-700 p-3 rounded">
-                        <span className="text-gray-400 text-xs">Dinheiro (Em Caixa)</span>
+                        <span className="text-gray-400 text-xs">Dinheiro</span>
                         <p className="text-lg font-bold text-green-400">R$ {totals.cash.toFixed(2)}</p>
                     </div>
                     <div className="bg-gray-700 p-3 rounded">
