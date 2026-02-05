@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { BURGER_API_URL } from '../constants';
 import type { BurgerOrder, BurgerProduct, User } from '../types';
-import { ChevronDownIcon, ClockIcon, CheckCircleIcon, MapPinIcon, LockClosedIcon, MinusIcon, XCircleIcon } from './icons';
+import { ChevronDownIcon, LockClosedIcon, MinusIcon, XCircleIcon, MapPinIcon } from './icons';
 
 interface BurgerPOSPageProps {
     user: User;
@@ -37,7 +37,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
     // Estado para Abertura de Caixa
     const [isOpeningModalOpen, setIsOpeningModalOpen] = useState(false);
     const [initialCash, setInitialCash] = useState('');
-    const [openingName, setOpeningName] = useState(''); // Novo estado para o nome da abertura
+    const [openingName, setOpeningName] = useState(''); 
     const [isOpeningRegister, setIsOpeningRegister] = useState(false);
 
     // Estado para Fechamento de Caixa
@@ -51,7 +51,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
     // Estado para Retirada (Sangria)
     const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
     const [withdrawAmount, setWithdrawAmount] = useState('');
-    const [withdrawName, setWithdrawName] = useState(''); // Novo estado para nome da retirada
+    const [withdrawName, setWithdrawName] = useState(''); 
     const [isWithdrawing, setIsWithdrawing] = useState(false);
 
     // Fetch Data defined early to be used in effects
@@ -94,7 +94,6 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
 
                     if (isOwner || isCashier) {
                         setIsAuthorized(true);
-                        // fetchData will be triggered by the polling useEffect when config is set
                     } else {
                         setIsAuthorized(false);
                     }
@@ -117,16 +116,14 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
     useEffect(() => {
         if (!isAuthorized || !config) return;
 
-        // Note: Removed local storage reliance for 'open' state to prefer server state via orders check
-        fetchData(); // Initial fetch
-        const interval = setInterval(fetchData, 10000); // Polling every 10s
+        fetchData(); 
+        const interval = setInterval(fetchData, 10000); 
         return () => clearInterval(interval);
     }, [isAuthorized, config, fetchData]);
 
     // Sincroniza o estado do caixa com base nos pedidos vindos do servidor
     useEffect(() => {
         if (orders.length > 0) {
-            // Procura por um pedido de Abertura de Caixa que esteja com status 'Aberto'
             const activeRegisterOrder = orders.find(o => 
                 o.name.includes('ABERTURA DE CAIXA') && 
                 o.status === 'Aberto'
@@ -136,15 +133,9 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                 if (!isRegisterOpen) {
                     setIsRegisterOpen(true);
                     setRegisterOpenTime(activeRegisterOrder.time);
-                    // Atualiza local storage apenas para persistência offline/refresh rápido
                     localStorage.setItem('cashRegisterOpen', 'true');
                     localStorage.setItem('cashRegisterOpenTime', activeRegisterOrder.time);
                 }
-            } else {
-                // Se não encontrar nenhum aberto no servidor, mas estiver aberto localmente,
-                // mantemos a decisão do usuário (pode ter deletado o pedido), 
-                // ou poderíamos forçar fechar. Por segurança, não forçamos fechar automaticamente aqui
-                // para evitar conflitos de delay, mas confiamos no 'activeRegisterOrder' para bloquear novas aberturas.
             }
         }
     }, [orders, isRegisterOpen]);
@@ -156,20 +147,13 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
 
         const openTime = new Date(registerOpenTime).getTime();
 
-        // Filtra pedidos que foram pagos E ocorreram depois (ou durante) a abertura do caixa atual
         const sessionOrders = orders.filter(o => {
             if (!o.payment) return false;
             const orderTime = new Date(o.time).getTime();
-            // Compara timestamps para garantir que só pegamos pedidos desta sessão
-            // Usamos >= para incluir o pedido de abertura (Fundo de Troco) se ele tiver a mesma hora exata
             return orderTime >= openTime;
         });
         
         return sessionOrders.reduce((acc, order) => {
-            // Para 'Retirada', o order.total já é negativo, então acc.total += order.total subtrai corretamente.
-            // Para 'Dinheiro' também, acc.cash += -valor subtrai do dinheiro em caixa.
-            
-            // Se for retirada/sangria, somamos no contador específico (usando Math.abs para mostrar positivo no card)
             if (order.status === 'Retirada') {
                 acc.withdrawals += Math.abs(order.total);
             }
@@ -177,7 +161,6 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
             let effectiveTotal = order.total;
             const fee = order.deliveryFee || 0;
 
-            // Inclui taxas se não for um registro de sistema (Abertura ou Retirada)
             if (order.status !== 'Retirada' && !order.name.includes('ABERTURA DE CAIXA')) {
                 effectiveTotal += fee;
                 acc.deliveryFees += fee;
@@ -195,18 +178,11 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
 
     const handleToggleRegisterClick = async () => {
         if (isRegisterOpen) {
-            // VALIDAR SE EXISTEM PEDIDOS PENDENTES
             const pendingOrders = orders.filter(o => {
-                // Ignorar registros de sistema
-                if (o.name.includes('ABERTURA DE CAIXA') || o.status === 'Retirada') return false;
-
-                // Verificar se não está pago
+                if (o.name.includes('ABERTURA DE CAIXA') || o.status === 'Retirada' || o.name.includes('FECHAMENTO DE CAIXA')) return false;
                 if (!o.payment) return true;
-
-                // Verificar se o status não é final (Entregue ou Cancelado)
                 const isFinalStatus = ['Entregue', 'Cancelado', 'Recebido'].includes(o.status);
                 if (!isFinalStatus) return true;
-
                 return false;
             });
 
@@ -216,14 +192,12 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                 return;
             }
 
-            // Abre o modal de confirmação em vez de usar window.confirm
             setIsCloseModalOpen(true);
         } else {
-            // Verificação de segurança antes de abrir modal
             const hasOpenRegister = orders.some(o => o.name.includes('ABERTURA DE CAIXA') && o.status === 'Aberto');
             if (hasOpenRegister) {
                 alert("Já existe um caixa aberto no sistema. Feche o caixa anterior antes de abrir um novo.");
-                setIsRegisterOpen(true); // Sincroniza a interface
+                setIsRegisterOpen(true);
                 return;
             }
 
@@ -236,21 +210,11 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
     const handleConfirmCloseRegister = async () => {
         setIsClosingRegister(true);
         try {
-            // Lógica de cálculo ajustada:
-            // 1. Pega totais atuais (Total Líquido do Caixa)
             const currentTotals = getTotals();
-            
-            // 2. Encontra o valor de Abertura (Fundo de Troco) desta sessão
             const activeRegisterOrder = orders.find(o => o.name.includes('ABERTURA DE CAIXA') && o.status === 'Aberto');
             const openingAmount = activeRegisterOrder ? activeRegisterOrder.total : 0;
-
-            // 3. Calcula Receita Real de Vendas = (Total Líquido - Abertura) + Retiradas
-            // Ex: Caixa 180. Abertura 50. Retirada 20.
-            // 180 - 50 = 130 (Vendas líquidas que ficaram no caixa)
-            // 130 + 20 (Retirada que foi venda mas saiu) = 150 (Total Vendas)
             const realSalesRevenue = (currentTotals.total - openingAmount) + currentTotals.withdrawals;
 
-            // 4. Gerar transação financeira com o valor real das vendas
             if (realSalesRevenue > 0) {
                 try {
                     await fetch(`${BURGER_API_URL}/transactions/simple`, {
@@ -271,35 +235,31 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                 }
             }
 
-            // 5. Tenta encontrar o pedido de abertura atual para mudar o status para Fechamento
-            if (activeRegisterOrder) {
-                try {
-                    const userNameParam = encodeURIComponent(user.name);
-                    await fetch(`${BURGER_API_URL}/api/orders/${activeRegisterOrder.id}/status/${userNameParam}`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ newStatus: 'Fechamento', currentStatus: 'Aberto' })
-                    });
-                } catch (e) {
-                    console.error("Erro ao atualizar status de fechamento no servidor", e);
-                    alert("Aviso: O status foi atualizado localmente, mas houve erro ao comunicar com o servidor.");
-                }
-            }
+            // NOTA: Não alteramos o status da abertura para manter o histórico visual.
 
-            // 6. NOVO: Cria um registro visual de Fechamento no momento atual para aparecer no topo da lista
             try {
                 const now = new Date().toISOString();
+                
+                // Dados detalhados para o registro visual
+                const breakdown = {
+                    dinheiro: currentTotals.cash,
+                    pix: currentTotals.pix,
+                    cartao: currentTotals.credit + currentTotals.debit,
+                    retirada: currentTotals.withdrawals
+                };
+
                 const closingOrderPayload = {
                     id: Date.now(),
                     time: now,
                     name: `FECHAMENTO DE CAIXA (${user.name})`,
                     items: [],
-                    total: currentTotals.cash, // Registra o valor em dinheiro que está sendo encerrado
+                    total: currentTotals.cash, // Valor em dinheiro que sobra no caixa
                     status: 'Fechamento',
                     payment: true,
                     paymentMethod: 'Dinheiro',
                     delivery: false,
-                    notes: `Caixa fechado. Total Movimentado: R$ ${currentTotals.total.toFixed(2)}`,
+                    // Salva JSON no campo notes para renderização detalhada
+                    notes: JSON.stringify(breakdown),
                     phone: user.phone,
                     onclient: false,
                     burger: config?.burger
@@ -318,8 +278,8 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
             setRegisterOpenTime(null);
             localStorage.setItem('cashRegisterOpen', 'false');
             localStorage.removeItem('cashRegisterOpenTime');
-            fetchData(); // Atualiza a lista para refletir o status 'Fechamento'
-            setIsCloseModalOpen(false); // Fecha o modal
+            fetchData(); 
+            setIsCloseModalOpen(false); 
         } catch (error) {
             alert("Erro ao fechar caixa.");
         } finally {
@@ -330,7 +290,6 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
     const handleConfirmOpenRegister = async (e: React.FormEvent) => {
         e.preventDefault();
         
-        // Verificação final antes de enviar
         const hasOpenRegister = orders.some(o => o.name.includes('ABERTURA DE CAIXA') && o.status === 'Aberto');
         if (hasOpenRegister) {
             alert("Não foi possível abrir: Já existe um caixa aberto.");
@@ -355,21 +314,20 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
         try {
             const now = new Date().toISOString();
             
-            // 1. CRIA UM PEDIDO "FANTASMA" PARA REGISTRAR A ENTRADA DE CAIXA NO POS
             const openingOrderPayload = {
                 id: Date.now(),
                 time: now,
-                name: openingName, // Usa o nome digitado no modal
+                name: openingName, 
                 items: [],
                 total: amount,
-                status: 'Aberto', // Status definido como Aberto
+                status: 'Aberto', 
                 payment: true,
                 paymentMethod: 'Dinheiro',
                 delivery: false,
                 notes: 'Fundo de troco inicial',
                 phone: user.phone,
                 onclient: false,
-                burger: config?.burger // Send burger name
+                burger: config?.burger 
             };
 
             const response = await fetch(`${BURGER_API_URL}/api/orders`, {
@@ -384,7 +342,6 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                 throw new Error(responseData.message || "Falha ao registrar abertura de caixa.");
             }
 
-            // 2. CRIA UMA RECEITA NO FINANCEIRO (Fundo de Troco / Aporte)
             try {
                 await fetch(`${BURGER_API_URL}/transactions/simple`, {
                     method: 'POST',
@@ -403,13 +360,11 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                 alert("Caixa aberto, mas falhou ao criar receita no financeiro.");
             }
 
-            // Abrir caixa localmente
             setIsRegisterOpen(true);
             setRegisterOpenTime(now);
             localStorage.setItem('cashRegisterOpen', 'true');
             localStorage.setItem('cashRegisterOpenTime', now);
             
-            // Atualiza a lista para mostrar a entrada
             fetchData();
             setIsOpeningModalOpen(false);
         } catch (error) {
@@ -438,15 +393,14 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
             const now = new Date().toISOString();
             const nameDescription = `Retirada - ${withdrawName}`;
             
-            // 1. Criar pedido "Fantasma" com valor negativo (para abater do total do caixa)
             const withdrawOrderPayload = {
                 id: Date.now(),
                 time: now,
                 name: nameDescription,
                 items: [],
-                total: -amount, // Valor Negativo
+                total: -amount,
                 status: 'Retirada',
-                payment: true, // Já considerado como "pago/efetivado"
+                payment: true, 
                 paymentMethod: 'Dinheiro',
                 delivery: false,
                 notes: `Retirada realizada por ${user.name}`,
@@ -463,13 +417,12 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
 
             if (!response.ok) throw new Error("Falha ao registrar retirada no caixa.");
 
-            // 2. Criar Despesa no Módulo Financeiro
             try {
                 await fetch(`${BURGER_API_URL}/transactions/simple`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        ownerPhone: user.phone, // Cria para o usuário logado
+                        ownerPhone: user.phone, 
                         type: 'expense',
                         name: nameDescription,
                         amount: amount,
@@ -495,7 +448,6 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
 
     const updateStatus = async (orderId: number, newStatus: string, currentStatus: string) => {
         try {
-            // Inclui o nome do usuário na URL para satisfazer a rota da API
             const userNameParam = encodeURIComponent(user.name);
             await fetch(`${BURGER_API_URL}/api/orders/${orderId}/status/${userNameParam}`, {
                 method: 'PATCH',
@@ -527,7 +479,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                 body: JSON.stringify({ payment: true })
             });
             await fetchData();
-            setPaymentModalOrder(null); // Fecha o modal
+            setPaymentModalOrder(null); 
         } catch (error) {
             alert('Erro ao confirmar pagamento');
         } finally {
@@ -538,7 +490,6 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
     const totals = getTotals();
 
     const renderActionButtons = (order: BurgerOrder) => {
-        // Não mostrar ações para Abertura/Fechamento de Caixa ou Retirada
         if (order.name.includes('ABERTURA DE CAIXA') || order.name.includes('FECHAMENTO DE CAIXA') || order.status === 'Retirada') return null;
 
         const actions = [];
@@ -625,11 +576,11 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
             {isRegisterOpen && (
                 <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
                     <div className="bg-gray-700 p-3 rounded">
-                        <span className="text-gray-400 text-xs">Total Geral (Líquido)</span>
+                        <span className="text-gray-400 text-xs">Total</span>
                         <p className="text-xl font-bold text-white">R$ {totals.total.toFixed(2)}</p>
                     </div>
                     <div className="bg-gray-700 p-3 rounded">
-                        <span className="text-gray-400 text-xs">Dinheiro (Em Caixa)</span>
+                        <span className="text-gray-400 text-xs">Dinheiro</span>
                         <p className="text-lg font-bold text-green-400">R$ {totals.cash.toFixed(2)}</p>
                     </div>
                     <div className="bg-gray-700 p-3 rounded">
@@ -669,22 +620,46 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                         {orders.length === 0 ? (
                             <tr><td colSpan={4} className="p-4 text-center">Nenhum pedido.</td></tr>
                         ) : orders.map(order => {
-                            const isOpening = order.name.includes('ABERTURA DE CAIXA') || order.name.includes('FECHAMENTO DE CAIXA');
+                            const isOpening = order.name.includes('ABERTURA DE CAIXA');
+                            const isClosing = order.name.includes('FECHAMENTO DE CAIXA');
                             const isWithdraw = order.status === 'Retirada';
+
+                            // Renderização customizada para o fechamento
+                            let closingDetails = null;
+                            if (isClosing) {
+                                try {
+                                    const notes = JSON.parse(order.notes || '{}');
+                                    closingDetails = (
+                                        <div className="mt-1 text-xs text-gray-300 space-y-0.5 font-normal">
+                                            {notes.cartao > 0 && <div>Cartão Fechamento: R$ {notes.cartao.toFixed(2)}</div>}
+                                            {notes.pix > 0 && <div>Pix Fechamento: R$ {notes.pix.toFixed(2)}</div>}
+                                            {notes.dinheiro > 0 && <div>Dinheiro Fechamento: R$ {notes.dinheiro.toFixed(2)}</div>}
+                                            {notes.retirada > 0 && <div className="text-red-300">Retiradas: R$ {notes.retirada.toFixed(2)}</div>}
+                                        </div>
+                                    );
+                                } catch (e) {}
+                            }
+
                             return (
                             <React.Fragment key={order.id}>
-                                <tr className={`hover:bg-gray-700/50 ${isOpening ? 'bg-green-900/10' : ''} ${isWithdraw ? 'bg-red-900/10' : ''}`}>
+                                <tr className={`hover:bg-gray-700/50 ${isOpening ? 'bg-green-900/10' : ''} ${isWithdraw ? 'bg-red-900/10' : ''} ${isClosing ? 'bg-blue-900/10' : ''}`}>
                                     <td className="px-4 py-3 font-medium text-white">
                                         {isOpening ? <span className="text-green-300 font-bold">{order.name}</span> : 
-                                         isWithdraw ? <span className="text-red-300 font-bold">{order.name}</span> : (
+                                         isWithdraw ? <span className="text-red-300 font-bold">{order.name}</span> : 
+                                         isClosing ? (
+                                            <div>
+                                                <span className="text-blue-300 font-bold">{order.name}</span>
+                                                {closingDetails}
+                                            </div>
+                                         ) : (
                                             <>
                                                 {order.name.split(' ')[0]} 
                                                 {order.tableNumber && <span className="ml-2 text-xs bg-gray-600 px-1 rounded">Mesa {order.tableNumber}</span>}
                                             </>
                                         )}
                                     </td>
-                                    <td className="px-4 py-3">{new Date(order.time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
-                                    <td className="px-4 py-3">
+                                    <td className="px-4 py-3 align-top">{new Date(order.time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
+                                    <td className="px-4 py-3 align-top">
                                         <span className={`px-2 py-1 text-xs rounded ${
                                             order.status === 'Entregue' || order.status === 'Aberto' || order.status === 'Fechamento' ? 'bg-green-900 text-green-200' : 
                                             order.status === 'Cancelado' ? 'bg-red-900 text-red-200' :
@@ -694,24 +669,23 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                                             {order.status}
                                         </span>
                                     </td>
-                                    <td className="px-4 py-3 text-right">
+                                    <td className="px-4 py-3 text-right align-top">
                                         <div className="flex justify-end items-center gap-3">
-                                            {/* Render buttons always, regardless of register state */}
                                             {renderActionButtons(order)}
-                                            {!isOpening && !isWithdraw && (
+                                            {!isOpening && !isWithdraw && !isClosing && (
                                                 <button onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)} className="text-gray-400 hover:text-white">
                                                     <ChevronDownIcon className={`w-5 h-5 transition-transform ${expandedOrder === order.id ? 'rotate-180' : ''}`} />
                                                 </button>
                                             )}
-                                            {(isOpening || isWithdraw) && (
-                                                <span className={`${isWithdraw ? 'text-red-400' : 'text-green-400'} font-bold text-sm`}>
+                                            {(isOpening || isWithdraw || isClosing) && (
+                                                <span className={`${isWithdraw ? 'text-red-400' : isClosing ? 'text-blue-400' : 'text-green-400'} font-bold text-sm`}>
                                                     R$ {Math.abs(order.total).toFixed(2)}
                                                 </span>
                                             )}
                                         </div>
                                     </td>
                                 </tr>
-                                {expandedOrder === order.id && !isOpening && !isWithdraw && (
+                                {expandedOrder === order.id && !isOpening && !isWithdraw && !isClosing && (
                                     <tr className="bg-gray-700/30">
                                         <td colSpan={4} className="p-4">
                                             <div className="grid md:grid-cols-2 gap-4">
