@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Market, ShoppingList, Product, User, SharedUser } from '../types';
 import { PlusIcon, PencilIcon, TrashIcon, ChevronDownIcon, ShoppingCartIcon, CheckCircleIcon, ShareIcon } from './icons';
@@ -293,7 +292,7 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
 
             // Se for edição, anexa o ID do produto
             if (editingProduct) {
-                productPayload._id = editingProduct._id || editingProduct.id;
+                productPayload._id = editingProduct._id || String(editingProduct.id);
             }
 
             const payload = {

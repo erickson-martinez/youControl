@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { BURGER_API_URL } from '../constants';
 import type { BurgerOrder, BurgerProduct, User } from '../types';
-import { MotorcycleIcon, MapPinIcon, CheckCircleIcon, XCircleIcon, LockClosedIcon, ClipboardListIcon, CashIcon } from './icons';
+import { MotorcycleIcon, MapPinIcon, CheckCircleIcon, XCircleIcon, LockClosedIcon, ClipboardListIcon, CashIcon, UsersIcon, BicycleIcon } from './icons';
 
 interface BurgerDeliveryPageProps {
     user: User;
@@ -20,11 +20,13 @@ interface DeliveryConfig {
 const BurgerDeliveryPage: React.FC<BurgerDeliveryPageProps> = ({ user }) => {
     const [deliveries, setDeliveries] = useState<BurgerOrder[]>([]);
     const [myDeliveries, setMyDeliveries] = useState<BurgerOrder[]>([]);
+    const [ownerStoreOrders, setOwnerStoreOrders] = useState<BurgerOrder[]>([]); // Para o Owner ver tudo
     const [products, setProducts] = useState<BurgerProduct[]>([]);
     const [config, setConfig] = useState<DeliveryConfig | null>(null);
     const [canDeliver, setCanDeliver] = useState(false);
+    const [isOwner, setIsOwner] = useState(false);
     const [isLoadingConfig, setIsLoadingConfig] = useState(true);
-    const [activeTab, setActiveTab] = useState<'available' | 'mine'>('available');
+    const [activeTab, setActiveTab] = useState<'available' | 'mine' | 'summary'>('available');
     
     // Estado do Modal
     const [deliveryModalOrder, setDeliveryModalOrder] = useState<BurgerOrder | null>(null);
@@ -55,10 +57,11 @@ const BurgerDeliveryPage: React.FC<BurgerDeliveryPageProps> = ({ user }) => {
                     const cleanOwnerPhone = data.phone.replace(/\D/g, '');
                     const deliveryPhones = Array.isArray(data.delivery) ? data.delivery.map(p => p.replace(/\D/g, '')) : [];
 
-                    const isOwner = cleanUserPhone === cleanOwnerPhone;
+                    const isUserOwner = cleanUserPhone === cleanOwnerPhone;
                     const isAuthorizedDriver = deliveryPhones.includes(cleanUserPhone);
 
-                    setCanDeliver(isOwner || isAuthorizedDriver);
+                    setIsOwner(isUserOwner);
+                    setCanDeliver(isUserOwner || isAuthorizedDriver);
                 }
             } catch (error) {
                 console.error("Erro ao carregar configurações de delivery", error);
@@ -87,7 +90,6 @@ const BurgerDeliveryPage: React.FC<BurgerDeliveryPageProps> = ({ user }) => {
 
     // 3. Buscar Minhas Entregas
     const fetchMyDeliveries = useCallback(async () => {
-        // Se user.name for indefinido, não busca
         if (!config?.burger || !user.name) return;
 
         try {
@@ -103,11 +105,28 @@ const BurgerDeliveryPage: React.FC<BurgerDeliveryPageProps> = ({ user }) => {
         }
     }, [config, user.name]);
 
+    // 4. Buscar Pedidos Entregues (Para o Owner)
+    const fetchDeliveriesEntregue = useCallback(async () => {
+        if (!config?.burger || !isOwner) return;
+
+        try {
+            const burgerNameEncoded = encodeURIComponent(config.burger);
+            // Endpoint específico solicitado para buscar entregas realizadas
+            const res = await fetch(`${BURGER_API_URL}/api/orders/delivery/${burgerNameEncoded}/Entregue`);
+            const data = await res.json();
+            const list = Array.isArray(data.data) ? data.data : (data.data ? [data.data] : []);
+            setOwnerStoreOrders(list);
+        } catch (e) {
+            console.error("Erro ao buscar entregas finalizadas para o owner:", e);
+        }
+    }, [config, isOwner]);
+
     useEffect(() => {
         if (config) {
             // Busca inicial
             fetchDeliveries();
             fetchMyDeliveries();
+            if (isOwner) fetchDeliveriesEntregue();
 
             // Polling a cada 15s para atualizar ambas as listas
             const interval = setInterval(() => {
@@ -116,10 +135,11 @@ const BurgerDeliveryPage: React.FC<BurgerDeliveryPageProps> = ({ user }) => {
                 if (activeTab === 'mine') {
                     fetchMyDeliveries();
                 }
+                if (isOwner) fetchDeliveriesEntregue();
             }, 15000);
             return () => clearInterval(interval);
         }
-    }, [fetchDeliveries, fetchMyDeliveries, config, activeTab]);
+    }, [fetchDeliveries, fetchMyDeliveries, fetchDeliveriesEntregue, config, activeTab, isOwner]);
 
     // Atualiza minhas entregas quando muda para a aba 'mine'
     useEffect(() => {
@@ -142,7 +162,8 @@ const BurgerDeliveryPage: React.FC<BurgerDeliveryPageProps> = ({ user }) => {
                 body: JSON.stringify({ newStatus: 'Entregue', currentStatus: 'A caminho' })
             });
             fetchDeliveries();
-            fetchMyDeliveries(); 
+            fetchMyDeliveries();
+            if (isOwner) fetchDeliveriesEntregue();
             setDeliveryModalOrder(null);
         } catch(e) { 
             alert("Erro ao confirmar entrega"); 
@@ -153,6 +174,29 @@ const BurgerDeliveryPage: React.FC<BurgerDeliveryPageProps> = ({ user }) => {
 
     const getProductDetails = (itemId: number) => {
         return products.find(p => p.id === itemId);
+    };
+
+    // Função para calcular o resumo dos entregadores (apenas para o dono)
+    const getDriverSummaries = () => {
+        const summaries: Record<string, number> = {};
+        const fixedFee = config?.taxa_delivery_fixa || 0;
+
+        ownerStoreOrders.forEach(order => {
+            // Usa deliveredBy (do novo JSON) ou deliveryBy (legado)
+            const driverName = order.deliveredBy || order.deliveryBy;
+            
+            // Verifica se o pedido está entregue ou recebido e se tem um entregador definido
+            if ((order.status === 'Entregue' || order.status === 'Recebido') && driverName) {
+                const earnings = (order.deliveryFee || 0) + fixedFee;
+                
+                if (!summaries[driverName]) {
+                    summaries[driverName] = 0;
+                }
+                summaries[driverName] += earnings;
+            }
+        });
+
+        return Object.entries(summaries).map(([name, total]) => ({ name, total }));
     };
 
     const renderOrderList = (orders: BurgerOrder[], isHistory: boolean) => {
@@ -249,6 +293,8 @@ const BurgerDeliveryPage: React.FC<BurgerDeliveryPageProps> = ({ user }) => {
         .filter(o => o.status === 'Entregue')
         .reduce((acc, order) => acc + (order.deliveryFee || 0) + fixedFeeTotal, 0);
 
+    const driverSummaries = getDriverSummaries();
+
     return (
         <div className="p-4 bg-gray-800 rounded-lg relative min-h-[80vh]">
             <div className="flex flex-col md:flex-row items-center justify-between mb-6 gap-4">
@@ -295,12 +341,27 @@ const BurgerDeliveryPage: React.FC<BurgerDeliveryPageProps> = ({ user }) => {
                         Minhas Entregas ({myDeliveries.length})
                     </div>
                 </button>
+                {isOwner && (
+                    <button
+                        onClick={() => setActiveTab('summary')}
+                        className={`flex-1 py-3 px-4 text-center font-medium text-sm transition-colors relative ${
+                            activeTab === 'summary' 
+                                ? 'text-blue-400 border-b-2 border-blue-400' 
+                                : 'text-gray-400 hover:text-gray-200'
+                        }`}
+                    >
+                        <div className="flex items-center justify-center gap-2">
+                            <UsersIcon className="w-4 h-4" />
+                            Resumo Entregadores
+                        </div>
+                    </button>
+                )}
             </div>
 
             <div className="space-y-4">
                 {activeTab === 'available' ? (
                     renderOrderList(deliveries, false)
-                ) : (
+                ) : activeTab === 'mine' ? (
                     <>
                         <div className="bg-gray-700 p-4 rounded-lg border-l-4 border-green-500 flex flex-col md:flex-row justify-between items-center shadow-md mb-6 gap-4">
                             <div className="flex items-center gap-3">
@@ -308,7 +369,7 @@ const BurgerDeliveryPage: React.FC<BurgerDeliveryPageProps> = ({ user }) => {
                                     <CashIcon className="w-6 h-6 text-green-400" />
                                 </div>
                                 <div>
-                                    <p className="text-sm text-gray-400 font-bold uppercase tracking-wider">Ganhos Totais (Entregues)</p>
+                                    <p className="text-sm text-gray-400 font-bold uppercase tracking-wider">Seus Ganhos (Entregues)</p>
                                     <p className="text-xs text-gray-500">
                                         {myDeliveries.filter(o => o.status === 'Entregue').length} entregas realizadas
                                     </p>
@@ -327,6 +388,39 @@ const BurgerDeliveryPage: React.FC<BurgerDeliveryPageProps> = ({ user }) => {
                         </div>
                         {renderOrderList(myDeliveries, true)}
                     </>
+                ) : (
+                    /* Conteúdo da Aba Resumo (Apenas Owner) */
+                    <div className="bg-gray-900 p-6 rounded-lg border border-gray-700 shadow-md">
+                        <div className="flex items-center gap-2 mb-6 pb-2 border-b border-gray-800">
+                            <UsersIcon className="w-6 h-6 text-blue-400" />
+                            <h3 className="text-lg font-bold text-gray-200 uppercase tracking-wider">
+                                Pagamentos por Entregador
+                            </h3>
+                        </div>
+                        
+                        {driverSummaries.length > 0 ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {driverSummaries.map((summary, idx) => (
+                                    <div key={idx} className="flex flex-col justify-between bg-gray-800 p-4 rounded-lg border border-gray-700 hover:border-blue-500/50 transition-all shadow-sm">
+                                        <div className="flex items-center gap-3 mb-3">
+                                            <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center border border-gray-600">
+                                                <BicycleIcon className="w-5 h-5 text-gray-400" />
+                                            </div>
+                                            <span className="font-bold text-white text-lg">{summary.name}</span>
+                                        </div>
+                                        <div className="mt-auto border-t border-gray-700 pt-3 flex justify-between items-end">
+                                            <span className="text-xs text-gray-500">Total a Pagar</span>
+                                            <span className="font-bold text-green-400 text-2xl">R$ {summary.total.toFixed(2)}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-center py-10 text-gray-500">
+                                Nenhum dado de entrega finalizada encontrado para os entregadores.
+                            </div>
+                        )}
+                    </div>
                 )}
             </div>
 

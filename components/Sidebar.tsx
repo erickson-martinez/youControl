@@ -1,4 +1,3 @@
-
 import React from 'react';
 import type { User, MenuPermissions, ActivePage } from '../types';
 import { 
@@ -77,7 +76,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, isOpen, onClose, perm
               {permissions.listPurcharse && <li><NavLink page="listPurcharse" onNavigate={onNavigate} icon={<ShoppingCartIcon className="w-6 h-6" />} label="Lista de Compras" active={activePage === 'listPurcharse'} /></li>}
               {permissions.rh && <li><NavLink page="rh" onNavigate={onNavigate} icon={<UsersIcon className="w-6 h-6" />} label="RH" active={activePage === 'rh'} /></li>}
               {permissions.ponto && canClockIn && <li><NavLink page="ponto" onNavigate={onNavigate} icon={<ClockIcon className="w-6 h-6" />} label="Ponto" active={activePage === 'ponto'} /></li>}
-              {permissions.aprovarHoras && <li><NavLink page="aprovar-horas" onNavigate={onNavigate} icon={<ClipboardCheckIcon className="w-6 h-6" />} label="Aprovar Horas" active={activePage === 'aprovar-horas'} /></li>}
+              {permissions.aprovarHoras && <li><NavLink page="aprovarHoras" onNavigate={onNavigate} icon={<ClipboardCheckIcon className="w-6 h-6" />} label="Aprovar Horas" active={activePage === 'aprovarHoras'} /></li>}
               {permissions.os && <li><NavLink page="os" onNavigate={onNavigate} icon={<ClipboardListIcon className="w-6 h-6" />} label="OS" active={activePage === 'os'} /></li>}
               {permissions.chamados && <li><NavLink page="chamados" onNavigate={onNavigate} icon={<InboxInIcon className="w-6 h-6" />} label="Chamados" active={activePage === 'chamados'} /></li>}
               {permissions.empresa && <li><NavLink page="empresa" onNavigate={onNavigate} icon={<OfficeBuildingIcon className="w-6 h-6" />} label="Empresa" active={activePage === 'empresa'} /></li>}

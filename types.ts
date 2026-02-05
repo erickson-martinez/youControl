@@ -1,43 +1,8 @@
 
-export enum TransactionType {
-  REVENUE = 'revenue',
-  EXPENSE = 'expense',
-}
-
-export enum PaymentStatus {
-  PAID = 'pago',
-  UNPAID = 'nao_pago',
-  PENDING = 'pendente',
-}
-
-export interface Addition {
-  _id: string;
-  name: string;
-  value: number;
-  removed: boolean;
-}
-
-export interface Transaction {
-  id: string;
-  ownerPhone: string;
-  type: TransactionType;
-  name: string;
-  amount: number;
-  date: string; // YYYY-MM-DD format
-  isControlled: boolean;
-  counterpartyPhone?: string;
-  status: PaymentStatus;
-  controlId?: string;
-  sharerPhone?: string;
-  aggregate?: boolean;
-  additions?: Addition[];
-  paidAmount?: number;
-}
-
 export interface User {
-  phone: string;
+  id?: string;
   name: string;
-  id?: string; // Adicionado ID para suportar a API de Listas
+  phone: string;
 }
 
 export interface MenuPermissions {
@@ -54,7 +19,6 @@ export interface MenuPermissions {
   settings: boolean;
   exemplo: boolean;
   financialManual: boolean;
-  // Módulo Hamburgueria
   burgerProducts: boolean;
   burgerPOS: boolean;
   burgerWaiter: boolean;
@@ -62,6 +26,8 @@ export interface MenuPermissions {
   burgerDashboard: boolean;
   burgerClient: boolean;
 }
+
+export type ActivePage = keyof MenuPermissions | 'home';
 
 export interface Empresa {
   id: string;
@@ -74,26 +40,22 @@ export interface Empresa {
   state?: string;
   zipCode?: string;
   status: 'ativo' | 'inativo';
-  owner: string;
+  owner?: string;
   isOwnedByCurrentUser?: boolean;
 }
 
-export interface Loja {
-  id: string;
-  name: string;
-  address?: string;
-  number?: string;
-  zip?: string;
-  latitude?: number | null;
-  longitude?: number | null;
-  status: 'active' | 'inactive';
+export interface UserCompanyLink {
+  _id: string;
+  userPhone: string;
+  empresaId: string;
+  status: string;
 }
 
 export enum PontoStatus {
   PENDENTE = 'pendente',
   APROVADO = 'aprovado',
   REJEITADO = 'rejeitado',
-  CANCELADO = 'cancelado',
+  CANCELADO = 'cancelado'
 }
 
 export interface WorkRecord {
@@ -101,33 +63,67 @@ export interface WorkRecord {
   employeePhone: string;
   employeeName?: string;
   companyId: string;
-  entryTime: string; // ISO String
-  exitTime?: string; // ISO String
+  entryTime: string;
+  exitTime?: string;
   durationMinutes?: number;
-  notes?: string;
   status: PontoStatus;
+  rejectionReason?: string;
   approvedBy?: string;
   rejectedBy?: string;
-  rejectionReason?: string;
 }
 
-
 export enum OSStatus {
-    ABERTO = 'aberto',
-    EM_ANDAMENTO = 'em_andamento',
-    FECHADO = 'resolvido',
-    CANCELADO = 'cancelado',
+  ABERTO = 'aberto',
+  EM_ANDAMENTO = 'em_andamento',
+  FECHADO = 'fechado',
+  CANCELADO = 'cancelado'
 }
 
 export interface OrdemServico {
-    id: string;
-    openerPhone: string;
-    empresaId: string;
-    title: string;
-    description: string;
-    status: OSStatus;
-    createdAt: string; // ISO String
-    resolution?: string;
+  id: string;
+  openerPhone: string;
+  empresaId: string;
+  title: string;
+  description: string;
+  status: OSStatus;
+  createdAt: string;
+  resolution?: string;
+  companyId?: string | { _id: string };
+}
+
+export enum TransactionType {
+  REVENUE = 'revenue',
+  EXPENSE = 'expense'
+}
+
+export enum PaymentStatus {
+  PAID = 'pago',
+  UNPAID = 'nao_pago',
+  PENDING = 'pendente'
+}
+
+export interface Addition {
+  _id: string;
+  name: string;
+  value: number;
+  removed?: boolean;
+}
+
+export interface Transaction {
+  id: string;
+  ownerPhone: string;
+  type: TransactionType;
+  name: string;
+  amount: number;
+  date: string;
+  isControlled: boolean;
+  status: PaymentStatus;
+  counterpartyPhone?: string;
+  controlId?: string;
+  sharerPhone?: string;
+  aggregate?: boolean;
+  additions?: Addition[];
+  paidAmount?: number;
 }
 
 export interface SharedUser {
@@ -135,56 +131,59 @@ export interface SharedUser {
   aggregate: boolean;
 }
 
-export interface UserCompanyLink {
-  _id?: string;
-  userPhone: string;
-  empresaId: string;
-  status: 'ativo' | 'inativo' | 'pendente';
-}
-
-export type ActivePage = 'home' | 'financeiro' | 'graficos' | 'rh' | 'os' | 'settings' | 'empresa' | 'lojas' | 'ponto' | 'aprovar-horas' | 'chamados' | 'listPurcharse' | 'exemplo' | 'financialManual' | 'burgerProducts' | 'burgerPOS' | 'burgerWaiter' | 'burgerDelivery' | 'burgerDashboard' | 'burgerClient';
-
-// Tipos para Lista de Compras
 export interface Market {
   id: string;
   name: string;
+  address?: string;
+  number?: string;
+  zip?: string;
+  status: 'active' | 'inactive';
+  phone?: string;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
+// Alias for Market as used in LojasPage
+export type Loja = Market;
+
 export interface Product {
+  id: number | string;
   _id?: string;
-  id?: string; // Fallback for old local storage logic if needed
   name: string;
+  brand?: string;
   type?: string;
   quantity: number;
-  brand?: string;
   packQuantity?: number;
-  value: number; // Unit price
+  value: number;
   total?: number;
-  price?: number; // Fallback for old local storage logic
+  price?: number; // Used in BurgerProduct context
+  parentListId?: string;
+  marketId?: { name: string };
+  currentPrice?: number;
+  productName?: string;
 }
 
 export interface ShoppingList {
-  _id: string;
-  id?: string; // Fallback
+  id: string;
   name: string;
   marketId: string;
-  idUser: string;
-  date?: string; // Optional in API response
+  date: string;
   products: Product[];
+  total: number;
   completed: boolean;
-  createdAt: string;
-  updatedAt?: string;
-  total?: number;
+  createdAt?: string;
+  idUser?: string;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
-// Tipos Hamburgueria
 export interface BurgerProduct {
   id: number;
   name: string;
   price: number;
   description?: string;
   image?: string;
-  status: 'Ativo' | 'Inativo';
+  status: string;
 }
 
 export interface BurgerOrderItem {
@@ -213,6 +212,9 @@ export interface BurgerOrder {
   tableNumber?: string;
   notes?: string;
   pickupTime?: string;
+  deliveryBy?: string;
+  deliveredBy?: string;
+  onclient?: boolean;
 }
 
 export interface BurgerTable {

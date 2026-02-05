@@ -79,7 +79,7 @@ const UserPermissionsCard: React.FC<{
         <div className="p-4 border-t border-gray-600 bg-gray-700/50">
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
                 {ALL_PERMISSION_KEYS_WITH_LABELS.map(({ key, label }) => (
-                <label key={key} className="flex items-center space-x-2 text-sm text-gray-200 cursor-pointer">
+                <label key={key as string} className="flex items-center space-x-2 text-sm text-gray-200 cursor-pointer">
                     <input
                     type="checkbox"
                     checked={currentPermissions[key]}

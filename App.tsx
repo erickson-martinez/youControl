@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import LoginScreen from './components/LoginScreen';
 import Dashboard from './components/Dashboard';
@@ -453,7 +452,7 @@ const App: React.FC = () => {
               {activePage === 'lojas' && userPermissions.lojas && <LojasPage user={user} />}
               {activePage === 'rh' && userPermissions.rh && <RHPage user={user} empresas={companiesForManagement} onCurrentUserUpdate={handleCurrentUserUpdate} />}
               {activePage === 'ponto' && userPermissions.ponto && linkedCompanyId && userCompany && <PontoPage user={user} empresa={userCompany} onPontoUpdate={handlePontoUpdate} />}
-              {activePage === 'aprovar-horas' && userPermissions.aprovarHoras && <AprovarHorasPage user={user} empresas={companiesForApproval} currentDate={aprovarHorasDate} setCurrentDate={setAprovarHorasDate} />}
+              {activePage === 'aprovarHoras' && userPermissions.aprovarHoras && <AprovarHorasPage user={user} empresas={companiesForApproval} currentDate={aprovarHorasDate} setCurrentDate={setAprovarHorasDate} />}
               {activePage === 'os' && userPermissions.os && <OSPage user={user} empresas={empresas} userCompany={userCompany} />}
               {activePage === 'chamados' && userPermissions.chamados && <ChamadosPage managedEmpresas={companiesForManagement} user={user} />}
               {activePage === 'listPurcharse' && userPermissions.listPurcharse && <ListPurcharsePage user={user} />}

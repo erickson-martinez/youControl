@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import type { User, MenuPermissions, ActivePage } from '../types';
 import { 
@@ -51,7 +50,7 @@ const features: Feature[] = [
         permissionKey: 'rh'
     },
     {
-        key: 'aprovar-horas',
+        key: 'aprovarHoras',
         title: 'Aprovação de Horas',
         description: 'Revise e aprove ou rejeite os registros de ponto dos colaboradores da sua equipe.',
         icon: <ClipboardCheckIcon className="w-8 h-8 text-green-accent" />,
