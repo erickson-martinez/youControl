@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { BURGER_API_URL } from '../constants';
 import type { BurgerOrder, BurgerProduct, User } from '../types';
-import { ChevronDownIcon, ClockIcon, CheckCircleIcon, MapPinIcon, LockClosedIcon, MinusIcon } from './icons';
+import { ChevronDownIcon, ClockIcon, CheckCircleIcon, MapPinIcon, LockClosedIcon, MinusIcon, XCircleIcon } from './icons';
 
 interface BurgerPOSPageProps {
     user: User;
@@ -44,9 +44,14 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
     const [isCloseModalOpen, setIsCloseModalOpen] = useState(false);
     const [isClosingRegister, setIsClosingRegister] = useState(false);
 
+    // Estado para Modal de Bloqueio (Pendências)
+    const [isBlockedModalOpen, setIsBlockedModalOpen] = useState(false);
+    const [blockingOrders, setBlockingOrders] = useState<BurgerOrder[]>([]);
+
     // Estado para Retirada (Sangria)
     const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
     const [withdrawAmount, setWithdrawAmount] = useState('');
+    const [withdrawName, setWithdrawName] = useState(''); // Novo estado para nome da retirada
     const [isWithdrawing, setIsWithdrawing] = useState(false);
 
     // Fetch Data defined early to be used in effects
@@ -146,7 +151,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
 
     const getTotals = () => {
         if (!isRegisterOpen || !registerOpenTime) {
-            return { cash: 0, pix: 0, credit: 0, debit: 0, total: 0 };
+            return { cash: 0, pix: 0, credit: 0, debit: 0, total: 0, withdrawals: 0, deliveryFees: 0 };
         }
 
         const openTime = new Date(registerOpenTime).getTime();
@@ -163,17 +168,54 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
         return sessionOrders.reduce((acc, order) => {
             // Para 'Retirada', o order.total já é negativo, então acc.total += order.total subtrai corretamente.
             // Para 'Dinheiro' também, acc.cash += -valor subtrai do dinheiro em caixa.
-            if (order.paymentMethod === 'Dinheiro') acc.cash += order.total;
-            else if (order.paymentMethod === 'PIX') acc.pix += order.total;
-            else if (order.paymentMethod?.includes('Crédito')) acc.credit += order.total;
-            else if (order.paymentMethod?.includes('Débito')) acc.debit += order.total;
-            acc.total += order.total;
+            
+            // Se for retirada/sangria, somamos no contador específico (usando Math.abs para mostrar positivo no card)
+            if (order.status === 'Retirada') {
+                acc.withdrawals += Math.abs(order.total);
+            }
+
+            let effectiveTotal = order.total;
+            const fee = order.deliveryFee || 0;
+
+            // Inclui taxas se não for um registro de sistema (Abertura ou Retirada)
+            if (order.status !== 'Retirada' && !order.name.includes('ABERTURA DE CAIXA')) {
+                effectiveTotal += fee;
+                acc.deliveryFees += fee;
+            }
+
+            if (order.paymentMethod === 'Dinheiro') acc.cash += effectiveTotal;
+            else if (order.paymentMethod === 'PIX') acc.pix += effectiveTotal;
+            else if (order.paymentMethod?.includes('Crédito')) acc.credit += effectiveTotal;
+            else if (order.paymentMethod?.includes('Débito')) acc.debit += effectiveTotal;
+            
+            acc.total += effectiveTotal;
             return acc;
-        }, { cash: 0, pix: 0, credit: 0, debit: 0, total: 0 });
+        }, { cash: 0, pix: 0, credit: 0, debit: 0, total: 0, withdrawals: 0, deliveryFees: 0 });
     };
 
     const handleToggleRegisterClick = async () => {
         if (isRegisterOpen) {
+            // VALIDAR SE EXISTEM PEDIDOS PENDENTES
+            const pendingOrders = orders.filter(o => {
+                // Ignorar registros de sistema
+                if (o.name.includes('ABERTURA DE CAIXA') || o.status === 'Retirada') return false;
+
+                // Verificar se não está pago
+                if (!o.payment) return true;
+
+                // Verificar se o status não é final (Entregue ou Cancelado)
+                const isFinalStatus = ['Entregue', 'Cancelado', 'Recebido'].includes(o.status);
+                if (!isFinalStatus) return true;
+
+                return false;
+            });
+
+            if (pendingOrders.length > 0) {
+                setBlockingOrders(pendingOrders);
+                setIsBlockedModalOpen(true);
+                return;
+            }
+
             // Abre o modal de confirmação em vez de usar window.confirm
             setIsCloseModalOpen(true);
         } else {
@@ -193,18 +235,31 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
     const handleConfirmCloseRegister = async () => {
         setIsClosingRegister(true);
         try {
-            // 1. Gerar transação financeira para o dono
+            // Lógica de cálculo ajustada:
+            // 1. Pega totais atuais (Total Líquido do Caixa)
             const currentTotals = getTotals();
-            if (currentTotals.total > 0 && config?.phone) {
+            
+            // 2. Encontra o valor de Abertura (Fundo de Troco) desta sessão
+            const activeRegisterOrder = orders.find(o => o.name.includes('ABERTURA DE CAIXA') && o.status === 'Aberto');
+            const openingAmount = activeRegisterOrder ? activeRegisterOrder.total : 0;
+
+            // 3. Calcula Receita Real de Vendas = (Total Líquido - Abertura) + Retiradas
+            // Ex: Caixa 180. Abertura 50. Retirada 20.
+            // 180 - 50 = 130 (Vendas líquidas que ficaram no caixa)
+            // 130 + 20 (Retirada que foi venda mas saiu) = 150 (Total Vendas)
+            const realSalesRevenue = (currentTotals.total - openingAmount) + currentTotals.withdrawals;
+
+            // 4. Gerar transação financeira com o valor real das vendas
+            if (realSalesRevenue > 0) {
                 try {
                     await fetch(`${BURGER_API_URL}/transactions/simple`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            ownerPhone: config.phone,
+                            ownerPhone: user.phone,
                             type: 'revenue',
                             name: `Fechamento Caixa - ${new Date().toLocaleDateString('pt-BR')}`,
-                            amount: currentTotals.total,
+                            amount: realSalesRevenue,
                             date: new Date().toISOString().split('T')[0],
                             status: 'pago'
                         })
@@ -215,9 +270,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                 }
             }
 
-            // 2. Tenta encontrar o pedido de abertura atual para mudar o status
-            const activeRegisterOrder = orders.find(o => o.name.includes('ABERTURA DE CAIXA') && o.status === 'Aberto');
-            
+            // 5. Tenta encontrar o pedido de abertura atual para mudar o status para Fechamento
             if (activeRegisterOrder) {
                 try {
                     const userNameParam = encodeURIComponent(user.name);
@@ -268,7 +321,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
         try {
             const now = new Date().toISOString();
             
-            // CRIA UM PEDIDO "FANTASMA" PARA REGISTRAR A ENTRADA DE CAIXA
+            // 1. CRIA UM PEDIDO "FANTASMA" PARA REGISTRAR A ENTRADA DE CAIXA NO POS
             const openingOrderPayload = {
                 id: Date.now(),
                 time: now,
@@ -297,6 +350,25 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                 throw new Error(responseData.message || "Falha ao registrar abertura de caixa.");
             }
 
+            // 2. CRIA UMA RECEITA NO FINANCEIRO (Fundo de Troco / Aporte)
+            try {
+                await fetch(`${BURGER_API_URL}/transactions/simple`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ownerPhone: user.phone,
+                        type: 'revenue',
+                        name: `Abertura de Caixa - ${new Date().toLocaleDateString('pt-BR')}`,
+                        amount: amount,
+                        date: new Date().toISOString().split('T')[0],
+                        status: 'pago'
+                    })
+                });
+            } catch (finErr) {
+                console.error("Erro ao criar transação financeira de abertura", finErr);
+                alert("Caixa aberto, mas falhou ao criar receita no financeiro.");
+            }
+
             // Abrir caixa localmente
             setIsRegisterOpen(true);
             setRegisterOpenTime(now);
@@ -322,10 +394,15 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
             return;
         }
 
+        if (!withdrawName.trim()) {
+            alert("Por favor, informe um nome/motivo para a sangria.");
+            return;
+        }
+
         setIsWithdrawing(true);
         try {
             const now = new Date().toISOString();
-            const nameDescription = 'RETIRADA DE CAIXA';
+            const nameDescription = `Retirada - ${withdrawName}`;
             
             // 1. Criar pedido "Fantasma" com valor negativo (para abater do total do caixa)
             const withdrawOrderPayload = {
@@ -352,11 +429,29 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
 
             if (!response.ok) throw new Error("Falha ao registrar retirada no caixa.");
 
-            // Sangria apenas abate do caixa, não gera transação no financeiro.
+            // 2. Criar Despesa no Módulo Financeiro
+            try {
+                await fetch(`${BURGER_API_URL}/transactions/simple`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ownerPhone: user.phone, // Cria para o usuário logado
+                        type: 'expense',
+                        name: nameDescription,
+                        amount: amount,
+                        date: new Date().toISOString().split('T')[0],
+                        status: 'pago'
+                    })
+                });
+            } catch (finErr) {
+                console.error("Erro ao criar transação financeira da sangria", finErr);
+                alert("Sangria registrada no caixa, mas falhou ao criar despesa no financeiro.");
+            }
 
             await fetchData();
             setIsWithdrawModalOpen(false);
             setWithdrawAmount('');
+            setWithdrawName('');
         } catch (error) {
             alert(`Erro ao realizar retirada: ${(error as Error).message}`);
         } finally {
@@ -474,6 +569,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                         <button 
                             onClick={() => {
                                 setWithdrawAmount('');
+                                setWithdrawName('');
                                 setIsWithdrawModalOpen(true);
                             }}
                             className="px-4 py-2 font-bold text-white bg-yellow-600 rounded hover:bg-yellow-700 flex items-center gap-2"
@@ -493,7 +589,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
 
             {/* Totals Summary */}
             {isRegisterOpen && (
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
                     <div className="bg-gray-700 p-3 rounded">
                         <span className="text-gray-400 text-xs">Total Geral (Líquido)</span>
                         <p className="text-xl font-bold text-white">R$ {totals.total.toFixed(2)}</p>
@@ -509,6 +605,14 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                     <div className="bg-gray-700 p-3 rounded">
                         <span className="text-gray-400 text-xs">Cartão</span>
                         <p className="text-lg font-bold text-yellow-400">R$ {(totals.credit + totals.debit).toFixed(2)}</p>
+                    </div>
+                    <div className="bg-gray-700 p-3 rounded border border-red-900/50">
+                        <span className="text-gray-400 text-xs">Retirada</span>
+                        <p className="text-lg font-bold text-red-500">R$ {totals.withdrawals.toFixed(2)}</p>
+                    </div>
+                    <div className="bg-gray-700 p-3 rounded border border-gray-600">
+                        <span className="text-gray-400 text-xs text-red-400">Taxa de Entrega</span>
+                        <p className="text-lg font-bold text-gray-300">R$ {totals.deliveryFees.toFixed(2)}</p>
                     </div>
                 </div>
             )}
@@ -621,160 +725,39 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
             </div>
             )}
 
-            {/* Modal de Abertura de Caixa */}
-            {isOpeningModalOpen && (
+            {/* Modal de Bloqueio (Pendências) */}
+            {isBlockedModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 backdrop-blur-sm px-4">
-                    <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-sm overflow-hidden animate-fade-in-up border border-gray-700">
-                        <div className="p-6">
-                            <h3 className="text-lg font-bold text-white mb-4">Abrir Caixa</h3>
-                            <form onSubmit={handleConfirmOpenRegister}>
-                                <div className="mb-4">
-                                    <label htmlFor="initialCash" className="block text-sm font-medium text-gray-300 mb-1">
-                                        Fundo de Troco (R$)
-                                    </label>
-                                    <input
-                                        type="number"
-                                        id="initialCash"
-                                        step="0.01"
-                                        min="0"
-                                        required
-                                        value={initialCash}
-                                        onChange={(e) => setInitialCash(e.target.value)}
-                                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder-gray-400"
-                                        placeholder="0.00"
-                                        autoFocus
-                                    />
-                                </div>
-                                <div className="flex justify-end gap-3">
-                                    <button 
-                                        type="button"
-                                        onClick={() => setIsOpeningModalOpen(false)}
-                                        disabled={isOpeningRegister}
-                                        className="px-4 py-2 bg-gray-600 text-gray-300 text-sm font-medium rounded-md hover:bg-gray-500 transition-colors"
-                                    >
-                                        Cancelar
-                                    </button>
-                                    <button 
-                                        type="submit"
-                                        disabled={isOpeningRegister}
-                                        className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-                                    >
-                                        {isOpeningRegister && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
-                                        Abrir
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Modal de Fechamento de Caixa */}
-            {isCloseModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 backdrop-blur-sm px-4">
-                    <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-md overflow-hidden animate-fade-in-up border border-gray-700">
-                        <div className="p-6">
-                            <h3 className="text-xl font-bold text-white mb-4">Fechamento de Caixa</h3>
+                    <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-md overflow-hidden animate-fade-in-up border border-red-900/50">
+                        <div className="p-6 text-center">
+                            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-900/30 mb-4">
+                                <XCircleIcon className="h-8 w-8 text-red-500" />
+                            </div>
+                            <h3 className="text-xl font-bold text-white mb-2">Não é possível fechar o caixa!</h3>
+                            <p className="text-gray-300 mb-6">
+                                Existem <span className="font-bold text-white">{blockingOrders.length}</span> pedidos pendentes (não pagos ou em andamento).
+                                <br/>Finalize ou cancele todos os pedidos antes de fechar.
+                            </p>
                             
-                            <div className="space-y-4 mb-6">
-                                <div className="bg-gray-700 p-3 rounded-lg border border-gray-600">
-                                    <p className="text-sm text-gray-400 mb-1">Data do Fechamento</p>
-                                    <p className="text-lg font-bold text-white">{new Date().toLocaleDateString('pt-BR')}</p>
-                                </div>
-
-                                <div className="bg-gray-700 p-3 rounded-lg border border-gray-600">
-                                    <p className="text-sm text-gray-400 mb-2">Resumo de Valores</p>
-                                    <div className="space-y-1">
-                                        <div className="flex justify-between text-sm">
-                                            <span className="text-gray-300">Dinheiro:</span>
-                                            <span className="font-medium text-green-400">R$ {totals.cash.toFixed(2)}</span>
-                                        </div>
-                                        <div className="flex justify-between text-sm">
-                                            <span className="text-gray-300">PIX:</span>
-                                            <span className="font-medium text-blue-400">R$ {totals.pix.toFixed(2)}</span>
-                                        </div>
-                                        <div className="flex justify-between text-sm">
-                                            <span className="text-gray-300">Cartão:</span>
-                                            <span className="font-medium text-yellow-400">R$ {(totals.credit + totals.debit).toFixed(2)}</span>
-                                        </div>
-                                        <div className="border-t border-gray-600 mt-2 pt-2 flex justify-between text-base">
-                                            <span className="font-bold text-white">Total:</span>
-                                            <span className="font-bold text-white">R$ {totals.total.toFixed(2)}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <p className="text-xs text-gray-400 italic">
-                                    Ao confirmar, uma receita no valor total será lançada automaticamente no seu módulo financeiro.
-                                </p>
+                            <div className="text-left bg-gray-900/50 rounded p-3 mb-6 max-h-40 overflow-y-auto border border-gray-700">
+                                <ul className="space-y-2 text-sm">
+                                    {blockingOrders.map(o => (
+                                        <li key={o.id} className="flex justify-between text-gray-400 border-b border-gray-700 last:border-0 pb-1 last:pb-0">
+                                            <span>#{o.id} - {o.name.split(' ')[0]}</span>
+                                            <span className={`font-bold ${!o.payment ? 'text-red-400' : 'text-yellow-400'}`}>
+                                                {!o.payment ? 'Não Pago' : o.status}
+                                            </span>
+                                        </li>
+                                    ))}
+                                </ul>
                             </div>
 
-                            <div className="flex justify-end gap-3">
-                                <button 
-                                    type="button"
-                                    onClick={() => setIsCloseModalOpen(false)}
-                                    disabled={isClosingRegister}
-                                    className="px-4 py-2 bg-gray-600 text-gray-300 text-sm font-medium rounded-md hover:bg-gray-500 transition-colors"
-                                >
-                                    Cancelar
-                                </button>
-                                <button 
-                                    type="button"
-                                    onClick={handleConfirmCloseRegister}
-                                    disabled={isClosingRegister}
-                                    className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-                                >
-                                    {isClosingRegister && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
-                                    Confirmar Fechamento
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Modal de Retirada (Sangria) */}
-            {isWithdrawModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 backdrop-blur-sm px-4">
-                    <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-sm overflow-hidden animate-fade-in-up border border-gray-700">
-                        <div className="p-6">
-                            <h3 className="text-lg font-bold text-white mb-4">Sangria / Retirada do Caixa</h3>
-                            <form onSubmit={handleConfirmWithdraw}>
-                                <div className="mb-4">
-                                    <label htmlFor="withdrawAmount" className="block text-sm font-medium text-gray-300 mb-1">
-                                        Valor da Retirada (R$)
-                                    </label>
-                                    <input
-                                        type="number"
-                                        id="withdrawAmount"
-                                        step="0.01"
-                                        min="0.01"
-                                        required
-                                        value={withdrawAmount}
-                                        onChange={(e) => setWithdrawAmount(e.target.value)}
-                                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 text-white placeholder-gray-400"
-                                        placeholder="0.00"
-                                        autoFocus
-                                    />
-                                </div>
-                                <div className="flex justify-end gap-3">
-                                    <button 
-                                        type="button"
-                                        onClick={() => setIsWithdrawModalOpen(false)}
-                                        disabled={isWithdrawing}
-                                        className="px-4 py-2 bg-gray-600 text-gray-300 text-sm font-medium rounded-md hover:bg-gray-500 transition-colors"
-                                    >
-                                        Cancelar
-                                    </button>
-                                    <button 
-                                        type="submit"
-                                        disabled={isWithdrawing}
-                                        className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-                                    >
-                                        {isWithdrawing && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
-                                        Retirar
-                                    </button>
-                                </div>
-                            </form>
+                            <button 
+                                onClick={() => setIsBlockedModalOpen(false)}
+                                className="w-full px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white font-medium rounded-md transition-colors"
+                            >
+                                Entendi
+                            </button>
                         </div>
                     </div>
                 </div>
