@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { BURGER_API_URL } from '../constants';
 import type { BurgerOrder, BurgerProduct, User } from '../types';
-import { MotorcycleIcon, MapPinIcon, CheckCircleIcon, XCircleIcon, LockClosedIcon, ClipboardListIcon } from './icons';
+import { MotorcycleIcon, MapPinIcon, CheckCircleIcon, XCircleIcon, LockClosedIcon, ClipboardListIcon, CashIcon } from './icons';
 
 interface BurgerDeliveryPageProps {
     user: User;
@@ -15,6 +14,7 @@ interface DeliveryConfig {
     debit: number;
     credit: number;
     phone: string; // Owner phone
+    taxa_delivery_fixa?: number;
 }
 
 const BurgerDeliveryPage: React.FC<BurgerDeliveryPageProps> = ({ user }) => {
@@ -87,6 +87,7 @@ const BurgerDeliveryPage: React.FC<BurgerDeliveryPageProps> = ({ user }) => {
 
     // 3. Buscar Minhas Entregas
     const fetchMyDeliveries = useCallback(async () => {
+        // Se user.name for indefinido, não busca
         if (!config?.burger || !user.name) return;
 
         try {
@@ -111,6 +112,7 @@ const BurgerDeliveryPage: React.FC<BurgerDeliveryPageProps> = ({ user }) => {
             // Polling a cada 15s para atualizar ambas as listas
             const interval = setInterval(() => {
                 fetchDeliveries();
+                // Apenas busca histórico se estiver na aba
                 if (activeTab === 'mine') {
                     fetchMyDeliveries();
                 }
@@ -132,7 +134,7 @@ const BurgerDeliveryPage: React.FC<BurgerDeliveryPageProps> = ({ user }) => {
         if (!deliveryModalOrder) return;
         setIsProcessing(true);
         try {
-            // Encode user name to safely append to URL, as backend expects it in req.params
+            // Encode user name to safely append to URL
             const userNameParam = encodeURIComponent(user.name);
             await fetch(`${BURGER_API_URL}/api/orders/${deliveryModalOrder.id}/status/${userNameParam}`, {
                 method: 'PATCH',
@@ -140,7 +142,7 @@ const BurgerDeliveryPage: React.FC<BurgerDeliveryPageProps> = ({ user }) => {
                 body: JSON.stringify({ newStatus: 'Entregue', currentStatus: 'A caminho' })
             });
             fetchDeliveries();
-            fetchMyDeliveries(); // Atualiza também o histórico
+            fetchMyDeliveries(); 
             setDeliveryModalOrder(null);
         } catch(e) { 
             alert("Erro ao confirmar entrega"); 
@@ -166,62 +168,86 @@ const BurgerDeliveryPage: React.FC<BurgerDeliveryPageProps> = ({ user }) => {
             );
         }
 
-        return orders.map(order => (
-            <div key={order.id} className={`p-4 rounded-lg flex flex-col md:flex-row justify-between items-center gap-4 border border-gray-700 ${isHistory ? 'bg-gray-800/50' : 'bg-gray-700'}`}>
-                <div className="flex-1">
-                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                        {order.name}
-                        {isHistory && order.status === 'Entregue' && <CheckCircleIcon className="w-4 h-4 text-green-500" />}
-                    </h3>
-                    <div className="flex items-center gap-2 mt-1">
-                        <span className="text-gray-300 text-sm">
-                            {order.address ? `${order.address.address}, ${order.address.number}` : 'Endereço não informado'}
-                        </span>
-                        {order.address && (
-                            <a 
-                                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${order.address.address}, ${order.address.number}`)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-red-500 hover:text-red-400 p-1 rounded hover:bg-gray-600 transition-colors"
-                                title="Abrir no Google Maps"
-                            >
-                                <MapPinIcon className="w-4 h-4" />
-                            </a>
-                        )}
+        const fixedFee = config?.taxa_delivery_fixa || 0;
+
+        return orders.map(order => {
+            const distanceFee = order.deliveryFee || 0;
+            const totalDriverFee = distanceFee + fixedFee;
+
+            return (
+                <div key={order.id} className={`p-4 rounded-lg flex flex-col md:flex-row justify-between items-center gap-4 border border-gray-700 ${isHistory ? 'bg-gray-800/50' : 'bg-gray-700'}`}>
+                    <div className="flex-1">
+                        <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                            {order.name}
+                            {isHistory && order.status === 'Entregue' && <CheckCircleIcon className="w-4 h-4 text-green-500" />}
+                        </h3>
+                        <div className="flex items-center gap-2 mt-1">
+                            <span className="text-gray-300 text-sm">
+                                {order.address ? `${order.address.address}, ${order.address.number}` : 'Endereço não informado'}
+                            </span>
+                            {order.address && (
+                                <a 
+                                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${order.address.address}, ${order.address.number}`)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-red-500 hover:text-red-400 p-1 rounded hover:bg-gray-600 transition-colors"
+                                    title="Abrir no Google Maps"
+                                >
+                                    <MapPinIcon className="w-4 h-4" />
+                                </a>
+                            )}
+                        </div>
+                        <p className="text-gray-400 text-xs mt-1">
+                            Pedido #{order.id} • {new Date(order.time).toLocaleTimeString()} 
+                            {isHistory && <span className="ml-2 px-2 py-0.5 rounded bg-gray-900 text-gray-400">{order.status}</span>}
+                        </p>
                     </div>
-                    <p className="text-gray-400 text-xs mt-1">
-                        Pedido #{order.id} • {new Date(order.time).toLocaleTimeString()} 
-                        {isHistory && <span className="ml-2 px-2 py-0.5 rounded bg-gray-900 text-gray-400">{order.status}</span>}
-                    </p>
+                    <div className="text-right">
+                        {/* Display Total Order Value */}
+                        <p className="text-sm text-gray-400">Total Pedido: R$ {(order.total + distanceFee).toFixed(2)}</p>
+                        
+                        {/* Display Driver Earnings for this order - Only shown in 'Available' tab */}
+                        {!isHistory && (
+                            <div className="flex flex-col items-end">
+                                <span className="text-xs text-gray-500">Sua taxa:</span>
+                                <p className="text-lg font-bold text-green-400">
+                                    R$ {totalDriverFee.toFixed(2)}
+                                </p>
+                            </div>
+                        )}
+                        
+                        <p className={`text-xs mt-1 ${order.payment ? 'text-green-500' : 'text-red-400'}`}>
+                            {order.payment ? 'Pedido Pago' : 'Cobrar na Entrega'}
+                        </p>
+                    </div>
+                    {!isHistory && order.status === 'A caminho' && (
+                        canDeliver ? (
+                            <button 
+                                onClick={() => setDeliveryModalOrder(order)}
+                                className="w-full md:w-auto px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-bold transition-colors"
+                            >
+                                Entregue
+                            </button>
+                        ) : (
+                            <span className="text-gray-500 text-xs italic bg-gray-800 px-2 py-1 rounded">Sem permissão</span>
+                        )
+                    )}
+                    {!isHistory && order.status === 'Pronto' && (
+                         <span className="text-yellow-400 font-medium text-sm">Aguardando Motoboy</span>
+                    )}
                 </div>
-                <div className="text-right">
-                    <p className="text-lg font-bold text-white">R$ {(order.total + (order.deliveryFee||0)).toFixed(2)}</p>
-                    <p className={`text-sm ${order.payment ? 'text-green-400' : 'text-red-400'}`}>
-                        {order.payment ? 'Pago' : 'Receber na Entrega'}
-                    </p>
-                </div>
-                {!isHistory && order.status === 'A caminho' && (
-                    canDeliver ? (
-                        <button 
-                            onClick={() => setDeliveryModalOrder(order)}
-                            className="w-full md:w-auto px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-bold transition-colors"
-                        >
-                            Entregue
-                        </button>
-                    ) : (
-                        <span className="text-gray-500 text-xs italic bg-gray-800 px-2 py-1 rounded">Sem permissão</span>
-                    )
-                )}
-                {!isHistory && order.status === 'Pronto' && (
-                     <span className="text-yellow-400 font-medium text-sm">Aguardando Motoboy</span>
-                )}
-            </div>
-        ));
+            );
+        });
     };
 
     if (isLoadingConfig) {
         return <div className="p-8 text-center text-gray-400">Carregando configurações...</div>;
     }
+
+    const fixedFeeTotal = config?.taxa_delivery_fixa || 0;
+    const totalEarnings = myDeliveries
+        .filter(o => o.status === 'Entregue')
+        .reduce((acc, order) => acc + (order.deliveryFee || 0) + fixedFeeTotal, 0);
 
     return (
         <div className="p-4 bg-gray-800 rounded-lg relative min-h-[80vh]">
@@ -275,7 +301,32 @@ const BurgerDeliveryPage: React.FC<BurgerDeliveryPageProps> = ({ user }) => {
                 {activeTab === 'available' ? (
                     renderOrderList(deliveries, false)
                 ) : (
-                    renderOrderList(myDeliveries, true)
+                    <>
+                        <div className="bg-gray-700 p-4 rounded-lg border-l-4 border-green-500 flex flex-col md:flex-row justify-between items-center shadow-md mb-6 gap-4">
+                            <div className="flex items-center gap-3">
+                                <div className="p-3 bg-green-900/30 rounded-full">
+                                    <CashIcon className="w-6 h-6 text-green-400" />
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-400 font-bold uppercase tracking-wider">Ganhos Totais (Entregues)</p>
+                                    <p className="text-xs text-gray-500">
+                                        {myDeliveries.filter(o => o.status === 'Entregue').length} entregas realizadas
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <span className="text-3xl font-bold text-green-400 block">
+                                    R$ {totalEarnings.toFixed(2)}
+                                </span>
+                                {config?.taxa_delivery_fixa ? (
+                                    <span className="text-xs text-gray-400 bg-gray-800 px-2 py-1 rounded inline-block mt-1">
+                                        Incluindo taxa fixa de R$ {config.taxa_delivery_fixa.toFixed(2)}
+                                    </span>
+                                ) : null}
+                            </div>
+                        </div>
+                        {renderOrderList(myDeliveries, true)}
+                    </>
                 )}
             </div>
 
@@ -310,7 +361,7 @@ const BurgerDeliveryPage: React.FC<BurgerDeliveryPageProps> = ({ user }) => {
                                         </div>
                                     </div>
                                     <div>
-                                        <p className="font-semibold text-gray-700">Valor Total:</p>
+                                        <p className="font-semibold text-gray-700">Valor Total a Cobrar:</p>
                                         <p className="mt-1 text-gray-900 font-bold">R$ {(deliveryModalOrder.total + (deliveryModalOrder.deliveryFee || 0)).toFixed(2)}</p>
                                     </div>
                                 </div>
