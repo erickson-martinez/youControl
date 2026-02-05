@@ -215,6 +215,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
             const openingAmount = activeRegisterOrder ? activeRegisterOrder.total : 0;
             const realSalesRevenue = (currentTotals.total - openingAmount) + currentTotals.withdrawals;
 
+            // 1. Lança no financeiro (mantido conforme solicitado)
             if (realSalesRevenue > 0) {
                 try {
                     await fetch(`${BURGER_API_URL}/transactions/simple`, {
@@ -235,43 +236,47 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                 }
             }
 
-            // NOTA: Não alteramos o status da abertura para manter o histórico visual.
+            // 2. Gera registros individuais para o histórico do caixa
+            const now = new Date().toISOString();
+            
+            // Array com os registros que devem ser criados
+            const recordsToCreate = [
+                { type: 'Cartão', value: currentTotals.credit + currentTotals.debit },
+                { type: 'Pix', value: currentTotals.pix },
+                { type: 'Dinheiro', value: currentTotals.cash },
+                { type: 'Taxa de Entrega', value: currentTotals.deliveryFees }
+            ];
 
-            try {
-                const now = new Date().toISOString();
-                
-                // Dados detalhados para o registro visual
-                const breakdown = {
-                    dinheiro: currentTotals.cash,
-                    pix: currentTotals.pix,
-                    cartao: currentTotals.credit + currentTotals.debit,
-                    retirada: currentTotals.withdrawals
-                };
+            // Itera e cria apenas os que têm valor > 0
+            for (let i = 0; i < recordsToCreate.length; i++) {
+                const record = recordsToCreate[i];
+                if (record.value > 0) {
+                    try {
+                        const closingOrderPayload = {
+                            id: Date.now() + i, // Incrementa ID para evitar colisão
+                            time: now,
+                            name: `FECHAMENTO DE CAIXA - ${record.type}`,
+                            items: [],
+                            total: record.value,
+                            status: 'Fechamento',
+                            payment: true,
+                            paymentMethod: 'Sistema',
+                            delivery: false,
+                            notes: `Fechamento parcial: ${record.type}`,
+                            phone: user.phone,
+                            onclient: false,
+                            burger: config?.burger
+                        };
 
-                const closingOrderPayload = {
-                    id: Date.now(),
-                    time: now,
-                    name: `FECHAMENTO DE CAIXA (${user.name})`,
-                    items: [],
-                    total: currentTotals.cash, // Valor em dinheiro que sobra no caixa
-                    status: 'Fechamento',
-                    payment: true,
-                    paymentMethod: 'Dinheiro',
-                    delivery: false,
-                    // Salva JSON no campo notes para renderização detalhada
-                    notes: JSON.stringify(breakdown),
-                    phone: user.phone,
-                    onclient: false,
-                    burger: config?.burger
-                };
-
-                await fetch(`${BURGER_API_URL}/api/orders`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(closingOrderPayload)
-                });
-            } catch (err) {
-                console.error("Erro ao criar registro visual de fechamento", err);
+                        await fetch(`${BURGER_API_URL}/api/orders`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(closingOrderPayload)
+                        });
+                    } catch (err) {
+                        console.error(`Erro ao criar registro de fechamento para ${record.type}`, err);
+                    }
+                }
             }
 
             setIsRegisterOpen(false);
@@ -576,11 +581,11 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
             {isRegisterOpen && (
                 <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
                     <div className="bg-gray-700 p-3 rounded">
-                        <span className="text-gray-400 text-xs">Total</span>
+                        <span className="text-gray-400 text-xs">Total Geral (Líquido)</span>
                         <p className="text-xl font-bold text-white">R$ {totals.total.toFixed(2)}</p>
                     </div>
                     <div className="bg-gray-700 p-3 rounded">
-                        <span className="text-gray-400 text-xs">Dinheiro</span>
+                        <span className="text-gray-400 text-xs">Dinheiro (Em Caixa)</span>
                         <p className="text-lg font-bold text-green-400">R$ {totals.cash.toFixed(2)}</p>
                     </div>
                     <div className="bg-gray-700 p-3 rounded">
@@ -624,22 +629,6 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                             const isClosing = order.name.includes('FECHAMENTO DE CAIXA');
                             const isWithdraw = order.status === 'Retirada';
 
-                            // Renderização customizada para o fechamento
-                            let closingDetails = null;
-                            if (isClosing) {
-                                try {
-                                    const notes = JSON.parse(order.notes || '{}');
-                                    closingDetails = (
-                                        <div className="mt-1 text-xs text-gray-300 space-y-0.5 font-normal">
-                                            {notes.cartao > 0 && <div>Cartão Fechamento: R$ {notes.cartao.toFixed(2)}</div>}
-                                            {notes.pix > 0 && <div>Pix Fechamento: R$ {notes.pix.toFixed(2)}</div>}
-                                            {notes.dinheiro > 0 && <div>Dinheiro Fechamento: R$ {notes.dinheiro.toFixed(2)}</div>}
-                                            {notes.retirada > 0 && <div className="text-red-300">Retiradas: R$ {notes.retirada.toFixed(2)}</div>}
-                                        </div>
-                                    );
-                                } catch (e) {}
-                            }
-
                             return (
                             <React.Fragment key={order.id}>
                                 <tr className={`hover:bg-gray-700/50 ${isOpening ? 'bg-green-900/10' : ''} ${isWithdraw ? 'bg-red-900/10' : ''} ${isClosing ? 'bg-blue-900/10' : ''}`}>
@@ -647,10 +636,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                                         {isOpening ? <span className="text-green-300 font-bold">{order.name}</span> : 
                                          isWithdraw ? <span className="text-red-300 font-bold">{order.name}</span> : 
                                          isClosing ? (
-                                            <div>
-                                                <span className="text-blue-300 font-bold">{order.name}</span>
-                                                {closingDetails}
-                                            </div>
+                                            <span className="text-blue-300 font-bold">{order.name}</span>
                                          ) : (
                                             <>
                                                 {order.name.split(' ')[0]} 
