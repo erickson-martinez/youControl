@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { BURGER_API_URL } from '../constants';
 import type { BurgerOrder, BurgerProduct, User } from '../types';
-import { ChevronDownIcon, LockClosedIcon, MinusIcon, XCircleIcon, MapPinIcon } from './icons';
+import { ChevronDownIcon, LockClosedIcon, MinusIcon, XCircleIcon, MapPinIcon, PrinterIcon } from './icons';
 
 interface BurgerPOSPageProps {
     user: User;
@@ -509,6 +509,107 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
         }
     };
 
+    const handlePrintOrder = (order: BurgerOrder) => {
+        const printWindow = window.open('', '_blank', 'width=300,height=600');
+        if (!printWindow) {
+            alert("Permita pop-ups para imprimir.");
+            return;
+        }
+
+        const itemsHtml = order.items.map(item => {
+            const prod = products.find(p => p.id === item.id);
+            const totalItem = (prod ? prod.price * item.qty : 0);
+            return `
+                <tr>
+                    <td colspan="3" style="font-size: 11px; font-weight: bold;">${prod?.name || `Item ${item.id}`}</td>
+                </tr>
+                <tr style="border-bottom: 1px dashed #444;">
+                    <td style="font-size: 11px;">${item.qty}x</td>
+                    <td style="font-size: 11px; text-align: right;">${(prod?.price || 0).toFixed(2)}</td>
+                    <td style="font-size: 11px; text-align: right; font-weight: bold;">${totalItem.toFixed(2)}</td>
+                </tr>
+            `;
+        }).join('');
+
+        const dateStr = new Date(order.time).toLocaleString('pt-BR');
+        const total = (order.total + (order.deliveryFee || 0)).toFixed(2);
+        
+        const content = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Cupom #${order.id}</title>
+                <style>
+                    @page { margin: 0; size: 58mm auto; }
+                    body { 
+                        font-family: 'Courier New', Courier, monospace; 
+                        width: 58mm; 
+                        margin: 0; 
+                        padding: 5px 2px; 
+                        color: #000; 
+                        background: #fff;
+                        font-size: 11px;
+                        line-height: 1.2;
+                    }
+                    .text-center { text-align: center; }
+                    .text-right { text-align: right; }
+                    .bold { font-weight: bold; }
+                    .border-bottom { border-bottom: 1px dashed #000; padding-bottom: 5px; margin-bottom: 5px; }
+                    table { width: 100%; border-collapse: collapse; margin-bottom: 5px; }
+                    td { vertical-align: top; }
+                </style>
+            </head>
+            <body>
+                <div class="text-center bold border-bottom" style="font-size: 14px;">${config?.burger || 'Lanchonete'}</div>
+                
+                <div class="border-bottom">
+                    <div>Data: ${dateStr}</div>
+                    <div>Pedido: #${order.id}</div>
+                    ${order.tableNumber ? `<div>Mesa: <span class="bold">${order.tableNumber}</span></div>` : ''}
+                    <div>Cliente: ${order.name}</div>
+                    ${order.phone ? `<div>Tel: ${order.phone}</div>` : ''}
+                </div>
+
+                <table class="border-bottom">
+                    ${itemsHtml}
+                </table>
+
+                <div class="text-right bold" style="font-size: 14px;">TOTAL: R$ ${total}</div>
+                <div class="text-right">Pagamento: ${order.paymentMethod}</div>
+                
+                ${order.delivery && order.address ? `
+                <div class="border-bottom" style="margin-top: 5px; padding-top: 5px; border-top: 1px dashed #000;">
+                    <div class="bold">ENTREGA:</div>
+                    <div>${order.address.address}, ${order.address.number}</div>
+                    <div>${order.address.neighborhood || ''}</div>
+                    ${order.deliveryFee ? `<div>Taxa: R$ ${order.deliveryFee.toFixed(2)}</div>` : ''}
+                </div>
+                ` : ''}
+
+                ${order.notes ? `
+                <div style="margin-top: 5px; padding: 5px; border: 1px solid #000; font-weight: bold;">
+                    OBS: ${order.notes}
+                </div>
+                ` : ''}
+
+                <div class="text-center" style="margin-top: 10px; font-size: 10px;">
+                    *** NÃO É DOCUMENTO FISCAL ***
+                </div>
+                <br/><br/>
+            </body>
+            <script>
+                window.onload = function() {
+                    window.print();
+                    setTimeout(function(){ window.close(); }, 500);
+                }
+            </script>
+            </html>
+        `;
+
+        printWindow.document.write(content);
+        printWindow.document.close();
+    };
+
     const totals = getTotals();
 
     const renderActionButtons = (order: BurgerOrder) => {
@@ -536,6 +637,18 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
             const next = order.delivery ? 'A caminho' : 'Entregue';
             actions.push(<button key="dlv" onClick={() => updateStatus(order.id, next, order.status)} className="px-2 py-1 text-xs text-white bg-purple-600 rounded hover:bg-purple-700">{order.delivery ? 'Enviar' : 'Entregar'}</button>);
         }
+
+        // Add Print Button
+        actions.push(
+            <button
+                key="print"
+                onClick={() => handlePrintOrder(order)}
+                className="px-2 py-1 text-xs text-white bg-gray-600 rounded hover:bg-gray-500"
+                title="Imprimir Cupom"
+            >
+                <PrinterIcon className="w-4 h-4" />
+            </button>
+        );
 
         return <div className="flex gap-2">{actions}</div>;
     };
