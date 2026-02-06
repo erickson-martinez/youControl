@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import type { BurgerProduct, User } from '../types';
 import { BURGER_API_URL, DEFAULT_BURGER_IMAGE } from '../constants';
@@ -28,14 +27,26 @@ const BurgerProductsPage: React.FC<BurgerProductsPageProps> = ({ user }) => {
     useEffect(() => {
         const checkOwnership = async () => {
             try {
-                const res = await fetch(`${BURGER_API_URL}/api/config`);
-                const data = await res.json();
-                const config = data.data || data; // Handle {data: ...} or direct object
-                
-                if (config && config.phone === user.phone) {
-                    setIsOwner(true);
-                    fetchProducts();
+                // Tenta buscar configuração pelo telefone do usuário
+                const res = await fetch(`${BURGER_API_URL}/api/config/${user.phone}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const configData = data.data || data;
+                    
+                    // Se retornou array com itens ou objeto válido, é dono
+                    const isOwnerFound = Array.isArray(configData) 
+                        ? configData.length > 0 
+                        : (configData && Object.keys(configData).length > 0);
+
+                    if (isOwnerFound) {
+                        setIsOwner(true);
+                        fetchProducts();
+                    } else {
+                        setIsOwner(false);
+                        setIsLoading(false);
+                    }
                 } else {
+                    // Se der 404 ou outro erro, não é dono
                     setIsOwner(false);
                     setIsLoading(false);
                 }

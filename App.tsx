@@ -23,6 +23,7 @@ import BurgerWaiterPage from './components/BurgerWaiterPage';
 import BurgerDeliveryPage from './components/BurgerDeliveryPage';
 import BurgerDashboardPage from './components/BurgerDashboardPage';
 import BurgerClientOrderPage from './components/BurgerClientOrderPage';
+import BurgerCompanyPage from './components/BurgerCompanyPage';
 
 import { MenuIcon, XCircleIcon } from './components/icons';
 import type { User, MenuPermissions, Empresa, WorkRecord, ActivePage, PontoStatus, OrdemServico, UserCompanyLink } from './types';
@@ -35,7 +36,8 @@ const apiToFrontendPermissions = (apiPerms: string[] | null | undefined, userPho
         rh: false, financeiro: false, graficos: false, os: false, ponto: false, aprovarHoras: false, 
         chamados: false, empresa: false, lojas: false, listPurcharse: false, settings: false, 
         exemplo: false, financialManual: false,
-        burgerProducts: false, burgerPOS: false, burgerWaiter: false, burgerDelivery: false, burgerDashboard: false, burgerClient: false
+        burgerProducts: false, burgerPOS: false, burgerWaiter: false, burgerDelivery: false, 
+        burgerDashboard: false, burgerClient: false, burgerCompany: false
     };
     if (Array.isArray(apiPerms)) {
         for (const key of apiPerms) {
@@ -461,6 +463,7 @@ const App: React.FC = () => {
               {activePage === 'financialManual' && userPermissions.financialManual && <FinancialManualPage />}
               
               {/* Lanchonete Modules */}
+              {activePage === 'burgerCompany' && userPermissions.burgerCompany && <BurgerCompanyPage user={user} />}
               {activePage === 'burgerProducts' && userPermissions.burgerProducts && <BurgerProductsPage user={user} />}
               {activePage === 'burgerPOS' && userPermissions.burgerPOS && <BurgerPOSPage user={user} />}
               {activePage === 'burgerWaiter' && userPermissions.burgerWaiter && <BurgerWaiterPage />}

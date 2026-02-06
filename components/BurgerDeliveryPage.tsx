@@ -43,8 +43,8 @@ const BurgerDeliveryPage: React.FC<BurgerDeliveryPageProps> = ({ user }) => {
                     .then(data => setProducts(data.data || []))
                     .catch(err => console.error("Erro ao carregar produtos", err));
 
-                // Carregar Configuração de Delivery
-                const configResponse = await fetch(`${BURGER_API_URL}/api/config/delivery`);
+                // Carregar Configuração de Delivery passando o telefone do usuário
+                const configResponse = await fetch(`${BURGER_API_URL}/api/config/delivery/${user.phone}`);
                 const configJson = await configResponse.json();
                 
                 if (configJson && configJson.data) {

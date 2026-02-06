@@ -25,6 +25,7 @@ export interface MenuPermissions {
   burgerDelivery: boolean;
   burgerDashboard: boolean;
   burgerClient: boolean;
+  burgerCompany: boolean;
 }
 
 export type ActivePage = keyof MenuPermissions | 'home';
@@ -220,4 +221,26 @@ export interface BurgerOrder {
 export interface BurgerTable {
   id: number;
   occupied: boolean;
+}
+
+export interface BurgerConfig {
+    _id?: string;
+    BURGER: string;
+    CNPJ: string;
+    CAIXA: string[];
+    GARCOM: string[];
+    DELIVERY: string[];
+    PERIOD?: { day: string; start: string; end: string }[];
+    phone: string;
+    PAYMENT_METHODS: string[];
+    DEBIT_CARD_FEE_RATE: number;
+    CREDIT_CARD_FEE_RATE: number;
+    TAXA_POR_KM: number;
+    PREFIXOS_LOGRADOURO: string[];
+    latitude: string;
+    longitude: string;
+    TAXA_DELIVERY_FIXA: number;
+    DELIVERY_FEE: number;
+    TABLE_COUNT: number;
+    STATUS: 'active' | 'inactive';
 }

@@ -59,10 +59,11 @@ const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, isOpen, onClose, perm
               <li><NavLink page="home" onNavigate={onNavigate} icon={<HomeIcon className="w-6 h-6" />} label="Início" active={activePage === 'home'} /></li>
               
               {/* Módulo Lanchonete */}
-              {(permissions.burgerDashboard || permissions.burgerPOS || permissions.burgerProducts || permissions.burgerClient) && (
+              {(permissions.burgerDashboard || permissions.burgerCompany || permissions.burgerPOS || permissions.burgerProducts || permissions.burgerClient) && (
                   <li className="px-4 pt-4 pb-2 text-xs font-semibold text-gray-500 uppercase">Lanchonete</li>
               )}
               {permissions.burgerDashboard && <li><NavLink page="burgerDashboard" onNavigate={onNavigate} icon={<ChartBarIcon className="w-6 h-6" />} label="Dash Lanchonete" active={activePage === 'burgerDashboard'} /></li>}
+              {permissions.burgerCompany && <li><NavLink page="burgerCompany" onNavigate={onNavigate} icon={<OfficeBuildingIcon className="w-6 h-6" />} label="Minha Empresa" active={activePage === 'burgerCompany'} /></li>}
               {permissions.burgerPOS && <li><NavLink page="burgerPOS" onNavigate={onNavigate} icon={<MonitorIcon className="w-6 h-6" />} label="Caixa / Pedidos" active={activePage === 'burgerPOS'} /></li>}
               {permissions.burgerWaiter && <li><NavLink page="burgerWaiter" onNavigate={onNavigate} icon={<UsersIcon className="w-6 h-6" />} label="Garçom" active={activePage === 'burgerWaiter'} /></li>}
               {permissions.burgerProducts && <li><NavLink page="burgerProducts" onNavigate={onNavigate} icon={<TagIcon className="w-6 h-6" />} label="Produtos Burger" active={activePage === 'burgerProducts'} /></li>}

@@ -21,6 +21,7 @@ export const ALL_PERMISSION_KEYS_WITH_LABELS: { key: keyof MenuPermissions, labe
     { key: 'settings', label: 'Configurações' },
     { key: 'exemplo', label: 'Exemplos' },
     { key: 'burgerProducts', label: 'Burguer: Produtos' },
+    { key: 'burgerCompany', label: 'Burguer: Minha Empresa' },
     { key: 'burgerPOS', label: 'Burguer: Caixa/Pedidos' },
     { key: 'burgerWaiter', label: 'Burguer: Garçom' },
     { key: 'burgerDelivery', label: 'Burguer: Entrega' },

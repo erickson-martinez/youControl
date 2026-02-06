@@ -82,7 +82,8 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
         const verifyAccess = async () => {
             setCheckingAuth(true);
             try {
-                const response = await fetch(`${BURGER_API_URL}/api/config/caixa`);
+                // Agora passa o telefone do usuário na rota para verificar permissão no backend
+                const response = await fetch(`${BURGER_API_URL}/api/config/caixa/${user.phone}`);
                 const json = await response.json();
                 
                 if (json && json.data) {
@@ -98,7 +99,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                         setIsAuthorized(false);
                     }
                 } else {
-                    console.error("Formato de configuração inválido");
+                    console.error("Formato de configuração inválido ou acesso negado");
                     setIsAuthorized(false);
                 }
             } catch (error) {
