@@ -14,6 +14,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, initialRegist
   const [password, setPassword] = useState('');
   const [name, setName] = useState(''); // For registration
   const [isRegisterMode, setIsRegisterMode] = useState(initialRegisterMode);
+  const [isForgotPasswordMode, setIsForgotPasswordMode] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -22,6 +23,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, initialRegist
 
   const loginLoadingMessages = ['Entrando...', 'Iniciando servidor...', 'Realizando conexão...'];
   const registrationLoadingMessages = ['Realizando cadastro...', 'Criando permissões...', 'Liberando acesso...'];
+  const forgotPasswordLoadingMessages = ['Atualizando senha...', 'Validando dados...', 'Concluindo...'];
   
   // Efeito para "acordar" o servidor no Render ao carregar a página
   useEffect(() => {
@@ -44,7 +46,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, initialRegist
   useEffect(() => {
     let interval: number | undefined;
     if (loading) {
-      const messages = isRegisterMode ? registrationLoadingMessages : loginLoadingMessages;
+      const messages = isForgotPasswordMode 
+        ? forgotPasswordLoadingMessages 
+        : (isRegisterMode ? registrationLoadingMessages : loginLoadingMessages);
       let messageIndex = 0;
       setLoadingMessage(messages[0]);
       
@@ -59,14 +63,35 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, initialRegist
         window.clearInterval(interval);
       }
     };
-  }, [loading, isRegisterMode]);
+  }, [loading, isRegisterMode, isForgotPasswordMode]);
 
 
   const handleModeToggle = () => {
     setIsRegisterMode(!isRegisterMode);
+    setIsForgotPasswordMode(false);
     setError('');
     setMessage('');
     // Clear fields when switching modes
+    setName('');
+    setPhone('');
+    setPassword('');
+  };
+
+  const handleForgotPasswordClick = () => {
+    setIsForgotPasswordMode(true);
+    setIsRegisterMode(false);
+    setError('');
+    setMessage('');
+    setName('');
+    setPhone('');
+    setPassword('');
+  };
+
+  const handleBackToLogin = () => {
+    setIsForgotPasswordMode(false);
+    setIsRegisterMode(false);
+    setError('');
+    setMessage('');
     setName('');
     setPhone('');
     setPassword('');
@@ -88,6 +113,46 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, initialRegist
     setError('');
     setMessage('');
     setLoading(true);
+
+    if (isForgotPasswordMode) {
+      // --- Forgot Password Logic ---
+      if (!name.trim() || !phone.trim() || !password.trim()) {
+        setError('Nome, telefone e nova senha são obrigatórios.');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const response = await apiFetchWithoutUser(`${API_BASE_URL}/users/${phone.trim()}`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            name: name.trim(),
+            pass: password.trim(),
+          }),
+        });
+
+        if (!response.ok) {
+          let errorMessage = 'Erro ao redefinir senha.';
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorData.message || errorMessage;
+          } catch (e) {
+            console.error("Erro ao processar resposta de erro JSON", e);
+          }
+          throw new Error(errorMessage);
+        }
+
+        setMessage('Senha atualizada com sucesso! Por favor, faça o login com a nova senha.');
+        setIsForgotPasswordMode(false);
+        setPassword('');
+        // Keep phone filled for convenience
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Ocorreu um erro desconhecido.');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
 
     if (isRegisterMode) {
       // --- Registration Logic ---
@@ -189,15 +254,17 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, initialRegist
       <div className="w-full max-w-md p-8 space-y-8 bg-gray-800 rounded-lg shadow-lg">
         <div>
           <h2 className="text-3xl font-extrabold text-center text-white">
-            {isRegisterMode ? 'Criar Conta' : 'Seu Controle'}
+            {isForgotPasswordMode ? 'Redefinir Senha' : (isRegisterMode ? 'Criar Conta' : 'Seu Controle')}
           </h2>
           <p className="mt-2 text-sm text-center text-gray-400">
-            {isRegisterMode ? 'Preencha os dados para se cadastrar' : 'Acesse sua conta'}
+            {isForgotPasswordMode 
+              ? 'Informe seu nome, telefone e a nova senha' 
+              : (isRegisterMode ? 'Preencha os dados para se cadastrar' : 'Acesse sua conta')}
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
          <fieldset disabled={loading} className="space-y-4 rounded-md shadow-sm">
-            {isRegisterMode && (
+            {(isRegisterMode || isForgotPasswordMode) && (
               <div>
                 <label htmlFor="name" className="sr-only">Nome</label>
                 <input
@@ -236,7 +303,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, initialRegist
                 autoComplete={isRegisterMode ? "new-password" : "current-password"}
                 required
                 className="relative block w-full px-3 py-3 pr-10 text-white placeholder-gray-500 bg-gray-700 border border-gray-600 rounded-md appearance-none focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm disabled:opacity-50"
-                placeholder="Senha"
+                placeholder={isForgotPasswordMode ? "Nova Senha" : "Senha"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
@@ -261,18 +328,45 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, initialRegist
               disabled={loading}
               className="relative flex justify-center w-full px-4 py-3 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md group hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-500 disabled:cursor-not-allowed"
             >
-              {loading ? loadingMessage : (isRegisterMode ? 'Cadastrar' : 'Entrar')}
+              {loading ? loadingMessage : (isForgotPasswordMode ? 'Redefinir Senha' : (isRegisterMode ? 'Cadastrar' : 'Entrar'))}
             </button>
           </div>
         </form>
-        <div className="text-sm text-center">
-            <button 
-              onClick={handleModeToggle}
-              className="font-medium text-blue-400 bg-transparent border-none cursor-pointer hover:text-blue-300 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-blue-400"
-              disabled={loading}
-            >
-              {isRegisterMode ? 'Já tem uma conta? Entrar' : 'Cadastrar'}
-            </button>
+        <div className="flex items-center justify-between text-sm text-center px-2">
+            {isForgotPasswordMode ? (
+                <button 
+                  onClick={handleBackToLogin}
+                  className="w-full font-medium text-blue-400 bg-transparent border-none cursor-pointer hover:text-blue-300 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-blue-400"
+                  disabled={loading}
+                >
+                  Voltar para Login
+                </button>
+            ) : isRegisterMode ? (
+                <button 
+                  onClick={handleModeToggle}
+                  className="w-full font-medium text-blue-400 bg-transparent border-none cursor-pointer hover:text-blue-300 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-blue-400"
+                  disabled={loading}
+                >
+                  Já tem uma conta? Entrar
+                </button>
+            ) : (
+                <>
+                  <button 
+                    onClick={handleModeToggle}
+                    className="font-medium text-blue-400 bg-transparent border-none cursor-pointer hover:text-blue-300 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-blue-400"
+                    disabled={loading}
+                  >
+                    Cadastrar
+                  </button>
+                  <button 
+                    onClick={handleForgotPasswordClick}
+                    className="font-medium text-gray-400 bg-transparent border-none cursor-pointer hover:text-gray-300 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={loading}
+                  >
+                    Esqueci Senha
+                  </button>
+                </>
+            )}
         </div>
       </div>
     </div>
