@@ -26,6 +26,7 @@ export interface MenuPermissions {
   burgerDashboard: boolean;
   burgerClient: boolean;
   burgerCompany: boolean;
+  treino: boolean;
 }
 
 export type ActivePage = keyof MenuPermissions | 'home';
@@ -243,4 +244,35 @@ export interface BurgerConfig {
     DELIVERY_FEE: number;
     TABLE_COUNT: number;
     STATUS: 'active' | 'inactive';
+}
+
+export interface WorkoutExercise {
+  id: string;
+  name: string;
+  sets?: number;
+  reps?: string;
+  notes?: string;
+  completed?: boolean;
+}
+
+export interface WorkoutDay {
+  id: string;
+  name: string;
+  exercises: WorkoutExercise[];
+  order: number;
+}
+
+export interface WorkoutHistoryEntry {
+  id: string;
+  dayId: string;
+  dayName: string;
+  completedAt: string;
+}
+
+export interface WorkoutCycle {
+  id: string;
+  userId: string;
+  days: WorkoutDay[];
+  currentDayId: string | null;
+  history: WorkoutHistoryEntry[];
 }
