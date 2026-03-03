@@ -102,13 +102,22 @@ const TreinoPage: React.FC<TreinoPageProps> = ({ user }) => {
   const baseIndex = activeDayIndex >= 0 ? activeDayIndex : 0;
   
   const getActualDayIndex = (offset: number) => {
-    if (!days.length) return 0;
-    const index = (baseIndex + offset) % days.length;
-    return index < 0 ? index + days.length : index;
+    if (!days.length) return -1;
+    if (offset < 0) {
+      const index = (baseIndex + offset) % days.length;
+      return index < 0 ? index + days.length : index;
+    }
+    const index = baseIndex + offset;
+    if (index >= days.length) return -1;
+    return index;
   };
 
   const actualDayIndex = getActualDayIndex(viewOffset);
-  const currentDay = days.length > 0 ? days[actualDayIndex] : undefined;
+  const currentDay = actualDayIndex >= 0 ? days[actualDayIndex] : undefined;
+  
+  const displayDayIndex = viewOffset < 0 
+    ? ((baseIndex + viewOffset) % days.length + days.length) % days.length 
+    : baseIndex + viewOffset;
   
   // Validation: cannot select the same group as the last added day
   const lastDayName = days.length > 0 ? days[days.length - 1].name : null;
@@ -161,7 +170,6 @@ const TreinoPage: React.FC<TreinoPageProps> = ({ user }) => {
   const handleAddTreino = async (group: typeof WORKOUT_GROUPS[0]) => {
     await addWorkoutDayWithExercises(group.name, group.exercises);
     setShowAddModal(false);
-    setViewOffset(0); // Go back to today
   };
 
   const handleDeleteCurrentDay = async () => {
@@ -237,7 +245,7 @@ const TreinoPage: React.FC<TreinoPageProps> = ({ user }) => {
               Treino {workoutNumber > 0 ? workoutNumber : 1}
             </span>
             <span className="text-xs font-medium text-gray-400 uppercase">
-              {formattedDate} • Ciclo Dia {actualDayIndex + 1}
+              {formattedDate} • Ciclo Dia {displayDayIndex + 1}
             </span>
           </div>
           {currentDay ? (
@@ -252,7 +260,7 @@ const TreinoPage: React.FC<TreinoPageProps> = ({ user }) => {
             setViewOffset(prev => prev + 1);
             setShowAddExercise(false);
           }}
-          disabled={days.length === 0 || viewOffset >= 30}
+          disabled={days.length === 0 || viewOffset >= 30 || !currentDay}
           className="p-2 text-gray-400 hover:text-white disabled:opacity-30 disabled:hover:text-gray-400 transition-colors"
         >
           <ChevronRightIcon className="w-6 h-6" />
@@ -468,7 +476,7 @@ const TreinoPage: React.FC<TreinoPageProps> = ({ user }) => {
             </>
           ) : (
             <>
-              <p className="text-gray-400">Nenhum treino definido para o Dia {actualDayIndex + 1}.</p>
+              <p className="text-gray-400">Nenhum treino definido para o Dia {displayDayIndex + 1}.</p>
               <button
                 onClick={() => setShowAddModal(true)}
                 className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors font-medium shadow-md"
