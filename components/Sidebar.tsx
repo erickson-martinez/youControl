@@ -71,6 +71,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, isOpen, onClose, perm
               {permissions.burgerClient && <li><NavLink page="burgerClient" onNavigate={onNavigate} icon={<BurgerIcon className="w-6 h-6" />} label="Fazer Pedido (Cardápio)" active={activePage === 'burgerClient'} /></li>}
 
               <li className="px-4 pt-4 pb-2 text-xs font-semibold text-gray-500 uppercase">Geral</li>
+              {permissions.jogoDaVida && <li><NavLink page="jogoDaVida" onNavigate={onNavigate} icon={<BookOpenIcon className="w-6 h-6" />} label="Jogo da Vida" active={activePage === 'jogoDaVida'} /></li>}
               {permissions.treino && <li><NavLink page="treino" onNavigate={onNavigate} icon={<ClipboardListIcon className="w-6 h-6" />} label="Treino" active={activePage === 'treino'} /></li>}
               {permissions.financeiro && <li><NavLink page="financeiro" onNavigate={onNavigate} icon={<CashIcon className="w-6 h-6" />} label="Financeiro" active={activePage === 'financeiro'} /></li>}
               {permissions.graficos && <li><NavLink page="graficos" onNavigate={onNavigate} icon={<ChartBarIcon className="w-6 h-6" />} label="Relatórios" active={activePage === 'graficos'} /></li>}

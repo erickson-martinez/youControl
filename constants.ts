@@ -21,6 +21,7 @@ export const ALL_PERMISSION_KEYS_WITH_LABELS: { key: keyof MenuPermissions, labe
     { key: 'settings', label: 'Configurações' },
     { key: 'exemplo', label: 'Exemplos' },
     { key: 'treino', label: 'Treino' },
+    { key: 'jogoDaVida', label: 'Jogo da Vida' },
     { key: 'burgerProducts', label: 'Burguer: Produtos' },
     { key: 'burgerCompany', label: 'Burguer: Minha Empresa' },
     { key: 'burgerPOS', label: 'Burguer: Caixa/Pedidos' },
@@ -40,6 +41,6 @@ const createPermissions = (activeKeys: (keyof MenuPermissions)[]): MenuPermissio
     return permissions as MenuPermissions;
 };
 
-export const FALLBACK_PERMISSIONS = createPermissions(['financeiro', 'graficos', 'exemplo', 'financialManual', 'treino']);
-export const NEW_COLLABORATOR_PERMISSIONS = createPermissions(['financeiro', 'graficos', 'os', 'ponto', 'exemplo', 'financialManual', 'treino']);
-export const MODAL_DEFAULT_PERMISSIONS = createPermissions(['financeiro', 'graficos', 'exemplo', 'financialManual', 'treino']);
+export const FALLBACK_PERMISSIONS = createPermissions(['financeiro', 'graficos', 'exemplo', 'financialManual', 'treino', 'jogoDaVida']);
+export const NEW_COLLABORATOR_PERMISSIONS = createPermissions(['financeiro', 'graficos', 'os', 'ponto', 'exemplo', 'financialManual', 'treino', 'jogoDaVida']);
+export const MODAL_DEFAULT_PERMISSIONS = createPermissions(['financeiro', 'graficos', 'exemplo', 'financialManual', 'treino', 'jogoDaVida']);

@@ -17,6 +17,7 @@ import FinancialManualPage from './components/FinancialManualPage';
 import GraphicsPage from './components/GraphicsPage';
 import LandingPage from './components/LandingPage';
 import TreinoPage from './components/TreinoPage';
+import JogoDaVidaPage from './components/JogoDaVidaPage';
 // Burger Imports
 import BurgerProductsPage from './components/BurgerProductsPage';
 import BurgerPOSPage from './components/BurgerPOSPage';
@@ -39,7 +40,7 @@ const apiToFrontendPermissions = (apiPerms: string[] | null | undefined, userPho
         exemplo: false, financialManual: false,
         burgerProducts: false, burgerPOS: false, burgerWaiter: false, burgerDelivery: false, 
         burgerDashboard: false, burgerClient: false, burgerCompany: false,
-        treino: false
+        treino: false, jogoDaVida: false
     };
     if (Array.isArray(apiPerms)) {
         for (const key of apiPerms) {
@@ -464,6 +465,7 @@ const App: React.FC = () => {
               {activePage === 'exemplo' && userPermissions.exemplo && <ExemploPage />}
               {activePage === 'financialManual' && userPermissions.financialManual && <FinancialManualPage />}
               {activePage === 'treino' && userPermissions.treino && <TreinoPage user={user} />}
+              {activePage === 'jogoDaVida' && userPermissions.jogoDaVida && <JogoDaVidaPage />}
               
               {/* Lanchonete Modules */}
               {activePage === 'burgerCompany' && userPermissions.burgerCompany && <BurgerCompanyPage user={user} />}

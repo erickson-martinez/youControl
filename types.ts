@@ -27,6 +27,7 @@ export interface MenuPermissions {
   burgerClient: boolean;
   burgerCompany: boolean;
   treino: boolean;
+  jogoDaVida: boolean;
 }
 
 export type ActivePage = keyof MenuPermissions | 'home';
