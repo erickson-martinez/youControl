@@ -72,6 +72,7 @@ const TreinoPage: React.FC<TreinoPageProps> = ({ user }) => {
   const {
     cycle,
     loading,
+    setWorkoutCycle,
     addWorkoutDayWithExercises,
     deleteWorkoutDay,
     removeExercise,
@@ -111,6 +112,51 @@ const TreinoPage: React.FC<TreinoPageProps> = ({ user }) => {
   
   // Validation: cannot select the same group as the last added day
   const lastDayName = days.length > 0 ? days[days.length - 1].name : null;
+
+  const handleSuggestWorkout = async (level: 'iniciante' | 'intermediario' | 'avancado') => {
+    const getGroup = (id: string) => WORKOUT_GROUPS.find(g => g.id === id) || WORKOUT_GROUPS[0];
+    const descanso = getGroup('descanso');
+    
+    let suggestedDays: { name: string, exercises: any[] }[] = [];
+
+    if (level === 'iniciante') {
+      // 3x na semana (A, B, C, Descanso)
+      suggestedDays = [
+        getGroup('peito_triceps_ombro'),
+        descanso,
+        getGroup('costas_biceps'),
+        descanso,
+        getGroup('perna_gluteo'),
+        descanso,
+        descanso
+      ];
+    } else if (level === 'intermediario') {
+      // 4x na semana (A, B, Descanso, C, D)
+      suggestedDays = [
+        getGroup('peito_triceps_ombro'),
+        getGroup('costas_biceps'),
+        descanso,
+        getGroup('perna_gluteo'),
+        getGroup('peito_triceps_ombro'), // Repete um para fechar 4
+        descanso,
+        descanso
+      ];
+    } else {
+      // 5x na semana (A, B, C, A, B)
+      suggestedDays = [
+        getGroup('peito_triceps_ombro'),
+        getGroup('costas_biceps'),
+        getGroup('perna_gluteo'),
+        getGroup('peito_triceps_ombro'),
+        getGroup('costas_biceps'),
+        descanso,
+        descanso
+      ];
+    }
+
+    await setWorkoutCycle(suggestedDays.map(g => ({ name: g.name, exercises: g.exercises })));
+    setViewOffset(0);
+  };
 
   const handleAddTreino = async (group: typeof WORKOUT_GROUPS[0]) => {
     await addWorkoutDayWithExercises(group.name, group.exercises);
@@ -370,14 +416,68 @@ const TreinoPage: React.FC<TreinoPageProps> = ({ user }) => {
         </div>
       ) : (
         <div className="text-center py-12 bg-gray-800 rounded-xl border border-gray-700 shadow-md">
-          <p className="text-gray-400">Nenhum treino definido para o Dia {currentDayIndex + 1}.</p>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors font-medium shadow-md"
-          >
-            <PlusIcon className="w-5 h-5" />
-            Definir Treino
-          </button>
+          {days.length === 0 ? (
+            <>
+              <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">Nenhum treino planejado</h3>
+              <p className="text-gray-400 max-w-sm mx-auto mb-6">
+                Comece adicionando dias ao seu ciclo de treino ou escolha uma sugestão abaixo.
+              </p>
+              
+              <div className="space-y-3 px-4">
+                <button
+                  onClick={() => handleSuggestWorkout('iniciante')}
+                  className="w-full py-3 bg-gray-700 text-white rounded-xl hover:bg-gray-600 transition-colors font-medium border border-gray-600"
+                >
+                  Sugerir Treino Iniciante (3x na semana)
+                </button>
+                <button
+                  onClick={() => handleSuggestWorkout('intermediario')}
+                  className="w-full py-3 bg-gray-700 text-white rounded-xl hover:bg-gray-600 transition-colors font-medium border border-gray-600"
+                >
+                  Sugerir Treino Intermediário (4x na semana)
+                </button>
+                <button
+                  onClick={() => handleSuggestWorkout('avancado')}
+                  className="w-full py-3 bg-gray-700 text-white rounded-xl hover:bg-gray-600 transition-colors font-medium border border-gray-600"
+                >
+                  Sugerir Treino Avançado (5x na semana)
+                </button>
+                
+                <div className="relative py-4">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-700"></div>
+                  </div>
+                  <div className="relative flex justify-center">
+                    <span className="bg-gray-800 px-2 text-sm text-gray-500">ou</span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="w-full py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-colors font-medium shadow-md flex items-center justify-center gap-2"
+                >
+                  <PlusIcon className="w-5 h-5" />
+                  Criar Meu Próprio Treino
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-gray-400">Nenhum treino definido para o Dia {actualDayIndex + 1}.</p>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors font-medium shadow-md"
+              >
+                <PlusIcon className="w-5 h-5" />
+                Definir Treino
+              </button>
+            </>
+          )}
         </div>
       )}
 

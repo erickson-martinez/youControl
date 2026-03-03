@@ -38,6 +38,25 @@ export const useWorkoutCycle = (userId: string) => {
     setCycle(newCycle);
   };
 
+  const setWorkoutCycle = async (daysData: { name: string, exercises: Omit<WorkoutExercise, 'id'>[] }[]) => {
+    if (!cycle) return;
+    
+    const newDays: WorkoutDay[] = daysData.map((dayData, index) => ({
+      id: crypto.randomUUID(),
+      name: dayData.name,
+      order: index,
+      exercises: dayData.exercises.map(ex => ({ ...ex, id: crypto.randomUUID() }))
+    }));
+
+    const newCycle = {
+      ...cycle,
+      days: newDays,
+      currentDayId: newDays.length > 0 ? newDays[0].id : null
+    };
+
+    await saveAndSetCycle(newCycle);
+  };
+
   const addWorkoutDay = async (name: string) => {
     if (!cycle) return;
     const newDay: WorkoutDay = {
@@ -277,6 +296,7 @@ export const useWorkoutCycle = (userId: string) => {
   return {
     cycle,
     loading,
+    setWorkoutCycle,
     addWorkoutDay,
     addWorkoutDayWithExercises,
     updateWorkoutDay,
