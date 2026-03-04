@@ -7,11 +7,25 @@ import { WorkoutRepository } from '../services/WorkoutRepository';
 const repository: WorkoutRepository = new LocalStorageWorkoutRepository();
 
 export const useWorkoutCycle = (userId: string) => {
-  const [cycle, setCycle] = useState<WorkoutCycle | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [cycle, setCycle] = useState<WorkoutCycle | null>(() => {
+    if (!userId) return null;
+    const data = localStorage.getItem(`workout_cycle_${userId}`);
+    if (data) {
+      try {
+        return JSON.parse(data) as WorkoutCycle;
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
+  const [loading, setLoading] = useState<boolean>(() => {
+    if (!userId) return true;
+    const data = localStorage.getItem(`workout_cycle_${userId}`);
+    return !data;
+  });
 
   const loadCycle = useCallback(async () => {
-    setLoading(true);
     let data = await repository.getCycle(userId);
     if (!data) {
       data = {
