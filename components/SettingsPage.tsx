@@ -16,7 +16,7 @@ const apiToFrontendPermissions = (apiPerms: string[] | null | undefined): MenuPe
         listPurcharse: false, settings: false, exemplo: false, financialManual: false,
         burgerProducts: false, burgerPOS: false, burgerWaiter: false, 
         burgerDelivery: false, burgerDashboard: false, burgerClient: false, burgerCompany: false,
-        treino: false
+        treino: false, jogoDaVida: false, jornada: false
     };
     if (Array.isArray(apiPerms)) {
         for (const key of apiPerms) {
@@ -83,7 +83,7 @@ const UserPermissionsCard: React.FC<{
                 <label key={key as string} className="flex items-center space-x-2 text-sm text-gray-200 cursor-pointer">
                     <input
                     type="checkbox"
-                    checked={currentPermissions[key]}
+                    checked={currentPermissions[key] || false}
                     onChange={(e) => handlePermissionChange(key, e.target.checked)}
                     className="w-4 h-4 text-blue-600 bg-gray-600 border-gray-500 rounded focus:ring-blue-500"
                     />

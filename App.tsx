@@ -18,6 +18,7 @@ import GraphicsPage from './components/GraphicsPage';
 import LandingPage from './components/LandingPage';
 import TreinoPage from './components/TreinoPage';
 import JogoDaVidaPage from './components/JogoDaVidaPage';
+import JornadaPage from './components/JornadaPage';
 // Burger Imports
 import BurgerProductsPage from './components/BurgerProductsPage';
 import BurgerPOSPage from './components/BurgerPOSPage';
@@ -40,7 +41,7 @@ const apiToFrontendPermissions = (apiPerms: string[] | null | undefined, userPho
         exemplo: false, financialManual: false,
         burgerProducts: false, burgerPOS: false, burgerWaiter: false, burgerDelivery: false, 
         burgerDashboard: false, burgerClient: false, burgerCompany: false,
-        treino: false, jogoDaVida: false
+        treino: false, jogoDaVida: false, jornada: false
     };
     if (Array.isArray(apiPerms)) {
         for (const key of apiPerms) {
@@ -442,7 +443,7 @@ const App: React.FC = () => {
             </div>
         </header>
         
-        <main className="max-w-4xl p-4 pt-0 mx-auto md:p-8 md:pt-0">
+        <main className={`max-w-4xl pt-0 mx-auto md:pt-0 ${activePage === 'jornada' ? 'p-0' : 'p-4 md:p-8'}`}>
           {(isLoading || !userPermissions) ? (
             <div className="flex flex-col items-center justify-center pt-24">
               <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-blue-accent"></div>
@@ -466,6 +467,7 @@ const App: React.FC = () => {
               {activePage === 'financialManual' && userPermissions.financialManual && <FinancialManualPage />}
               {activePage === 'treino' && userPermissions.treino && <TreinoPage user={user} />}
               {activePage === 'jogoDaVida' && userPermissions.jogoDaVida && <JogoDaVidaPage />}
+              {activePage === 'jornada' && userPermissions.jornada && <JornadaPage user={user} />}
               
               {/* Lanchonete Modules */}
               {activePage === 'burgerCompany' && userPermissions.burgerCompany && <BurgerCompanyPage user={user} />}

@@ -28,6 +28,7 @@ export interface MenuPermissions {
   burgerCompany: boolean;
   treino: boolean;
   jogoDaVida: boolean;
+  jornada: boolean;
 }
 
 export type ActivePage = keyof MenuPermissions | 'home';

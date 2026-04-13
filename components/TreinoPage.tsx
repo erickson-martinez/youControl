@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useWorkoutCycle } from '../hooks/useWorkoutCycle';
 import { User } from '../types';
-import { PlusIcon, TrashIcon, ChevronLeftIcon, ChevronRightIcon } from './icons';
+import { PlusIcon, TrashIcon, ChevronLeftIcon, ChevronRightIcon, DownloadIcon } from './icons';
 
 const WORKOUT_GROUPS = [
   {
@@ -195,6 +195,62 @@ const TreinoPage: React.FC<TreinoPageProps> = ({ user }) => {
     }
   };
 
+  const handleExportWorkouts = () => {
+    if (!cycle || !cycle.days || cycle.days.length === 0) {
+      alert("Nenhum treino para exportar.");
+      return;
+    }
+
+    const activeDaysCount = cycle.days.filter(d => d.name !== 'Descanso').length;
+    let nivel = 'Personalizado';
+    if (activeDaysCount > 0) {
+      if (activeDaysCount <= 3) nivel = 'Iniciante';
+      else if (activeDaysCount === 4) nivel = 'Intermediário';
+      else nivel = 'Avançado';
+    }
+
+    let exportText = "PLANO DE TREINO\n=========================\n";
+    exportText += `Nível Estimado: ${nivel} (${activeDaysCount} dias de treino na semana)\n\n`;
+
+    cycle.days.forEach((day, index) => {
+      const isDescanso = day.name === 'Descanso';
+      const totalEx = day.exercises?.length || 0;
+      const completedEx = day.exercises?.filter(e => e.completed).length || 0;
+      const isDayComplete = totalEx > 0 && totalEx === completedEx;
+
+      exportText += `Dia ${index + 1}: ${day.name}\n`;
+      if (!isDescanso) {
+        exportText += `Status do Dia: ${isDayComplete ? '✅ Completo' : '⏳ Pendente'}\n`;
+      }
+      exportText += `-------------------------\n`;
+      
+      if (day.exercises && day.exercises.length > 0) {
+        day.exercises.forEach((ex) => {
+          exportText += `- ${ex.name}\n`;
+          exportText += `  Músculo Alvo: ${day.name}\n`;
+          exportText += `  Séries: ${ex.sets} | Repetições: ${ex.reps}\n`;
+          if (ex.notes) {
+            exportText += `  Notas: ${ex.notes}\n`;
+          }
+          exportText += `  Status: ${ex.completed ? '[X] Feito' : '[ ] Não feito'}\n`;
+        });
+      } else {
+        exportText += isDescanso ? `Dia de descanso. Aproveite para recuperar!\n` : `Nenhum exercício cadastrado.\n`;
+      }
+      exportText += `\n`;
+    });
+
+    const blob = new Blob([exportText], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `meu_treino_${new Date().toISOString().split('T')[0]}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   // Calculate the date for the currently viewed day
   const viewedDate = new Date();
   viewedDate.setDate(viewedDate.getDate() + viewOffset);
@@ -215,15 +271,25 @@ const TreinoPage: React.FC<TreinoPageProps> = ({ user }) => {
     <div className="p-6 max-w-md mx-auto space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-white">Treino</h1>
-        <button
-          onClick={() => {
-            setShowAddModal(true);
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors font-medium shadow-md"
-        >
-          <PlusIcon className="w-5 h-5" />
-          Treino
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleExportWorkouts}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors font-medium shadow-md"
+            title="Exportar Treinos"
+          >
+            <DownloadIcon className="w-5 h-5" />
+            <span className="hidden sm:inline">Exportar</span>
+          </button>
+          <button
+            onClick={() => {
+              setShowAddModal(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors font-medium shadow-md"
+          >
+            <PlusIcon className="w-5 h-5" />
+            Treino
+          </button>
+        </div>
       </div>
 
       {/* Day Selector */}
