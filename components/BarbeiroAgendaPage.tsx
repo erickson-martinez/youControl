@@ -39,7 +39,6 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
 
   const handleConcluir = (a: any) => {
     updateStatus(a.id, 'concluido');
-    const servico = servicos.find(s => s.id === a.servicoId);
     const barbeiroDoAgendamento = barbeiros.find(b => b.id === a.barbeiroId);
 
     const agendamentoProdutos: any[] = [];
@@ -56,14 +55,25 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
       });
     }
 
-    if (barbeiroDoAgendamento && (servico || agendamentoProdutos.length > 0)) {
+    const servicosDoAgendamento: any[] = [];
+    if (a.servicosIds && a.servicosIds.length > 0) {
+      a.servicosIds.forEach((sId: string) => {
+        const s = servicos.find(x => x.id === sId);
+        if (s) servicosDoAgendamento.push(s);
+      });
+    } else if (a.servicoId) {
+      const s = servicos.find(x => x.id === a.servicoId);
+      if (s) servicosDoAgendamento.push(s);
+    }
+
+    if (barbeiroDoAgendamento && (servicosDoAgendamento.length > 0 || agendamentoProdutos.length > 0)) {
       const itens: any[] = [];
       let total = 0;
 
-      if (servico) {
-        itens.push({ idItem: servico.id, nome: servico.nome, tipo: 'servico', valor: servico.valor });
-        total += servico.valor;
-      }
+      servicosDoAgendamento.forEach(s => {
+        itens.push({ idItem: s.id, nome: s.nome, tipo: 'servico', valor: s.valor });
+        total += s.valor;
+      });
 
       agendamentoProdutos.forEach(p => {
         itens.push({ idItem: p.id, nome: p.nome, tipo: 'produto', valor: p.precoVenda });
@@ -227,7 +237,18 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                 <div className="space-y-4 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar">
                   {pendentes.map(a => {
                     const dataObj = new Date(a.dataAgendada);
-                    const servico = servicos.find(s => s.id === a.servicoId);
+                    
+                    const servicosDoAgendamento: any[] = [];
+                    if (a.servicosIds && a.servicosIds.length > 0) {
+                      a.servicosIds.forEach((sId: string) => {
+                        const s = servicos.find(x => x.id === sId);
+                        if (s) servicosDoAgendamento.push(s);
+                      });
+                    } else if (a.servicoId) {
+                      const s = servicos.find(x => x.id === a.servicoId);
+                      if (s) servicosDoAgendamento.push(s);
+                    }
+
                     return (
                       <div key={a.id} className="bg-gray-900/60 p-5 rounded-2xl border border-gray-700 flex flex-col gap-3 shadow-md hover:border-gray-500 transition-all group relative">
                         <div className="flex justify-between items-start">
@@ -246,9 +267,11 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                           </div>
                         </div>
                         <div className="mt-2 space-x-2 flex flex-wrap gap-y-2">
-                          {servico && <div className="text-xs font-bold tracking-wide text-gray-300 bg-gray-800 px-3 py-1.5 rounded-lg border border-gray-700 inline-flex shadow-inner">
-                            {servico.nome} <span className="text-gray-500 mx-2">|</span> <span className="text-green-400">R$ {servico.valor.toFixed(2)}</span>
-                          </div>}
+                          {servicosDoAgendamento.map(s => (
+                            <div key={s.id} className="text-xs font-bold tracking-wide text-gray-300 bg-gray-800 px-3 py-1.5 rounded-lg border border-gray-700 inline-flex shadow-inner">
+                              {s.nome} <span className="text-gray-500 mx-2">|</span> <span className="text-green-400">R$ {s.valor.toFixed(2)}</span>
+                            </div>
+                          ))}
                           {a.produtosIds && a.produtosIds.map((pId: string) => {
                             const p = produtos.find(prod => prod.id === pId);
                             if (!p) return null;
@@ -293,14 +316,27 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                 <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                   {concluidos.map(a => {
                     const dataObj = new Date(a.dataAgendada);
-                    const servico = servicos.find(s => s.id === a.servicoId);
+                    
+                    const servicosDoAgendamento: any[] = [];
+                    if (a.servicosIds && a.servicosIds.length > 0) {
+                      a.servicosIds.forEach((sId: string) => {
+                        const s = servicos.find(x => x.id === sId);
+                        if (s) servicosDoAgendamento.push(s);
+                      });
+                    } else if (a.servicoId) {
+                      const s = servicos.find(x => x.id === a.servicoId);
+                      if (s) servicosDoAgendamento.push(s);
+                    }
+
                     return (
                       <div key={a.id} className="bg-gray-900/40 border border-gray-800 p-4 rounded-xl flex flex-col gap-2 group hover:border-gray-600 transition-all">
                         <div className="flex justify-between items-start">
                           <div>
                             <h3 className="font-bold text-white">{a.cliente}</h3>
                             <div className="flex flex-wrap gap-2 mt-2">
-                              {servico && <span className="text-[10px] font-bold text-gray-400 bg-gray-800 border border-gray-700 px-2 py-0.5 rounded-md uppercase tracking-wider">{servico.nome}</span>}
+                              {servicosDoAgendamento.map(s => (
+                                <span key={s.id} className="text-[10px] font-bold text-gray-400 bg-gray-800 border border-gray-700 px-2 py-0.5 rounded-md uppercase tracking-wider">{s.nome}</span>
+                              ))}
                               {a.produtosIds && a.produtosIds.map((pId: string) => {
                                 const p = produtos.find(prod => prod.id === pId);
                                 if (!p) return null;

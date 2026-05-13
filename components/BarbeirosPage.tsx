@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useBarbeiros } from '../hooks/useBarbeiros';
 import { useBarbeariaConfig, Produto, Servico, Custo } from '../hooks/useBarbeariaConfig';
 import { useBarbeariaRegistros, useBarbeariaAgendamentos } from '../hooks/useBarbeariaRegistros';
@@ -862,13 +862,26 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
   
   const handleConcluir = (a: any) => {
     updateStatus(a.id, 'concluido');
-    const servico = servicos.find(s => s.id === a.servicoId);
+    
     let total = 0;
     const itens = [];
     
-    if (servico) {
-      itens.push({ idItem: servico.id, nome: servico.nome, tipo: 'servico', valor: servico.valor });
-      total += servico.valor;
+    // Suporte para múltiplos serviços
+    if (a.servicosIds && a.servicosIds.length > 0) {
+      a.servicosIds.forEach((sId: string) => {
+        const servico = servicos.find(s => s.id === sId);
+        if (servico) {
+          itens.push({ idItem: servico.id, nome: servico.nome, tipo: 'servico', valor: servico.valor });
+          total += servico.valor;
+        }
+      });
+    } else if (a.servicoId) {
+      // Fallback retrocompatibilidade
+      const servico = servicos.find(s => s.id === a.servicoId);
+      if (servico) {
+        itens.push({ idItem: servico.id, nome: servico.nome, tipo: 'servico', valor: servico.valor });
+        total += servico.valor;
+      }
     }
     
     if (a.produtosIds && a.produtosIds.length > 0) {
@@ -998,7 +1011,17 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
               const dataStr = dataAgendada.toLocaleDateString();
               const horaStr = dataAgendada.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
               const barbeiro = barbeiros.find(b => b.id === a.barbeiroId)?.nome || 'Qualquer um';
-              const servico = servicos.find(s => s.id === a.servicoId);
+              
+              const servicosDoAgendamento: any[] = [];
+              if (a.servicosIds && a.servicosIds.length > 0) {
+                a.servicosIds.forEach((sId: string) => {
+                  const s = servicos.find(x => x.id === sId);
+                  if (s) servicosDoAgendamento.push(s);
+                });
+              } else if (a.servicoId) {
+                const s = servicos.find(x => x.id === a.servicoId);
+                if (s) servicosDoAgendamento.push(s);
+              }
               
               return (
                 <div key={a.id} className="bg-gray-800/90 p-5 rounded-2xl border border-gray-700 flex flex-col gap-3 shadow-md hover:border-blue-500/30 transition-all group relative">
@@ -1027,9 +1050,16 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
                     </div>
                   </div>
 
-                  {servico && <div className="text-sm text-gray-300 bg-gray-800 px-3 py-1.5 rounded-lg inline-flex w-fit shadow-inner border border-gray-700/50">
-                    <span className="font-medium">{servico.nome}</span> <span className="text-gray-500 mx-2">|</span> <span className="text-green-400 font-bold">R$ {servico.valor.toFixed(2)}</span>
-                  </div>}
+                  {servicosDoAgendamento.length > 0 && (
+                    <div className="flex flex-col gap-2 mt-1">
+                      {servicosDoAgendamento.map((s, idx) => (
+                        <div key={idx} className="text-sm text-gray-300 bg-gray-800 px-3 py-1.5 rounded-lg inline-flex justify-between w-full shadow-inner border border-gray-700/50">
+                          <span className="font-medium">{s.nome}</span>
+                          <span className="text-green-400 font-bold">R$ {s.valor.toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   
                   <div className="flex gap-2 mt-2 pt-3 border-t border-gray-700/50">
                     <button 
