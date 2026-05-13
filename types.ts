@@ -29,6 +29,9 @@ export interface MenuPermissions {
   treino: boolean;
   jogoDaVida: boolean;
   jornada: boolean;
+  barbearia: boolean;
+  barbeiroAgenda: boolean;
+  agendamento: boolean;
 }
 
 export type ActivePage = keyof MenuPermissions | 'home';

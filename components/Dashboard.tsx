@@ -14,6 +14,7 @@ import OverdueNoticeModal from './OverdueNoticeModal';
 import PendingApprovalModal from './PendingApprovalModal';
 import { XCircleIcon, ChartBarIcon } from './icons';
 import { API_BASE_URL } from '../constants';
+import { exportYearlyPDF } from './exportPDF';
 
 interface DashboardProps {
   user: User;
@@ -39,7 +40,20 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   const [sharedUsersInfo, setSharedUsersInfo] = useState<SharedUser[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleExportPDF = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    try {
+        await exportYearlyPDF(user.phone, currentDate.getFullYear());
+    } catch (err) {
+        alert('Falha ao exportar PDF. Tente novamente.');
+    } finally {
+        setIsExporting(false);
+    }
+  };
 
   // Cache para armazenar respostas da API (Key: "mes-ano", Value: Response Data)
   const transactionsCache = useRef<Record<string, any>>({});
@@ -617,12 +631,21 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
       />
 
       <SummaryCards revenue={summary.revenue} expenses={summary.expenses} balance={summary.balance} total={summary.total} isFutureMonth={isFutureMonth} />
+      
+      {isExporting && (
+        <div className="flex items-center justify-center mb-4 p-3 bg-blue-900/50 rounded-lg border border-blue-500/30">
+          <div className="w-5 h-5 border-2 border-dashed rounded-full animate-spin border-blue-400 mr-3"></div>
+          <p className="text-sm text-blue-200">Gerando PDF com todos os meses do ano de {currentDate.getFullYear()}... Isso pode levar alguns segundos.</p>
+        </div>
+      )}
+
       <ActionButtons 
         onAddRevenue={() => openModal(TransactionType.REVENUE)} 
         onAddExpense={() => openModal(TransactionType.EXPENSE)} 
         onShare={() => setIsShareModalOpen(true)} 
         isPastMonth={isPastMonth} 
         onViewReports={() => onNavigate('graficos')}
+        onExportPDF={handleExportPDF}
       />
       
       {sharedUsersInfo.length > 0 && (

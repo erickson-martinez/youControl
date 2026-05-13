@@ -23,6 +23,9 @@ export const ALL_PERMISSION_KEYS_WITH_LABELS: { key: keyof MenuPermissions, labe
     { key: 'treino', label: 'Treino' },
     { key: 'jogoDaVida', label: 'Jogo da Vida' },
     { key: 'jornada', label: 'Jornada (Hábitos)' },
+    { key: 'barbearia', label: 'Barbearia' },
+    { key: 'barbeiroAgenda', label: 'Agenda do Barbeiro' },
+    { key: 'agendamento', label: 'Agendamento (Público)' },
     { key: 'burgerProducts', label: 'Burguer: Produtos' },
     { key: 'burgerCompany', label: 'Burguer: Minha Empresa' },
     { key: 'burgerPOS', label: 'Burguer: Caixa/Pedidos' },
@@ -39,9 +42,10 @@ const createPermissions = (activeKeys: (keyof MenuPermissions)[]): MenuPermissio
     for (const key of ALL_PERMISSION_KEYS) {
         permissions[key] = activeKeys.includes(key);
     }
+    permissions.agendamento = true;
     return permissions as MenuPermissions;
 };
 
-export const FALLBACK_PERMISSIONS = createPermissions(['financeiro', 'graficos', 'exemplo', 'financialManual', 'treino', 'jogoDaVida', 'jornada']);
-export const NEW_COLLABORATOR_PERMISSIONS = createPermissions(['financeiro', 'graficos', 'os', 'ponto', 'exemplo', 'financialManual', 'treino', 'jogoDaVida', 'jornada']);
-export const MODAL_DEFAULT_PERMISSIONS = createPermissions(['financeiro', 'graficos', 'exemplo', 'financialManual', 'treino', 'jogoDaVida', 'jornada']);
+export const FALLBACK_PERMISSIONS = createPermissions(['financeiro', 'graficos', 'exemplo', 'financialManual', 'treino', 'jogoDaVida', 'jornada', 'barbearia', 'barbeiroAgenda']);
+export const NEW_COLLABORATOR_PERMISSIONS = createPermissions(['financeiro', 'graficos', 'os', 'ponto', 'exemplo', 'financialManual', 'treino', 'jogoDaVida', 'jornada', 'barbearia', 'barbeiroAgenda']);
+export const MODAL_DEFAULT_PERMISSIONS = createPermissions(['financeiro', 'graficos', 'exemplo', 'financialManual', 'treino', 'jogoDaVida', 'jornada', 'barbearia', 'barbeiroAgenda']);
