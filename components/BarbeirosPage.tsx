@@ -608,6 +608,7 @@ const TabCustos = () => {
 const TabMetas = () => {
   const { servicos, custos, loadConfig } = useBarbeariaConfig();
   const { barbeiros, reloadBarbeiros } = useBarbeiros();
+  const { registros } = useBarbeariaRegistros();
   const [metaLucro, setMetaLucro] = useState('5000');
 
   const handleReload = () => {
@@ -620,6 +621,14 @@ const TabMetas = () => {
   const custoVarTotal = custos.filter(c => c.tipo === 'variavel').reduce((acc, c) => acc + c.valor, 0);
   const custosTotais = custoFixoTotal + custoVarTotal;
   const faturamentoNecessario = numMeta + custosTotais;
+
+  // Calculando o faturamento atual (neste caso, a soma de todos os registros)
+  const faturamentoAtual = registros.reduce((acc, r) => acc + r.total, 0);
+  const lucroAtual = faturamentoAtual - custosTotais;
+  
+  // Quanto de faturamento da meta foi alcançado (%)
+  const porcentagemFaturamento = faturamentoNecessario > 0 ? (faturamentoAtual / faturamentoNecessario) * 100 : 0;
+  const porcentagemLucro = numMeta > 0 ? (Math.max(0, lucroAtual) / numMeta) * 100 : 0;
 
   const ticketMedioServico = servicos.length > 0 ? servicos.reduce((acc, s) => acc + s.valor, 0) / servicos.length : 0;
   const comissaoMedia = barbeiros.length > 0 ? barbeiros.reduce((acc, b) => acc + b.corte, 0) / barbeiros.length : 0;
@@ -646,10 +655,10 @@ const TabMetas = () => {
           </button>
         </div>
         <p className="text-sm text-gray-400 mb-6 border-b border-gray-700 pb-4">
-          Descubra quantos serviços você precisa realizar para cobrir todos os seus custos e atingir a sua meta de lucro líquido desejado.
+          Descubra quantos serviços você precisa realizar para cobrir todos os seus custos e atingir a sua meta de lucro líquido desejado. Neste resumo, você confere o progresso atual.
         </p>
 
-        <div className="max-w-md space-y-4">
+        <div className="max-w-md space-y-4 mb-6">
           <div>
             <label className="block text-sm text-gray-400 mb-1">Qual a sua Meta de Lucro Líquido mensal?</label>
             <div className="relative">
@@ -661,6 +670,41 @@ const TabMetas = () => {
               />
             </div>
             <p className="text-xs text-gray-500 mt-1">Este é o valor livre que você deseja que a barbearia lucre, já pagando todos os custos e comissões.</p>
+          </div>
+        </div>
+
+        {/* Progresso das Metas */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-gray-700 pt-6">
+          {/* Progresso de Faturamento */}
+          <div className="bg-gray-700/30 p-4 rounded-lg border border-gray-600/50">
+            <h3 className="text-sm text-gray-400 mb-2 font-semibold uppercase tracking-wider">Faturamento (Ponto de Equilíbrio)</h3>
+            <div className="flex justify-between items-end mb-2">
+              <span className="text-2xl font-bold text-white">R$ {faturamentoAtual.toFixed(2)}</span>
+              <span className="text-sm text-gray-400">/ R$ {faturamentoNecessario.toFixed(2)}</span>
+            </div>
+            <div className="w-full bg-gray-700 rounded-full h-2.5">
+              <div 
+                className={`h-2.5 rounded-full ${porcentagemFaturamento >= 100 ? 'bg-green-500' : 'bg-blue-500'}`} 
+                style={{ width: `${Math.min(100, porcentagemFaturamento)}%` }}
+              ></div>
+            </div>
+            <p className="text-right text-xs mt-1 text-gray-400">{porcentagemFaturamento.toFixed(1)}%</p>
+          </div>
+
+          {/* Progresso de Lucro Líquido */}
+          <div className="bg-gray-700/30 p-4 rounded-lg border border-gray-600/50">
+            <h3 className="text-sm text-gray-400 mb-2 font-semibold uppercase tracking-wider">Lucro Líquido</h3>
+            <div className="flex justify-between items-end mb-2">
+              <span className={`text-2xl font-bold ${lucroAtual >= 0 ? 'text-green-400' : 'text-red-400'}`}>R$ {lucroAtual.toFixed(2)}</span>
+              <span className="text-sm text-gray-400">/ R$ {numMeta.toFixed(2)}</span>
+            </div>
+            <div className="w-full bg-gray-700 rounded-full h-2.5">
+              <div 
+                className={`h-2.5 rounded-full ${porcentagemLucro >= 100 ? 'bg-green-500' : 'bg-green-400'}`} 
+                style={{ width: `${Math.min(100, porcentagemLucro)}%` }}
+              ></div>
+            </div>
+            <p className="text-right text-xs mt-1 text-gray-400">{porcentagemLucro.toFixed(1)}%</p>
           </div>
         </div>
       </div>
