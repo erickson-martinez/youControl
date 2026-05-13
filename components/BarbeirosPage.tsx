@@ -665,7 +665,7 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
   const { barbeiros, reloadBarbeiros } = useBarbeiros(empresaId);
   const { registros } = useBarbeariaRegistros(empresaId);
   const metaKey = empresaId ? `barbearia_meta_${empresaId}` : 'barbearia_meta';
-  const [metaLucro, setMetaLucro] = useState(() => localStorage.getItem(metaKey) || '5000');
+  const [metaLucro, setMetaLucro] = useState(() => localStorage.getItem(metaKey) || '1000');
 
   useEffect(() => {
     localStorage.setItem(metaKey, metaLucro);
