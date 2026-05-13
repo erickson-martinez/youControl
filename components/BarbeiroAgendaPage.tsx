@@ -8,9 +8,10 @@ import { User, Empresa } from '../types';
 interface BarbeiroAgendaPageProps {
   user: User;
   empresa?: Empresa;
+  isAdmin?: boolean;
 }
 
-const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa }) => {
+const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, isAdmin }) => {
   const { barbeiros } = useBarbeiros(empresa?.id);
   const { agendamentos, updateStatus } = useBarbeariaAgendamentos(empresa?.id);
   const { registros, addRegistro } = useBarbeariaRegistros(empresa?.id);
@@ -30,8 +31,8 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa }
     }
   }, [user, barbeiros, selectedBarbeiroId]);
 
-  const barbeiro = barbeiros.find(b => b.id === selectedBarbeiroId);
-  const meusAgendamentos = agendamentos.filter(a => a.barbeiroId === selectedBarbeiroId);
+  const barbeiro = selectedBarbeiroId === 'todos' ? { id: 'todos', nome: 'Todos os Barbeiros' } : barbeiros.find(b => b.id === selectedBarbeiroId);
+  const meusAgendamentos = selectedBarbeiroId === 'todos' ? agendamentos : agendamentos.filter(a => a.barbeiroId === selectedBarbeiroId);
   
   const pendentes = meusAgendamentos.filter(a => a.status === 'pendente').sort((a, b) => new Date(a.dataAgendada).getTime() - new Date(b.dataAgendada).getTime());
   const concluidos = meusAgendamentos.filter(a => a.status === 'concluido').sort((a, b) => new Date(b.dataAgendada).getTime() - new Date(a.dataAgendada).getTime());
@@ -39,12 +40,14 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa }
   const handleConcluir = (a: any) => {
     updateStatus(a.id, 'concluido');
     const servico = servicos.find(s => s.id === a.servicoId);
-    if (servico && barbeiro) {
+    const barbeiroDoAgendamento = barbeiros.find(b => b.id === a.barbeiroId);
+
+    if (servico && barbeiroDoAgendamento) {
       addRegistro({
         cliente: a.cliente,
         telefone: a.telefone,
-        barbeiroId: barbeiro.id,
-        barbeiroNome: barbeiro.nome,
+        barbeiroId: barbeiroDoAgendamento.id,
+        barbeiroNome: barbeiroDoAgendamento.nome,
         itens: [{ idItem: servico.id, nome: servico.nome, tipo: 'servico', valor: servico.valor }],
         total: servico.valor
       });
@@ -62,6 +65,17 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa }
         <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
           <h2 className="text-xl font-bold text-white mb-4">Selecione seu perfil</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {isAdmin && (
+              <button
+                onClick={() => setSelectedBarbeiroId('todos')}
+                className="bg-purple-900 hover:bg-purple-800 border border-purple-700 rounded-lg p-4 text-center transition"
+              >
+                <div className="w-16 h-16 bg-purple-600 rounded-full flex items-center justify-center text-xl font-bold text-white mx-auto mb-2">
+                  TD
+                </div>
+                <h3 className="font-bold text-white">Todos (Admin)</h3>
+              </button>
+            )}
             {barbeiros.map(b => (
               <button
                 key={b.id}
@@ -99,6 +113,11 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa }
                           <div>
                             <h3 className="font-bold text-white text-lg">{a.cliente}</h3>
                             <p className="text-xs text-gray-400">{a.telefone}</p>
+                            {selectedBarbeiroId === 'todos' && (
+                                <p className="text-xs text-purple-400 font-bold mt-1">
+                                    Barbeiro: {barbeiros.find(b => b.id === a.barbeiroId)?.nome || 'Desconhecido'}
+                                </p>
+                            )}
                           </div>
                           <div className="text-right">
                             <p className="text-blue-400 font-bold">{dataObj.toLocaleDateString()} {dataObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
@@ -141,6 +160,11 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa }
                         <div>
                           <h3 className="font-bold text-white">{a.cliente}</h3>
                           {servico && <p className="text-xs text-gray-400">{servico.nome}</p>}
+                          {selectedBarbeiroId === 'todos' && (
+                              <p className="text-xs text-purple-400 font-bold mt-1">
+                                  Barbeiro: {barbeiros.find(b => b.id === a.barbeiroId)?.nome || 'Desconhecido'}
+                              </p>
+                          )}
                         </div>
                         <div className="text-right">
                           <p className="text-xs text-gray-400">{dataObj.toLocaleDateString()}</p>

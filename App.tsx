@@ -472,7 +472,7 @@ const App: React.FC = () => {
               {activePage === 'jogoDaVida' && userPermissions.jogoDaVida && <JogoDaVidaPage />}
               {activePage === 'jornada' && userPermissions.jornada && <JornadaPage user={user} />}
               {activePage === 'barbearia' && userPermissions.barbearia && <BarbeirosPage user={user} empresa={userCompany} />}
-              {activePage === 'barbeiroAgenda' && userPermissions.barbeiroAgenda && <BarbeiroAgendaPage user={user} empresa={userCompany} />}
+              {activePage === 'barbeiroAgenda' && userPermissions.barbeiroAgenda && <BarbeiroAgendaPage user={user} empresa={userCompany} isAdmin={userPermissions.barbearia} />}
               {activePage === 'agendamento' && <AgendamentoPage empresa={userCompany} />}
               
               {/* Lanchonete Modules */}

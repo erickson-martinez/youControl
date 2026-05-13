@@ -8,6 +8,7 @@ export interface Produto {
   comissao: number;
   margemLucro: number;
   precoVenda: number;
+  estoque: number;
 }
 
 export interface Servico {

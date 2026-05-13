@@ -294,6 +294,7 @@ const TabProdutos = ({ empresaId }: { empresaId?: string }) => {
   const [comissao, setComissao] = useState('');
   const [margemLucro, setMargemLucro] = useState('');
   const [precoVenda, setPrecoVenda] = useState('');
+  const [estoque, setEstoque] = useState('');
 
   const numCusto = Number(custo) || 0;
   const numComissao = Number(comissao) || 0;
@@ -301,13 +302,14 @@ const TabProdutos = ({ empresaId }: { empresaId?: string }) => {
   const precoSemComissao = numCusto + (numCusto * (numMargem / 100));
   const precoIdeal = numComissao < 100 ? precoSemComissao / (1 - numComissao / 100) : precoSemComissao;
   const numVenda = Number(precoVenda) || 0;
+  const numEstoque = Number(estoque) || 0;
   const isAbaixoDoIdeal = numVenda > 0 && numVenda < precoIdeal;
 
   const handleCadastrar = (e: React.FormEvent) => {
     e.preventDefault();
     if (!nome.trim()) return alert("Nome é obrigatório");
-    addProduto({ nome, categoria: categoria || 'Geral', custo: numCusto, comissao: numComissao, margemLucro: numMargem, precoVenda: numVenda });
-    setNome(''); setCategoria(''); setCusto(''); setComissao(''); setMargemLucro(''); setPrecoVenda('');
+    addProduto({ nome, categoria: categoria || 'Geral', custo: numCusto, comissao: numComissao, margemLucro: numMargem, precoVenda: numVenda, estoque: numEstoque });
+    setNome(''); setCategoria(''); setCusto(''); setComissao(''); setMargemLucro(''); setPrecoVenda(''); setEstoque('');
   };
 
   return (
@@ -363,16 +365,26 @@ const TabProdutos = ({ empresaId }: { empresaId?: string }) => {
             <p className="text-blue-300">Preço Ideal Calculado: <strong className="text-white">R$ {precoIdeal.toFixed(2)}</strong></p>
             <p className="text-blue-200/60 text-xs mt-1">Cobre custo, {numComissao}% de comissão e {numMargem}% de lucro.</p>
           </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Preço de Venda Praticado (R$)</label>
-            <input 
-              type="number" step="0.01" required value={precoVenda} onChange={e => setPrecoVenda(e.target.value)}
-              className={`w-full bg-gray-700 text-white border rounded px-3 py-2 text-sm focus:outline-none ${isAbaixoDoIdeal ? 'border-red-500 focus:border-red-500' : 'border-gray-600 focus:border-blue-500'}`}
-              placeholder="0.00"
-            />
-            {isAbaixoDoIdeal && (
-              <p className="text-red-400 text-xs mt-1">Aviso: O preço de venda está abaixo do valor ideal sugerido.</p>
-            )}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Preço de Venda Praticado (R$)</label>
+              <input 
+                type="number" step="0.01" required value={precoVenda} onChange={e => setPrecoVenda(e.target.value)}
+                className={`w-full bg-gray-700 text-white border rounded px-3 py-2 text-sm focus:outline-none ${isAbaixoDoIdeal ? 'border-red-500 focus:border-red-500' : 'border-gray-600 focus:border-blue-500'}`}
+                placeholder="0.00"
+              />
+              {isAbaixoDoIdeal && (
+                <p className="text-red-400 text-xs mt-1">Aviso: O preço de venda está abaixo do valor ideal sugerido.</p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Estoque</label>
+              <input 
+                type="number" required value={estoque} onChange={e => setEstoque(e.target.value)}
+                className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                placeholder="Ex: 10"
+              />
+            </div>
           </div>
           <div className="pt-4 border-t border-gray-700">
             <button type="submit" className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
@@ -399,7 +411,7 @@ const TabProdutos = ({ empresaId }: { empresaId?: string }) => {
                   </button>
                   <h3 className="text-lg font-bold text-white pr-8">{p.nome}</h3>
                   {p.categoria && <span className="text-xs text-blue-400 font-medium">{p.categoria}</span>}
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-sm mt-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 text-sm mt-2">
                     <div className="bg-gray-700 p-2 rounded">
                       <span className="text-xs text-gray-400 block">Custo</span>R$ {p.custo.toFixed(2)}
                     </div>
@@ -414,6 +426,9 @@ const TabProdutos = ({ empresaId }: { empresaId?: string }) => {
                     </div>
                     <div className={`p-2 rounded font-bold ${isBelow ? 'bg-yellow-900/30 text-yellow-500' : 'bg-green-900/30 text-green-400'}`}>
                       <span className="text-xs opacity-80 block font-normal">Venda</span>R$ {p.precoVenda.toFixed(2)}
+                    </div>
+                    <div className="bg-gray-700 p-2 rounded">
+                      <span className="text-xs text-gray-400 block">Estoque</span>{p.estoque ?? 0}
                     </div>
                   </div>
                   {isBelow && <div className="text-xs text-yellow-500 mt-1">Preço de venda abaixo do ideal!</div>}
