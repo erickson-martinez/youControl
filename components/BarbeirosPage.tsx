@@ -93,11 +93,13 @@ const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user }) => {
 
 const TabBarbeiros = () => {
   const { barbeiros, addBarbeiro, removeBarbeiro } = useBarbeiros();
+  const { addCusto } = useBarbeariaConfig();
   
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
   const [comissao, setComissao] = useState('');
   const [corte, setCorte] = useState('');
+  const [custoDiario, setCustoDiario] = useState('');
   const [dias, setDias] = useState<string[]>([]);
 
   const toggleDia = (dia: string) => {
@@ -116,10 +118,22 @@ const TabBarbeiros = () => {
       diasTrabalhados: dias
     });
 
+    const numCusto = Number(custoDiario) || 0;
+    if (numCusto > 0 && dias.length > 0) {
+      // Cálculo aproximado do custo variável mensal desse barbeiro (custo diário * n dias na semana * 4.33 semanas no mês)
+      const custoMensal = numCusto * dias.length * 4.33; 
+      addCusto({
+        nome: `Diária/Variável - ${nome}`,
+        tipo: 'variavel',
+        valor: custoMensal
+      });
+    }
+
     setNome('');
     setTelefone('');
     setComissao('');
     setCorte('');
+    setCustoDiario('');
     setDias([]);
   };
 
@@ -169,6 +183,20 @@ const TabBarbeiros = () => {
                 placeholder="Ex: 50"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Custo Variável por Dia de Trabalho (Transporte, Alimentação...)</label>
+            <div className="relative">
+              <span className="absolute left-3 top-2 text-gray-500">R$</span>
+              <input 
+                type="number" step="0.01" min="0"
+                value={custoDiario} onChange={e => setCustoDiario(e.target.value)}
+                className="w-full bg-gray-700 text-white border border-gray-600 rounded pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                placeholder="Ex: 20.00"
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Será adicionado aos Custos Variáveis focado nos dias selecionados abaixo.</p>
           </div>
 
           <div>
