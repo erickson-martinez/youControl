@@ -1,9 +1,8 @@
-async function testAPI() {
-    const url = `https://stok-5ytv.onrender.com/transactions?phone=67984726820&includeShared=true`;
-    console.log(url);
-    const response = await fetch(url);
-    const data = await response.json();
-    console.log("Keys:", Object.keys(data));
-    console.log("Data:", data);
-}
-testAPI();
+const https = require('https');
+https.get('https://flow-gen.vercel.app/api/permissions', (res) => {
+  let data = '';
+  res.on('data', (chunk) => { data += chunk; });
+  res.on('end', () => {
+    console.log(data.substring(0, 500));
+  });
+});

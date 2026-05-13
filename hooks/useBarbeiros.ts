@@ -9,11 +9,12 @@ export interface Barbeiro {
   diasTrabalhados: string[];
 }
 
-export const useBarbeiros = () => {
+export const useBarbeiros = (empresaId?: string) => {
   const [barbeiros, setBarbeiros] = useState<Barbeiro[]>([]);
+  const key = empresaId ? `barbearia_barbeiros_${empresaId}` : 'barbearia_barbeiros';
 
   const reloadBarbeiros = () => {
-    const data = localStorage.getItem('barbearia_barbeiros');
+    const data = localStorage.getItem(key);
     if (data) {
       try {
         setBarbeiros(JSON.parse(data));
@@ -30,7 +31,7 @@ export const useBarbeiros = () => {
 
   // Salvar no localStorage sempre que houver alteração
   useEffect(() => {
-    localStorage.setItem('barbearia_barbeiros', JSON.stringify(barbeiros));
+    localStorage.setItem(key, JSON.stringify(barbeiros));
     
     // TODO: Aqui poderá ser feita a requisição para salvar no banco no futuro:
     // const saveToDB = async () => {

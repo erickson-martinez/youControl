@@ -18,11 +18,12 @@ export interface RegistroBarbearia {
   total: number;
 }
 
-export const useBarbeariaRegistros = () => {
+export const useBarbeariaRegistros = (empresaId?: string) => {
   const [registros, setRegistros] = useState<RegistroBarbearia[]>([]);
+  const key = empresaId ? `barbearia_registros_${empresaId}` : 'barbearia_registros';
 
   const loadRegistros = () => {
-    const data = localStorage.getItem('barbearia_registros');
+    const data = localStorage.getItem(key);
     if (data) {
       setRegistros(JSON.parse(data));
     }
@@ -33,8 +34,8 @@ export const useBarbeariaRegistros = () => {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('barbearia_registros', JSON.stringify(registros));
-  }, [registros]);
+    localStorage.setItem(key, JSON.stringify(registros));
+  }, [registros, key]);
 
   const addRegistro = (registro: Omit<RegistroBarbearia, 'id' | 'data'>) => {
     const novo = {
@@ -63,11 +64,12 @@ export interface Agendamento {
   status: 'pendente' | 'concluido' | 'cancelado';
 }
 
-export const useBarbeariaAgendamentos = () => {
+export const useBarbeariaAgendamentos = (empresaId?: string) => {
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
+  const key = empresaId ? `barbearia_agendamentos_${empresaId}` : 'barbearia_agendamentos';
 
   const loadAgendamentos = () => {
-    const data = localStorage.getItem('barbearia_agendamentos');
+    const data = localStorage.getItem(key);
     if (data) {
       setAgendamentos(JSON.parse(data));
     }
@@ -78,8 +80,8 @@ export const useBarbeariaAgendamentos = () => {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('barbearia_agendamentos', JSON.stringify(agendamentos));
-  }, [agendamentos]);
+    localStorage.setItem(key, JSON.stringify(agendamentos));
+  }, [agendamentos, key]);
 
   const addAgendamento = (agendamento: Omit<Agendamento, 'id' | 'dataCadastro' | 'status'>) => {
     const novo: Agendamento = {

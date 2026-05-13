@@ -3,21 +3,32 @@ import { useBarbeiros } from '../hooks/useBarbeiros';
 import { useBarbeariaRegistros, useBarbeariaAgendamentos } from '../hooks/useBarbeariaRegistros';
 import { useBarbeariaConfig } from '../hooks/useBarbeariaConfig';
 import { CheckCircleIcon, XCircleIcon, ClockIcon } from './icons';
-import { User } from '../types';
+import { User, Empresa } from '../types';
 
 interface BarbeiroAgendaPageProps {
   user: User;
+  empresa?: Empresa;
 }
 
-const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user }) => {
-  const { barbeiros } = useBarbeiros();
-  const { agendamentos, updateStatus } = useBarbeariaAgendamentos();
-  const { registros, addRegistro } = useBarbeariaRegistros();
-  const { servicos } = useBarbeariaConfig();
+const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa }) => {
+  const { barbeiros } = useBarbeiros(empresa?.id);
+  const { agendamentos, updateStatus } = useBarbeariaAgendamentos(empresa?.id);
+  const { registros, addRegistro } = useBarbeariaRegistros(empresa?.id);
+  const { servicos } = useBarbeariaConfig(empresa?.id);
 
   // Vamos assumir que o barbeiro pode escolher quem ele é na tela, ou se o número de telefone 
   // dele bater com algum cadastro, pegar automaticamente.
   const [selectedBarbeiroId, setSelectedBarbeiroId] = useState<string>('');
+
+  React.useEffect(() => {
+    if (user && user.phone && barbeiros.length > 0 && !selectedBarbeiroId) {
+      const userPhoneNumbers = user.phone.replace(/\D/g, '');
+      const barbeiroLogado = barbeiros.find(b => b.telefone && b.telefone.replace(/\D/g, '') === userPhoneNumbers);
+      if (barbeiroLogado) {
+        setSelectedBarbeiroId(barbeiroLogado.id);
+      }
+    }
+  }, [user, barbeiros, selectedBarbeiroId]);
 
   const barbeiro = barbeiros.find(b => b.id === selectedBarbeiroId);
   const meusAgendamentos = agendamentos.filter(a => a.barbeiroId === selectedBarbeiroId);

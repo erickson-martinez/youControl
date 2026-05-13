@@ -7,10 +7,12 @@ const HORARIOS = [
   '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00'
 ];
 
-export default function AgendamentoPage() {
-  const { barbeiros, reloadBarbeiros } = useBarbeiros();
-  const { servicos, produtos, loadConfig } = useBarbeariaConfig();
-  const { agendamentos, addAgendamento, loadAgendamentos } = useBarbeariaAgendamentos();
+import { Empresa } from '../types';
+
+export default function AgendamentoPage({ empresa }: { empresa?: Empresa }) {
+  const { barbeiros, reloadBarbeiros } = useBarbeiros(empresa?.id);
+  const { servicos, produtos, loadConfig } = useBarbeariaConfig(empresa?.id);
+  const { agendamentos, addAgendamento, loadAgendamentos } = useBarbeariaAgendamentos(empresa?.id);
 
   const [telefone, setTelefone] = useState('');
   const [nome, setNome] = useState('');

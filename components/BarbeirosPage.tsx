@@ -3,7 +3,7 @@ import { useBarbeiros } from '../hooks/useBarbeiros';
 import { useBarbeariaConfig, Produto, Servico, Custo } from '../hooks/useBarbeariaConfig';
 import { useBarbeariaRegistros, useBarbeariaAgendamentos } from '../hooks/useBarbeariaRegistros';
 import { UsersIcon, TrashIcon, PlusIcon, TagIcon, CogIcon, CashIcon, DocumentTextIcon, ChartBarIcon, ClipboardListIcon, CheckCircleIcon, XCircleIcon } from './icons';
-import { User } from '../types';
+import { Empresa, User } from '../types';
 
 const DIAS_SEMANA = [
   'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'
@@ -11,18 +11,21 @@ const DIAS_SEMANA = [
 
 interface BarbeirosPageProps {
   user: User;
+  empresa?: Empresa;
 }
 
-const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user }) => {
+const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user, empresa }) => {
   const [activeTab, setActiveTab] = useState<'barbeiros' | 'produtos' | 'servicos' | 'custos' | 'metas' | 'registros'>('barbeiros');
 
   return (
     <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-6 pb-20">
-      <div className="flex items-center gap-3 mb-2">
-        <UsersIcon className="w-8 h-8 text-blue-500" />
-        <div>
-          <h1 className="text-3xl font-bold text-white">Barbearia Admin</h1>
-          <p className="text-gray-400 mt-1">Gerencie equipe, produtos, serviços, custos e metas.</p>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-3">
+          <UsersIcon className="w-8 h-8 text-blue-500" />
+          <div>
+            <h1 className="text-3xl font-bold text-white">Barbearia Admin</h1>
+            <p className="text-gray-400 mt-1">Gerencie equipe, produtos, serviços, custos e metas {empresa?.name ? `da ${empresa.name}` : ''}.</p>
+          </div>
         </div>
       </div>
 
@@ -78,12 +81,12 @@ const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user }) => {
         </button>
       </div>
 
-      {activeTab === 'barbeiros' && <TabBarbeiros />}
-      {activeTab === 'produtos' && <TabProdutos />}
-      {activeTab === 'servicos' && <TabServicos />}
-      {activeTab === 'custos' && <TabCustos />}
-      {activeTab === 'metas' && <TabMetas />}
-      {activeTab === 'registros' && <TabRegistros />}
+      {activeTab === 'barbeiros' && <TabBarbeiros empresaId={empresa?.id} />}
+      {activeTab === 'produtos' && <TabProdutos empresaId={empresa?.id} />}
+      {activeTab === 'servicos' && <TabServicos empresaId={empresa?.id} />}
+      {activeTab === 'custos' && <TabCustos empresaId={empresa?.id} />}
+      {activeTab === 'metas' && <TabMetas empresaId={empresa?.id} />}
+      {activeTab === 'registros' && <TabRegistros empresaId={empresa?.id} />}
       
     </div>
   );
@@ -91,9 +94,9 @@ const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user }) => {
 
 // --- TABS COMPONENTS ---
 
-const TabBarbeiros = () => {
-  const { barbeiros, addBarbeiro, removeBarbeiro } = useBarbeiros();
-  const { addCusto } = useBarbeariaConfig();
+const TabBarbeiros = ({ empresaId }: { empresaId?: string }) => {
+  const { barbeiros, addBarbeiro, removeBarbeiro } = useBarbeiros(empresaId);
+  const { addCusto } = useBarbeariaConfig(empresaId);
   
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
@@ -283,8 +286,8 @@ const TabBarbeiros = () => {
   );
 };
 
-const TabProdutos = () => {
-  const { produtos, addProduto, removeProduto } = useBarbeariaConfig();
+const TabProdutos = ({ empresaId }: { empresaId?: string }) => {
+  const { produtos, addProduto, removeProduto } = useBarbeariaConfig(empresaId);
   const [nome, setNome] = useState('');
   const [categoria, setCategoria] = useState('');
   const [custo, setCusto] = useState('');
@@ -424,8 +427,8 @@ const TabProdutos = () => {
   );
 };
 
-const TabServicos = () => {
-  const { servicos, addServico, removeServico } = useBarbeariaConfig();
+const TabServicos = ({ empresaId }: { empresaId?: string }) => {
+  const { servicos, addServico, removeServico } = useBarbeariaConfig(empresaId);
   const [nome, setNome] = useState('');
   const [categoria, setCategoria] = useState<'cabelo' | 'barba' | string>('cabelo');
   const [valor, setValor] = useState('');
@@ -504,8 +507,8 @@ const TabServicos = () => {
   );
 };
 
-const TabCustos = () => {
-  const { custos, addCusto, removeCusto } = useBarbeariaConfig();
+const TabCustos = ({ empresaId }: { empresaId?: string }) => {
+  const { custos, addCusto, removeCusto } = useBarbeariaConfig(empresaId);
   const [nome, setNome] = useState('');
   const [valor, setValor] = useState('');
   const [tipo, setTipo] = useState<'fixo'|'variavel'>('fixo');
@@ -605,10 +608,10 @@ const TabCustos = () => {
   );
 };
 
-const TabMetas = () => {
-  const { servicos, custos, loadConfig } = useBarbeariaConfig();
-  const { barbeiros, reloadBarbeiros } = useBarbeiros();
-  const { registros } = useBarbeariaRegistros();
+const TabMetas = ({ empresaId }: { empresaId?: string }) => {
+  const { servicos, custos, loadConfig } = useBarbeariaConfig(empresaId);
+  const { barbeiros, reloadBarbeiros } = useBarbeiros(empresaId);
+  const { registros } = useBarbeariaRegistros(empresaId);
   const [metaLucro, setMetaLucro] = useState('5000');
 
   const handleReload = () => {
@@ -780,11 +783,11 @@ const TabMetas = () => {
   );
 };
 
-const TabRegistros = () => {
-  const { registros, addRegistro, removeRegistro, loadRegistros } = useBarbeariaRegistros();
-  const { agendamentos, updateStatus, loadAgendamentos } = useBarbeariaAgendamentos();
-  const { barbeiros, reloadBarbeiros } = useBarbeiros();
-  const { servicos, loadConfig } = useBarbeariaConfig();
+const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
+  const { registros, addRegistro, removeRegistro, loadRegistros } = useBarbeariaRegistros(empresaId);
+  const { agendamentos, updateStatus, loadAgendamentos } = useBarbeariaAgendamentos(empresaId);
+  const { barbeiros, reloadBarbeiros } = useBarbeiros(empresaId);
+  const { servicos, loadConfig } = useBarbeariaConfig(empresaId);
   
   const handleReload = () => {
     loadRegistros();

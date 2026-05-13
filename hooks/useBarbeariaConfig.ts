@@ -24,15 +24,20 @@ export interface Custo {
   tipo: 'fixo' | 'variavel';
 }
 
-export const useBarbeariaConfig = () => {
+export const useBarbeariaConfig = (empresaId?: string) => {
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [servicos, setServicos] = useState<Servico[]>([]);
   const [custos, setCustos] = useState<Custo[]>([]);
 
+  const suffix = empresaId ? `_${empresaId}` : '';
+  const keyP = `barbearia_produtos${suffix}`;
+  const keyS = `barbearia_servicos${suffix}`;
+  const keyC = `barbearia_custos${suffix}`;
+
   const loadConfig = () => {
-    const dataP = localStorage.getItem('barbearia_produtos');
-    const dataS = localStorage.getItem('barbearia_servicos');
-    const dataC = localStorage.getItem('barbearia_custos');
+    const dataP = localStorage.getItem(keyP);
+    const dataS = localStorage.getItem(keyS);
+    const dataC = localStorage.getItem(keyC);
     
     if (dataP) setProdutos(JSON.parse(dataP));
     if (dataS) setServicos(JSON.parse(dataS));
@@ -44,16 +49,16 @@ export const useBarbeariaConfig = () => {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('barbearia_produtos', JSON.stringify(produtos));
-  }, [produtos]);
+    localStorage.setItem(keyP, JSON.stringify(produtos));
+  }, [produtos, keyP]);
 
   useEffect(() => {
-    localStorage.setItem('barbearia_servicos', JSON.stringify(servicos));
-  }, [servicos]);
+    localStorage.setItem(keyS, JSON.stringify(servicos));
+  }, [servicos, keyS]);
 
   useEffect(() => {
-    localStorage.setItem('barbearia_custos', JSON.stringify(custos));
-  }, [custos]);
+    localStorage.setItem(keyC, JSON.stringify(custos));
+  }, [custos, keyC]);
 
   // Produtos
   const addProduto = (produto: Omit<Produto, 'id'>) => {
