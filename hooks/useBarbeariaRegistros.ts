@@ -61,6 +61,7 @@ export interface Agendamento {
   cliente: string;
   barbeiroId?: string;
   servicoId?: string;
+  produtosIds?: string[];
   status: 'pendente' | 'concluido' | 'cancelado';
 }
 

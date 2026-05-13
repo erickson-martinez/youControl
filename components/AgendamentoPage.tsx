@@ -18,6 +18,7 @@ export default function AgendamentoPage({ empresa }: { empresa?: Empresa }) {
   const [nome, setNome] = useState('');
   const [barbeiroId, setBarbeiroId] = useState('');
   const [servicoId, setServicoId] = useState('');
+  const [produtosSelecionados, setProdutosSelecionados] = useState<string[]>([]);
   const [data, setData] = useState('');
   const [horario, setHorario] = useState('');
   const [agendado, setAgendado] = useState(false);
@@ -64,6 +65,7 @@ export default function AgendamentoPage({ empresa }: { empresa?: Empresa }) {
       cliente: nome,
       barbeiroId: barbeiroId || undefined,
       servicoId: servicoId || undefined,
+      produtosIds: produtosSelecionados.length > 0 ? produtosSelecionados : undefined,
       dataAgendada
     });
 
@@ -99,7 +101,7 @@ export default function AgendamentoPage({ empresa }: { empresa?: Empresa }) {
           <button 
             onClick={() => {
               setAgendado(false);
-              setTelefone(''); setNome(''); setData(''); setHorario(''); setBarbeiroId(''); setServicoId('');
+              setTelefone(''); setNome(''); setData(''); setHorario(''); setBarbeiroId(''); setServicoId(''); setProdutosSelecionados([]);
             }}
             className="mt-6 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-500 transition"
           >
@@ -173,6 +175,30 @@ export default function AgendamentoPage({ empresa }: { empresa?: Empresa }) {
                   <option value="">Decidir na hora</option>
                   {servicos.map(s => <option key={s.id} value={s.id}>{s.nome} - R$ {s.valor.toFixed(2)}</option>)}
                 </select>
+              </div>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm text-gray-400 mb-2">Produtos (Opcionais)</label>
+              <div className="bg-gray-700 border border-gray-600 rounded p-3 max-h-40 overflow-y-auto w-full custom-scrollbar">
+                {produtos.length === 0 && <p className="text-gray-500 text-sm">Nenhum produto disponível.</p>}
+                {produtos.map(p => (
+                  <label key={p.id} className="flex items-center space-x-3 mb-2 cursor-pointer pb-2 border-b border-gray-600/50 last:mb-0 last:pb-0 last:border-0">
+                    <input 
+                      type="checkbox" 
+                      className="rounded text-blue-500 bg-gray-600 border-gray-500 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                      checked={produtosSelecionados.includes(p.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setProdutosSelecionados(prev => [...prev, p.id]);
+                        } else {
+                          setProdutosSelecionados(prev => prev.filter(id => id !== p.id));
+                        }
+                      }}
+                    />
+                    <span className="text-sm text-gray-200 font-medium">{p.nome} <span className="text-blue-300 ml-1">R$ {p.precoVenda.toFixed(2)}</span></span>
+                  </label>
+                ))}
               </div>
             </div>
 

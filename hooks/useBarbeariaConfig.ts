@@ -68,6 +68,9 @@ export const useBarbeariaConfig = (empresaId?: string) => {
   const removeProduto = (id: string) => {
     setProdutos(prev => prev.filter(p => p.id !== id));
   };
+  const updateProduto = (id: string, produto: Partial<Produto>) => {
+    setProdutos(prev => prev.map(p => p.id === id ? { ...p, ...produto } : p));
+  };
 
   // Servicos
   const addServico = (servico: Omit<Servico, 'id'>) => {
@@ -86,7 +89,7 @@ export const useBarbeariaConfig = (empresaId?: string) => {
   };
 
   return {
-    produtos, addProduto, removeProduto,
+    produtos, addProduto, removeProduto, updateProduto,
     servicos, addServico, removeServico,
     custos, addCusto, removeCusto,
     loadConfig
