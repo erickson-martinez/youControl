@@ -23,23 +23,38 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
 
   React.useEffect(() => {
     if (user && user.phone && barbeiros.length > 0 && !selectedBarbeiroId) {
-      const userPhoneNumbers = user.phone.replace(/\D/g, '');
-      const barbeiroLogado = barbeiros.find(b => b.telefone && b.telefone.replace(/\D/g, '') === userPhoneNumbers);
-      if (barbeiroLogado) {
-        setSelectedBarbeiroId(barbeiroLogado.id);
+      if (isAdmin || (empresa?.phone && user.phone.replace(/\D/g, '') === empresa.phone.replace(/\D/g, ''))) {
+        setSelectedBarbeiroId('todos');
+      } else {
+        const userPhoneNumbers = user.phone.replace(/\D/g, '');
+        const barbeiroLogado = barbeiros.find(b => b.telefone && b.telefone.replace(/\D/g, '') === userPhoneNumbers);
+        if (barbeiroLogado) {
+          setSelectedBarbeiroId(barbeiroLogado.id);
+        }
       }
     }
-  }, [user, barbeiros, selectedBarbeiroId]);
+  }, [user, barbeiros, selectedBarbeiroId, isAdmin, empresa]);
 
   const barbeiro = selectedBarbeiroId === 'todos' ? { id: 'todos', nome: 'Todos os Barbeiros' } : barbeiros.find(b => b.id === selectedBarbeiroId);
-  const meusAgendamentos = selectedBarbeiroId === 'todos' ? agendamentos : agendamentos.filter(a => a.barbeiroId === selectedBarbeiroId);
+  
+  const meusAgendamentos = selectedBarbeiroId === 'todos' 
+    ? agendamentos 
+    : agendamentos.filter(a => a.barbeiroId === selectedBarbeiroId || !a.barbeiroId || a.barbeiroId === 'Qualquer um');
   
   const pendentes = meusAgendamentos.filter(a => a.status === 'pendente').sort((a, b) => new Date(a.dataAgendada).getTime() - new Date(b.dataAgendada).getTime());
   const concluidos = meusAgendamentos.filter(a => a.status === 'concluido').sort((a, b) => new Date(b.dataAgendada).getTime() - new Date(a.dataAgendada).getTime());
 
   const handleConcluir = (a: any) => {
-    updateStatus(a.id, 'concluido');
-    const barbeiroDoAgendamento = barbeiros.find(b => b.id === a.barbeiroId);
+    let finalBarbeiroId = a.barbeiroId;
+    let barbeiroDoAgendamento = barbeiros.find(b => b.id === finalBarbeiroId);
+
+    // Se o agendamento não tem barbeiro definido e um barbeiro logado o conclui, ele assume o agendamento.
+    if ((!finalBarbeiroId || finalBarbeiroId === 'Qualquer um') && selectedBarbeiroId !== 'todos') {
+      finalBarbeiroId = selectedBarbeiroId;
+      barbeiroDoAgendamento = barbeiros.find(b => b.id === finalBarbeiroId);
+    }
+
+    updateStatus(a.id, 'concluido', finalBarbeiroId !== 'Qualquer um' ? finalBarbeiroId : undefined);
 
     const agendamentoProdutos: any[] = [];
     if (a.produtosIds && a.produtosIds.length > 0) {
@@ -66,7 +81,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
       if (s) servicosDoAgendamento.push(s);
     }
 
-    if (barbeiroDoAgendamento && (servicosDoAgendamento.length > 0 || agendamentoProdutos.length > 0)) {
+    if (servicosDoAgendamento.length > 0 || agendamentoProdutos.length > 0) {
       const itens: any[] = [];
       let total = 0;
 
@@ -83,8 +98,8 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
       addRegistro({
         cliente: a.cliente,
         telefone: a.telefone,
-        barbeiroId: barbeiroDoAgendamento.id,
-        barbeiroNome: barbeiroDoAgendamento.nome,
+        barbeiroId: barbeiroDoAgendamento?.id || a.barbeiroId,
+        barbeiroNome: barbeiroDoAgendamento?.nome || 'Qualquer um',
         itens,
         total
       });

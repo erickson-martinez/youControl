@@ -95,8 +95,8 @@ export const useBarbeariaAgendamentos = (empresaId?: string) => {
     setAgendamentos(prev => [...prev, novo]);
   };
 
-  const updateStatus = (id: string, status: Agendamento['status']) => {
-    setAgendamentos(prev => prev.map(a => a.id === id ? { ...a, status } : a));
+  const updateStatus = (id: string, status: Agendamento['status'], barbeiroId?: string) => {
+    setAgendamentos(prev => prev.map(a => a.id === id ? { ...a, status, ...(barbeiroId ? { barbeiroId } : {}) } : a));
   };
 
   return { agendamentos, addAgendamento, updateStatus, loadAgendamentos };
