@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useBarbeiros } from "../hooks/useBarbeiros";
 import { useBarbeariaConfig } from "../hooks/useBarbeariaConfig";
 import { useBarbeariaAgendamentos } from "../hooks/useBarbeariaRegistros";
@@ -41,6 +41,33 @@ export default function AgendamentoPage({ empresa }: { empresa?: Empresa }) {
   const [quantidadePessoas, setQuantidadePessoas] = useState(1);
   const [nomesAcompanhantes, setNomesAcompanhantes] = useState("");
   const [agendado, setAgendado] = useState(false);
+
+  useEffect(() => {
+    try {
+      const uStr = localStorage.getItem("currentUser");
+      if (uStr) {
+        const u = JSON.parse(uStr);
+        if (u.phone && !telefone) setTelefone(u.phone);
+        if (u.name && !nome) setNome(u.name);
+      }
+    } catch (e) {}
+  }, []);
+
+  const totalServicos = useMemo(() => {
+    return servicosSelecionados.reduce((acc, id) => {
+      const s = servicos.find((x) => x.id === id);
+      return acc + (s ? s.valor : 0);
+    }, 0);
+  }, [servicosSelecionados, servicos]);
+
+  const totalProdutos = useMemo(() => {
+    return produtosSelecionados.reduce((acc, id) => {
+      const p = produtos.find((x) => x.id === id);
+      return acc + (p ? p.precoVenda : 0);
+    }, 0);
+  }, [produtosSelecionados, produtos]);
+
+  const totalGeral = totalServicos + totalProdutos;
 
   const handleReload = () => {
     reloadBarbeiros();
@@ -102,17 +129,21 @@ export default function AgendamentoPage({ empresa }: { empresa?: Empresa }) {
         ? `${nome} (+ ${quantidadePessoas - 1}: ${nomesAcompanhantes})`
         : nome;
 
-    horariosSelecionados.forEach((horario) => {
+    horariosSelecionados.forEach((horario, index) => {
       const dataAgendada = `${data}T${horario}:00`;
 
       addAgendamento({
         telefone,
-        cliente: clienteFinal,
+        cliente: index === 0 ? clienteFinal : `${nome} (Acompanhante ${index})`,
         barbeiroId: barbeiroId || undefined,
         servicosIds:
-          servicosSelecionados.length > 0 ? servicosSelecionados : undefined,
+          index === 0 && servicosSelecionados.length > 0
+            ? servicosSelecionados
+            : undefined,
         produtosIds:
-          produtosSelecionados.length > 0 ? produtosSelecionados : undefined,
+          index === 0 && produtosSelecionados.length > 0
+            ? produtosSelecionados
+            : undefined,
         dataAgendada,
       });
     });
@@ -464,6 +495,58 @@ export default function AgendamentoPage({ empresa }: { empresa?: Empresa }) {
 
         {/* Catálogo de Serviços e Produtos */}
         <div className="space-y-6">
+          {(servicosSelecionados.length > 0 ||
+            produtosSelecionados.length > 0) && (
+            <div className="bg-gray-800 p-6 rounded-xl border border-blue-500/30 shadow-lg">
+              <h3 className="text-xl font-bold text-white mb-4">
+                Resumo do Agendamento
+              </h3>
+              <div className="space-y-2 mb-4">
+                {servicosSelecionados.map((id) => {
+                  const s = servicos.find((x) => x.id === id);
+                  if (!s) return null;
+                  return (
+                    <div
+                      key={id}
+                      className="flex justify-between items-center text-sm"
+                    >
+                      <span className="text-gray-300">{s.nome}</span>
+                      <span className="text-green-400 font-medium">
+                        R$ {s.valor.toFixed(2)}
+                      </span>
+                    </div>
+                  );
+                })}
+                {produtosSelecionados.map((id) => {
+                  const p = produtos.find((x) => x.id === id);
+                  if (!p) return null;
+                  return (
+                    <div
+                      key={id}
+                      className="flex justify-between items-center text-sm"
+                    >
+                      <span className="text-gray-300">
+                        <span className="text-xs px-1 text-blue-400 bg-blue-500/10 rounded mr-1 leading-none inline-block pb-0.5">
+                          Prod
+                        </span>{" "}
+                        {p.nome}
+                      </span>
+                      <span className="text-blue-300 font-medium">
+                        R$ {p.precoVenda.toFixed(2)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex justify-between items-center pt-3 border-t border-gray-700 font-bold">
+                <span className="text-white">Total</span>
+                <span className="text-green-400 text-lg">
+                  R$ {totalGeral.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          )}
+
           <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg">
             <h3 className="text-xl font-bold text-white mb-4">
               Nossos Serviços
