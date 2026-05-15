@@ -611,8 +611,8 @@ const TabCustos = ({ empresaId }: { empresaId?: string }) => {
   const variaveis = custos.filter(c => c.tipo === 'variavel');
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-      <div className="lg:col-span-5 bg-gray-800/80 p-6 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="bg-gray-800/80 p-6 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
         <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
           <PlusIcon className="w-5 h-5 text-blue-500" /> Cadastrar Custo Diário
         </h2>
@@ -656,7 +656,7 @@ const TabCustos = ({ empresaId }: { empresaId?: string }) => {
         </form>
       </div>
 
-      <div className="lg:col-span-7 space-y-6">
+      <div className="space-y-6">
         <div>
           <h2 className="text-xl font-bold text-white mb-4">Custos Fixos <span className="bg-gray-800 text-gray-400 font-medium text-xs py-1 px-2 rounded-lg ml-2">{fixos.length}</span></h2>
           {fixos.length === 0 ? <p className="text-sm text-gray-500 italic bg-gray-900/50 p-4 rounded-lg border border-gray-800">Nenhum registrado</p> : (
