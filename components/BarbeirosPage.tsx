@@ -369,8 +369,8 @@ const TabProdutos = ({ empresaId }: { empresaId?: string }) => {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-      <div className="lg:col-span-4 bg-gray-800/80 p-6 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="bg-gray-800/80 p-6 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
         <h2 className="text-xl font-bold text-white mb-6 border-b border-gray-700/50 pb-3 flex items-center gap-2">
            <PlusIcon className="w-5 h-5 text-blue-500" /> Cadastrar Produto
         </h2>
@@ -443,7 +443,7 @@ const TabProdutos = ({ empresaId }: { empresaId?: string }) => {
           </div>
         </form>
       </div>
-      <div className="lg:col-span-8 space-y-4">
+      <div className="space-y-4">
         <h2 className="text-xl font-bold text-white mb-4">Produtos Cadastrados</h2>
         {produtos.length === 0 ? (
           <div className="w-full bg-gray-900/50 p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center mt-4">
@@ -451,7 +451,7 @@ const TabProdutos = ({ empresaId }: { empresaId?: string }) => {
             <p>Nenhum produto cadastrado.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4 max-h-[650px] overflow-y-auto pr-2 custom-scrollbar">
+          <div className="grid gap-6 max-h-[650px] overflow-y-auto pr-2 custom-scrollbar" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
             {produtos.map(p => {
               const semComissao = p.custo + (p.custo * (p.margemLucro / 100));
               const ideal = p.comissao && p.comissao > 0 && p.comissao < 100 ? semComissao / (1 - p.comissao / 100) : semComissao;
@@ -520,8 +520,8 @@ const TabServicos = ({ empresaId }: { empresaId?: string }) => {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-      <div className="lg:col-span-4 bg-gray-800/80 p-6 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="bg-gray-800/80 p-6 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
         <h2 className="text-xl font-bold text-white mb-6 border-b border-gray-700/50 pb-3 flex items-center gap-2">
           <PlusIcon className="w-5 h-5 text-blue-500" /> Cadastrar Serviço
         </h2>
@@ -561,7 +561,7 @@ const TabServicos = ({ empresaId }: { empresaId?: string }) => {
           </div>
         </form>
       </div>
-      <div className="lg:col-span-8 space-y-4">
+      <div className="space-y-4">
         <h2 className="text-xl font-bold text-white mb-4">Serviços Cadastrados</h2>
         {servicos.length === 0 ? (
           <div className="w-full bg-gray-900/50 p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center mt-4">
@@ -569,7 +569,7 @@ const TabServicos = ({ empresaId }: { empresaId?: string }) => {
             <p>Nenhum serviço cadastrado.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[650px] overflow-y-auto pr-2 custom-scrollbar">
+          <div className="grid gap-6 max-h-[650px] overflow-y-auto pr-2 custom-scrollbar" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
             {servicos.map(s => (
               <div key={s.id} className="bg-gray-800/90 p-5 rounded-2xl border border-gray-700/50 flex flex-col gap-2 group hover:border-blue-500/30 transition-all shadow-md relative">
                 <button onClick={() => removeServico(s.id)} className="absolute top-4 right-4 text-gray-500 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all bg-gray-900 p-2 rounded-lg">
