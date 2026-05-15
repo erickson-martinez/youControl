@@ -4,6 +4,7 @@ import { useBarbeariaConfig, Produto, Servico, Custo } from '../hooks/useBarbear
 import { useBarbeariaRegistros, useBarbeariaAgendamentos } from '../hooks/useBarbeariaRegistros';
 import { UsersIcon, TrashIcon, PlusIcon, TagIcon, CogIcon, CashIcon, DocumentTextIcon, ChartBarIcon, ClipboardListIcon, CheckCircleIcon, XCircleIcon } from './icons';
 import { Empresa, User } from '../types';
+import { API_BASE_URL } from '../constants';
 
 const DIAS_SEMANA = [
   'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'
@@ -111,10 +112,35 @@ const TabBarbeiros = ({ empresaId }: { empresaId?: string }) => {
     setDias(prev => prev.includes(dia) ? prev.filter(d => d !== dia) : [...prev, dia]);
   };
 
-  const handleCadastrar = (e: React.FormEvent) => {
+  const [loading, setLoading] = useState(false);
+
+  const handleCadastrar = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nome.trim()) return alert("Nome é obrigatório");
     
+    setLoading(true);
+
+    if (telefone.trim()) {
+      const cleanPhone = telefone.replace(/\D/g, '');
+      try {
+        await fetch(`${API_BASE_URL}/users`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: nome.trim(),
+            phone: cleanPhone,
+            pass: 'Teste@1212@1212'
+          })
+        });
+        // Assumimos que se der erro 400/409, o usuário já existe na base, então o "vínculo"
+        // acontece naturalmente, já que o telefone é o mesmo no barbeiro e no usuário logado.
+      } catch (err) {
+        console.warn("Erro ao tentar cadastrar/vincular barbeiro na base de usuários:", err);
+      }
+    }
+
     addBarbeiro({
       nome,
       telefone,
@@ -140,6 +166,8 @@ const TabBarbeiros = ({ empresaId }: { empresaId?: string }) => {
     setCorte('');
     setCustoDiario('');
     setDias([]);
+    
+    setLoading(false);
   };
 
   return (
@@ -229,10 +257,11 @@ const TabBarbeiros = ({ empresaId }: { empresaId?: string }) => {
           <div className="pt-4 border-t border-gray-700">
             <button 
               type="submit"
-              className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+              disabled={loading}
+              className={`w-full flex items-center justify-center gap-2 font-semibold py-2 px-4 rounded-lg transition-colors ${loading ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}
             >
               <PlusIcon className="w-5 h-5" />
-              Salvar Barbeiro
+              {loading ? 'Salvando...' : 'Salvar Barbeiro'}
             </button>
           </div>
         </form>
