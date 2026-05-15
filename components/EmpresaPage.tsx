@@ -85,6 +85,7 @@ const EmpresaPage: React.FC<EmpresaPageProps> = ({ empresas, onSave, onUpdate, o
                             <StatusBadge status={empresa.status} />
                         </div>
                         {empresa.cnpj && <p className="text-sm text-gray-400">CNPJ: {empresa.cnpj}</p>}
+                        {empresa.linkId && <p className="text-sm text-blue-400 font-medium">ID de Agendamento: {empresa.linkId}</p>}
                         {empresa.email && <p className="text-sm text-gray-400">Email: {empresa.email}</p>}
                         {empresa.phone && <p className="text-sm text-gray-400">Telefone: {empresa.phone}</p>}
                     </div>

@@ -56,13 +56,64 @@ const apiToFrontendPermissions = (apiPerms: string[] | null | undefined, userPho
     return frontendPerms;
 };
 
+const PublicAgendamentoWrapper = ({ empresaIdParam }: { empresaIdParam?: string }) => {
+  const [empresa, setEmpresa] = useState<Empresa | undefined>(undefined);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchCompany = async () => {
+      if (!empresaIdParam) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const response = await apiFetch(`${API_BASE_URL}/companies?linkId=${empresaIdParam}`);
+        const data = await response.json();
+        if (data && data.companies && data.companies.length > 0) {
+          // Find exact match just in case, but response should be filtered
+          const company = data.companies.find((c: any) => c.linkId === empresaIdParam || c._id === empresaIdParam);
+          if (company) {
+             setEmpresa({ ...company, id: company._id });
+          }
+        }
+      } catch (error) {
+        console.error("Falha ao buscar detalhes da empresa pelo link", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchCompany();
+  }, [empresaIdParam]);
+
+  if (loading) {
+    return <div className="min-h-screen bg-gray-900 flex items-center justify-center text-white">Carregando agendamento...</div>;
+  }
+
+  // Se não encontrar no banco, usa um mock com o ID para poder cadastrar dados locais pelo menos, ou apenas exibe erro.
+  const fallbackEmpresa = empresaIdParam ? { id: empresaIdParam, linkId: empresaIdParam, name: "Barbearia", owner: "", status: "ativo" } as Empresa : undefined;
+  const finalEmpresa = empresa || fallbackEmpresa;
+
+  return (
+    <div className="min-h-screen bg-gray-900 overflow-y-auto">
+      <AgendamentoPage empresa={finalEmpresa} empresas={finalEmpresa ? [finalEmpresa] : []} />
+    </div>
+  );
+};
+
 const App: React.FC = () => {
-  // --- ROTA PÚBLICA (CARDÁPIO DIGITAL) ---
-  // Verifica se a URL é do cardápio público (removido /burger conforme solicitado)
+  // --- ROTAS PÚBLICAS ---
   const isPublicMenu = window.location.pathname === '/cardapio' || window.location.search.includes('view=menu');
+  const isPublicAgendamento = window.location.pathname === '/agendamento' || window.location.search.includes('empresaId=');
 
   if (isPublicMenu) {
     return <BurgerClientOrderPage />;
+  }
+
+  // Agendamento publico via URL (direto)
+  if (isPublicAgendamento) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const empresaIdParam = urlParams.get('empresaId') || undefined;
+    return <PublicAgendamentoWrapper empresaIdParam={empresaIdParam} />;
   }
   // ---------------------------------------
 
@@ -473,7 +524,7 @@ const App: React.FC = () => {
               {activePage === 'jornada' && userPermissions.jornada && <JornadaPage user={user} />}
               {activePage === 'barbearia' && userPermissions.barbearia && <BarbeirosPage user={user} empresa={userCompany} />}
               {activePage === 'barbeiroAgenda' && userPermissions.barbeiroAgenda && <BarbeiroAgendaPage user={user} empresa={userCompany} isAdmin={userPermissions.barbearia} />}
-              {activePage === 'agendamento' && <AgendamentoPage empresa={userCompany} />}
+              {activePage === 'agendamento' && <AgendamentoPage empresa={userCompany} empresas={empresas} />}
               
               {/* Lanchonete Modules */}
               {activePage === 'burgerCompany' && userPermissions.burgerCompany && <BurgerCompanyPage user={user} />}

@@ -26,12 +26,14 @@ export const useBarbeariaRegistros = (empresaId?: string) => {
     const data = localStorage.getItem(key);
     if (data) {
       setRegistros(JSON.parse(data));
+    } else {
+      setRegistros([]);
     }
   };
 
   useEffect(() => {
     loadRegistros();
-  }, []);
+  }, [empresaId]);
 
   useEffect(() => {
     localStorage.setItem(key, JSON.stringify(registros));
@@ -74,12 +76,14 @@ export const useBarbeariaAgendamentos = (empresaId?: string) => {
     const data = localStorage.getItem(key);
     if (data) {
       setAgendamentos(JSON.parse(data));
+    } else {
+      setAgendamentos([]);
     }
   };
 
   useEffect(() => {
     loadAgendamentos();
-  }, []);
+  }, [empresaId]);
 
   useEffect(() => {
     localStorage.setItem(key, JSON.stringify(agendamentos));

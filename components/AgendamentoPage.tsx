@@ -19,11 +19,14 @@ const HORARIOS = [
 
 import { Empresa } from "../types";
 
-export default function AgendamentoPage({ empresa }: { empresa?: Empresa }) {
-  const { barbeiros, reloadBarbeiros } = useBarbeiros(empresa?.id);
-  const { servicos, produtos, loadConfig } = useBarbeariaConfig(empresa?.id);
+export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: Empresa, empresas?: Empresa[] }) {
+  const [selectedEmpresaId, setSelectedEmpresaId] = useState<string | undefined>();
+  const [hasInitialized, setHasInitialized] = useState(false);
+
+  const { barbeiros, reloadBarbeiros } = useBarbeiros(selectedEmpresaId);
+  const { servicos, produtos, loadConfig } = useBarbeariaConfig(selectedEmpresaId);
   const { agendamentos, addAgendamento, loadAgendamentos } =
-    useBarbeariaAgendamentos(empresa?.id);
+    useBarbeariaAgendamentos(selectedEmpresaId);
 
   const [telefone, setTelefone] = useState("");
   const [nome, setNome] = useState("");
@@ -41,6 +44,23 @@ export default function AgendamentoPage({ empresa }: { empresa?: Empresa }) {
   const [quantidadePessoas, setQuantidadePessoas] = useState(1);
   const [nomesAcompanhantes, setNomesAcompanhantes] = useState("");
   const [agendado, setAgendado] = useState(false);
+
+  useEffect(() => {
+    if (!hasInitialized) {
+      if (empresas.length === 1) {
+          setSelectedEmpresaId(empresas[0].id);
+          setHasInitialized(true);
+      } else if (empresa && empresas.length > 1) {
+          // If the user has a default company but there are more than 1, we don't auto-force it, 
+          // or we can auto-force it once. Let's not force it if they have multiple, or we can initialize
+          // to default but allow them to go back.
+          setSelectedEmpresaId(empresa.id);
+          setHasInitialized(true);
+      } else if (empresas.length > 0) {
+          setHasInitialized(true);
+      }
+    }
+  }, [empresas, empresa, hasInitialized]);
 
   useEffect(() => {
     try {
@@ -85,6 +105,7 @@ export default function AgendamentoPage({ empresa }: { empresa?: Empresa }) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // ... rest of submit
     if (
       !telefone.trim() ||
       !nome.trim() ||
@@ -201,6 +222,39 @@ export default function AgendamentoPage({ empresa }: { empresa?: Empresa }) {
     });
   };
 
+  if (!selectedEmpresaId && empresas.length > 1) {
+    return (
+      <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8 pb-20">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-white mb-2">
+            Boas vindas!
+          </h1>
+          <p className="text-gray-400 mb-8">
+            Para iniciar o agendamento, por favor escolha uma de nossas unidades:
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
+            {empresas.map((e) => (
+              <button
+                key={e.id}
+                onClick={() => setSelectedEmpresaId(e.id)}
+                className="bg-gray-800 hover:bg-gray-700 hover:border-blue-500/50 transition-all border border-gray-700 p-6 rounded-2xl shadow-lg flex flex-col items-center justify-center gap-3 group"
+              >
+                <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center group-hover:bg-blue-500/20 group-hover:scale-110 transition-all">
+                  <svg className="w-8 h-8 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1v1H9V7zm5 0h1v1h-1V7zm-5 4h1v1H9v-1zm5 0h1v1h-1v-1zm-3 4H2v-1h7v1z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-white">{e.name}</h3>
+                {e.city && <p className="text-sm text-gray-400">{e.city}{e.state ? ` - ${e.state}` : ''}</p>}
+                <span className="mt-2 text-sm text-blue-400 font-medium group-hover:underline">Acessar unidade &rarr;</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (agendado) {
     return (
       <div className="p-8 max-w-lg mx-auto text-center space-y-6">
@@ -231,8 +285,19 @@ export default function AgendamentoPage({ empresa }: { empresa?: Empresa }) {
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8 pb-20">
-      <div className="text-center">
-        <h1 className="text-3xl font-bold text-white mb-2">
+      <div className="text-center relative">
+        {empresas.length > 1 && (
+          <button
+            onClick={() => setSelectedEmpresaId(undefined)}
+            className="absolute left-0 top-0 mt-2 px-3 py-1.5 flex items-center gap-2 text-sm bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 rounded-lg transition-colors"
+          >
+            Voc&ecirc; est&aacute; em: <span className="font-bold text-blue-400">{empresas.find(e => e.id === selectedEmpresaId)?.name || 'Outra Unidade'}</span>
+            <svg className="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+        )}
+        <h1 className="text-3xl font-bold text-white mb-2 pt-10 sm:pt-0">
           Barbearia VIP - Agendamento
         </h1>
         <p className="text-gray-400">

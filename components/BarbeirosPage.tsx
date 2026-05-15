@@ -30,6 +30,28 @@ const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user, empresa }) => {
             <p className="text-gray-400 mt-1 text-sm font-medium">Gestão completa {empresa?.name ? `da ${empresa.name}` : ''}</p>
           </div>
         </div>
+        {empresa && (
+          <div className="bg-gray-800 border border-gray-700 p-3 rounded-xl flex items-center gap-3 mt-4">
+            <span className="text-sm font-medium text-gray-300">Link de Agendamento:</span>
+            <input 
+              type="text" 
+              readOnly 
+              value={`${window.location.origin}/agendamento?empresaId=${empresa.linkId || empresa.id}`} 
+              className="bg-gray-900 border border-gray-600 rounded px-2 py-1 text-xs text-gray-400 w-64 focus:outline-none"
+              onClick={(e) => (e.target as HTMLInputElement).select()}
+            />
+            <button 
+              onClick={() => {
+                navigator.clipboard.writeText(`${window.location.origin}/agendamento?empresaId=${empresa.linkId || empresa.id}`);
+                alert("Link copiado!");
+              }}
+              className="text-blue-400 hover:text-blue-300 transition-colors"
+              title="Copiar Link"
+            >
+              <ClipboardListIcon className="w-5 h-5" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
@@ -84,12 +106,12 @@ const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user, empresa }) => {
         </button>
       </div>
 
-      {activeTab === 'barbeiros' && <TabBarbeiros empresaId={empresa?.id} />}
-      {activeTab === 'produtos' && <TabProdutos empresaId={empresa?.id} />}
-      {activeTab === 'servicos' && <TabServicos empresaId={empresa?.id} />}
-      {activeTab === 'custos' && <TabCustos empresaId={empresa?.id} />}
-      {activeTab === 'metas' && <TabMetas empresaId={empresa?.id} />}
-      {activeTab === 'registros' && <TabRegistros empresaId={empresa?.id} />}
+      {activeTab === 'barbeiros' && <TabBarbeiros empresaId={empresa?.linkId || empresa?.id} />}
+      {activeTab === 'produtos' && <TabProdutos empresaId={empresa?.linkId || empresa?.id} />}
+      {activeTab === 'servicos' && <TabServicos empresaId={empresa?.linkId || empresa?.id} />}
+      {activeTab === 'custos' && <TabCustos empresaId={empresa?.linkId || empresa?.id} />}
+      {activeTab === 'metas' && <TabMetas empresaId={empresa?.linkId || empresa?.id} />}
+      {activeTab === 'registros' && <TabRegistros empresaId={empresa?.linkId || empresa?.id} />}
       
     </div>
   );

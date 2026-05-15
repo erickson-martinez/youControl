@@ -40,14 +40,14 @@ export const useBarbeariaConfig = (empresaId?: string) => {
     const dataS = localStorage.getItem(keyS);
     const dataC = localStorage.getItem(keyC);
     
-    if (dataP) setProdutos(JSON.parse(dataP));
-    if (dataS) setServicos(JSON.parse(dataS));
-    if (dataC) setCustos(JSON.parse(dataC));
+    setProdutos(dataP ? JSON.parse(dataP) : []);
+    setServicos(dataS ? JSON.parse(dataS) : []);
+    setCustos(dataC ? JSON.parse(dataC) : []);
   };
 
   useEffect(() => {
     loadConfig();
-  }, []);
+  }, [empresaId]);
 
   useEffect(() => {
     localStorage.setItem(keyP, JSON.stringify(produtos));

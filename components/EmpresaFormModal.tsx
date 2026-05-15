@@ -19,6 +19,7 @@ const initialState = {
     state: '',
     zipCode: '',
     status: 'ativo' as 'ativo' | 'inativo',
+    linkId: '',
 };
 
 const EmpresaFormModal: React.FC<EmpresaFormModalProps> = ({ isOpen, onClose, onSave, empresaToEdit }) => {
@@ -37,11 +38,22 @@ const EmpresaFormModal: React.FC<EmpresaFormModalProps> = ({ isOpen, onClose, on
                 state: empresaToEdit.state || '',
                 zipCode: empresaToEdit.zipCode || '',
                 status: empresaToEdit.status,
+                linkId: empresaToEdit.linkId || '',
             });
         } else {
-            setFormData(initialState);
+            setFormData({
+                ...initialState,
+                linkId: Math.floor(1000000 + Math.random() * 9000000).toString()
+            });
         }
     }, [empresaToEdit, isOpen]);
+
+    const generateLinkId = () => {
+        setFormData(prev => ({
+            ...prev,
+            linkId: Math.floor(1000000 + Math.random() * 9000000).toString()
+        }));
+    };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -77,23 +89,34 @@ const EmpresaFormModal: React.FC<EmpresaFormModalProps> = ({ isOpen, onClose, on
                                 <input type="text" name="name" id="name" value={formData.name} onChange={handleChange} required className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
                             </div>
                             <div>
-                                <label htmlFor="cnpj" className="block mb-1 text-sm text-gray-300">CNPJ</label>
-                                <input type="text" name="cnpj" id="cnpj" value={formData.cnpj} onChange={handleChange} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
+                                <label htmlFor="linkId" className="block mb-1 text-sm text-gray-300">ID de Agendamento (7 num)</label>
+                                <div className="flex gap-2">
+                                    <input type="text" name="linkId" id="linkId" value={formData.linkId} onChange={handleChange} maxLength={7} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
+                                    <button type="button" onClick={generateLinkId} className="px-3 py-2 bg-gray-600 hover:bg-gray-500 rounded-md text-white whitespace-nowrap" disabled={isSaving} title="Gerar ID">
+                                        Gerar
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                             <div>
+                                <label htmlFor="cnpj" className="block mb-1 text-sm text-gray-300">CNPJ</label>
+                                <input type="text" name="cnpj" id="cnpj" value={formData.cnpj} onChange={handleChange} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
+                            </div>
+                            <div>
                                 <label htmlFor="phone" className="block mb-1 text-sm text-gray-300">Telefone</label>
                                 <input type="tel" name="phone" id="phone" value={formData.phone} onChange={handleChange} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
                             </div>
+                        </div>
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                             <div>
                                 <label htmlFor="email" className="block mb-1 text-sm text-gray-300">Email</label>
                                 <input type="email" name="email" id="email" value={formData.email} onChange={handleChange} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
                             </div>
-                        </div>
-                        <div>
-                            <label htmlFor="address" className="block mb-1 text-sm text-gray-300">Endereço</label>
-                            <input type="text" name="address" id="address" value={formData.address} onChange={handleChange} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
+                            <div>
+                                <label htmlFor="address" className="block mb-1 text-sm text-gray-300">Endereço</label>
+                                <input type="text" name="address" id="address" value={formData.address} onChange={handleChange} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
+                            </div>
                         </div>
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                              <div>

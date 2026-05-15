@@ -12,10 +12,11 @@ interface BarbeiroAgendaPageProps {
 }
 
 const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, isAdmin }) => {
-  const { barbeiros } = useBarbeiros(empresa?.id);
-  const { agendamentos, updateStatus } = useBarbeariaAgendamentos(empresa?.id);
-  const { registros, addRegistro } = useBarbeariaRegistros(empresa?.id);
-  const { servicos, produtos, updateProduto } = useBarbeariaConfig(empresa?.id);
+  const resolvedCompanyId = empresa?.linkId || empresa?.id;
+  const { barbeiros } = useBarbeiros(resolvedCompanyId);
+  const { agendamentos, updateStatus } = useBarbeariaAgendamentos(resolvedCompanyId);
+  const { registros, addRegistro } = useBarbeariaRegistros(resolvedCompanyId);
+  const { servicos, produtos, updateProduto } = useBarbeariaConfig(resolvedCompanyId);
 
   // Vamos assumir que o barbeiro pode escolher quem ele é na tela, ou se o número de telefone 
   // dele bater com algum cadastro, pegar automaticamente.

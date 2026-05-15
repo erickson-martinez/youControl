@@ -49,6 +49,7 @@ export interface Empresa {
   status: 'ativo' | 'inativo';
   owner?: string;
   isOwnedByCurrentUser?: boolean;
+  linkId?: string;
 }
 
 export interface UserCompanyLink {

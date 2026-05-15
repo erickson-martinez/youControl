@@ -20,14 +20,17 @@ export const useBarbeiros = (empresaId?: string) => {
         setBarbeiros(JSON.parse(data));
       } catch (e) {
         console.error('Erro ao ler barbeiros', e);
+        setBarbeiros([]);
       }
+    } else {
+      setBarbeiros([]);
     }
   };
 
-  // Carregar do localStorage ao iniciar
+  // Carregar do localStorage ao iniciar ou mudar de empresa
   useEffect(() => {
     reloadBarbeiros();
-  }, []);
+  }, [empresaId]);
 
   // Salvar no localStorage sempre que houver alteração
   useEffect(() => {
