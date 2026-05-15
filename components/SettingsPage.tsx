@@ -202,10 +202,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, onCurrentUserP
 
         const apiPromises = [];
         if (permsToAdd.length > 0) {
-            apiPromises.push(apiFetch(`${API_BASE_URL}/permissions?phone=${phone}&add=true`, { method: 'PATCH', body: JSON.stringify({ permissions: permsToAdd }) }));
+            apiPromises.push(apiFetch(`${API_BASE_URL}/permissions?phone=${phone}&add=true`, { method: 'POST', body: JSON.stringify({ permissions: permsToAdd }) }));
         }
         if (permsToRemove.length > 0) {
-            apiPromises.push(apiFetch(`${API_BASE_URL}/permissions?phone=${phone}&add=false`, { method: 'PATCH', body: JSON.stringify({ permissions: permsToRemove }) }));
+            apiPromises.push(apiFetch(`${API_BASE_URL}/permissions?phone=${phone}&add=false`, { method: 'POST', body: JSON.stringify({ permissions: permsToRemove }) }));
         }
         if (apiPromises.length === 0) return;
 

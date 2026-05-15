@@ -137,7 +137,7 @@ const TabBarbeiros = ({ empresaId }: { empresaId?: string }) => {
         
         // Atribui a permissão "minha agenda" (barbeiroAgenda) independentemente de ter criado agora ou já existir
         await fetch(`${API_BASE_URL}/permissions?phone=${cleanPhone}&add=true`, {
-          method: 'PATCH',
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
