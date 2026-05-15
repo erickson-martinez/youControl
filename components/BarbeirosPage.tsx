@@ -134,8 +134,18 @@ const TabBarbeiros = ({ empresaId }: { empresaId?: string }) => {
             pass: 'Teste@1212@1212'
           })
         });
-        // Assumimos que se der erro 400/409, o usuário já existe na base, então o "vínculo"
-        // acontece naturalmente, já que o telefone é o mesmo no barbeiro e no usuário logado.
+        
+        // Atribui a permissão "minha agenda" (barbeiroAgenda) independentemente de ter criado agora ou já existir
+        await fetch(`${API_BASE_URL}/permissions?phone=${cleanPhone}&add=true`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            permissions: ['barbeiroAgenda']
+          })
+        });
+
       } catch (err) {
         console.warn("Erro ao tentar cadastrar/vincular barbeiro na base de usuários:", err);
       }
