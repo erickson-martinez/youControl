@@ -152,7 +152,7 @@ const App: React.FC = () => {
 
         if (permissionsList.length === 0) {
             console.warn(`User ${phone} has no permissions. Granting default 'financeiro' access.`);
-            await apiFetch(`${API_BASE_URL}/permissions?phone=${phone}&add=true`, {
+            await apiFetch(`${API_BASE_URL}/permissions?userPhone=${phone}&add=true`, {
                 method: 'PATCH',
                 body: JSON.stringify({ permissions: ["financeiro", "graficos"] }),
             });
@@ -173,7 +173,7 @@ const App: React.FC = () => {
         if ((error as Error).message.includes('404')) {
             console.warn(`No permissions record for ${phone} (404). Granting default 'financeiro' access.`);
             try {
-                await apiFetch(`${API_BASE_URL}/permissions?phone=${phone}&add=true`, {
+                await apiFetch(`${API_BASE_URL}/permissions?userPhone=${phone}&add=true`, {
                     method: 'PATCH',
                     body: JSON.stringify({ permissions: ["financeiro", "graficos"] }),
                 });

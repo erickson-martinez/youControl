@@ -243,7 +243,7 @@ const apiEndpoints = {
         { method: 'POST', endpoint: '/companies', description: 'Cria uma nova empresa.', body: { name: 'Minha Nova Empresa', owner: 'phone_do_dono' } },
         { method: 'PUT', endpoint: '/companies/{id}', description: 'Atualiza os dados de uma empresa.', body: { name: 'Nome Atualizado da Empresa', cnpj: '12345678000190' } },
         { method: 'GET', endpoint: '/permissions?userPhone={phone}', description: 'Obtém a lista de permissões de um usuário específico.' },
-        { method: 'PATCH', endpoint: '/permissions?phone={phone}&add=true', description: 'Adiciona permissões a um usuário.', body: { permissions: ['ponto', 'rh'] } },
+        { method: 'PATCH', endpoint: '/permissions?userPhone={phone}&add=true', description: 'Adiciona permissões a um usuário.', body: { permissions: ['ponto', 'rh'] } },
     ],
 };
 

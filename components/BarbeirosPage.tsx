@@ -136,8 +136,8 @@ const TabBarbeiros = ({ empresaId }: { empresaId?: string }) => {
         });
         
         // Atribui a permissão "minha agenda" (barbeiroAgenda) independentemente de ter criado agora ou já existir
-        await fetch(`${API_BASE_URL}/permissions?phone=${cleanPhone}&add=true`, {
-          method: 'POST',
+        await fetch(`${API_BASE_URL}/permissions?userPhone=${cleanPhone}&add=true`, {
+          method: 'PATCH',
           headers: {
             'Content-Type': 'application/json'
           },
@@ -660,7 +660,7 @@ const TabCustos = ({ empresaId }: { empresaId?: string }) => {
         <div>
           <h2 className="text-xl font-bold text-white mb-4">Custos Fixos <span className="bg-gray-800 text-gray-400 font-medium text-xs py-1 px-2 rounded-lg ml-2">{fixos.length}</span></h2>
           {fixos.length === 0 ? <p className="text-sm text-gray-500 italic bg-gray-900/50 p-4 rounded-lg border border-gray-800">Nenhum registrado</p> : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+            <div className="grid gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
               {fixos.map(c => (
                 <div key={c.id} className="bg-gray-800/80 p-4 rounded-2xl border border-gray-700/50 flex justify-between items-center group shadow-sm hover:border-orange-500/30 transition-all">
                   <span className="text-gray-200 font-medium">{c.nome}</span>
@@ -679,7 +679,7 @@ const TabCustos = ({ empresaId }: { empresaId?: string }) => {
         <div className="pt-2">
           <h2 className="text-xl font-bold text-white mb-4">Custos Variáveis <span className="bg-gray-800 text-gray-400 font-medium text-xs py-1 px-2 rounded-lg ml-2">{variaveis.length}</span></h2>
           {variaveis.length === 0 ? <p className="text-sm text-gray-500 italic bg-gray-900/50 p-4 rounded-lg border border-gray-800">Nenhum registrado</p> : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+            <div className="grid gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
               {variaveis.map(c => (
                 <div key={c.id} className="bg-gray-800/80 p-4 rounded-2xl border border-gray-700/50 flex justify-between items-center group shadow-sm hover:border-blue-500/30 transition-all">
                   <span className="text-gray-200 font-medium">{c.nome}</span>
