@@ -7,6 +7,7 @@ export interface Barbeiro {
   comissao: number;
   corte: number;
   diasTrabalhados: string[];
+  linkId?: string;
 }
 
 export const useBarbeiros = (empresaId?: string) => {

@@ -64,6 +64,10 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
 
   useEffect(() => {
     try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const bId = urlParams.get('barbeiroId');
+      if (bId) setBarbeiroId(bId);
+
       const uStr = localStorage.getItem("currentUser");
       if (uStr) {
         const u = JSON.parse(uStr);

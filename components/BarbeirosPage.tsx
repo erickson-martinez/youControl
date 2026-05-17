@@ -178,7 +178,8 @@ const TabBarbeiros = ({ empresaId }: { empresaId?: string }) => {
       telefone,
       comissao: Number(comissao) || 0,
       corte: Number(corte) || 0,
-      diasTrabalhados: dias
+      diasTrabalhados: dias,
+      linkId: empresaId
     });
 
     const numCusto = Number(custoDiario) || 0;
@@ -348,6 +349,31 @@ const TabBarbeiros = ({ empresaId }: { empresaId?: string }) => {
                           {dia.slice(0, 3)}
                         </span>
                       ))}
+                    </div>
+                  </div>
+                )}
+                
+                {empresaId && (
+                  <div className="flex flex-col gap-1 ml-10 mt-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 block">Link de Agendamento (Barbeiro):</span>
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="text" 
+                        readOnly 
+                        value={`${window.location.origin}/agendamento?empresaId=${empresaId}&barbeiroId=${barbeiro.id}`} 
+                        className="bg-gray-900 border border-gray-600 rounded px-2 py-1 text-xs text-gray-400 w-full focus:outline-none"
+                        onClick={(e) => (e.target as HTMLInputElement).select()}
+                      />
+                      <button 
+                        onClick={() => {
+                          navigator.clipboard.writeText(`${window.location.origin}/agendamento?empresaId=${empresaId}&barbeiroId=${barbeiro.id}`);
+                          alert("Link do barbeiro copiado!");
+                        }}
+                        className="text-blue-400 hover:text-blue-300 transition-colors bg-blue-500/10 hover:bg-blue-500/20 px-2 py-1 flex items-center justify-center rounded border border-blue-500/20"
+                        title="Copiar Link"
+                      >
+                       <ClipboardListIcon className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                 )}
