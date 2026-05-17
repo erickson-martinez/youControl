@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { API_BASE_URL } from '../constants';
 
 export interface Produto {
   id: string;
@@ -10,6 +11,7 @@ export interface Produto {
   precoVenda: number;
   estoque: number;
   linkId?: string;
+  _id?: string;
 }
 
 export interface Servico {
@@ -34,27 +36,38 @@ export const useBarbeariaConfig = (empresaId?: string) => {
   const [custos, setCustos] = useState<Custo[]>([]);
 
   const suffix = empresaId ? `_${empresaId}` : '';
-  const keyP = `barbearia_produtos${suffix}`;
   const keyS = `barbearia_servicos${suffix}`;
   const keyC = `barbearia_custos${suffix}`;
 
-  const loadConfig = () => {
-    const dataP = localStorage.getItem(keyP);
+  const fetchProdutos = useCallback(async () => {
+    try {
+      const url = empresaId 
+        ? `${API_BASE_URL}/api/barber-products?linkId=${empresaId}`
+        : `${API_BASE_URL}/api/barber-products`;
+      const response = await fetch(url);
+      if (response.ok) {
+        const data = await response.json();
+        const mapped = data.map((p: any) => ({ ...p, id: p.id || p._id }));
+        setProdutos(mapped);
+      }
+    } catch (e) {
+      console.error('Erro ao buscar produtos', e);
+    }
+  }, [empresaId]);
+
+  const loadConfig = useCallback(() => {
     const dataS = localStorage.getItem(keyS);
     const dataC = localStorage.getItem(keyC);
     
-    setProdutos(dataP ? JSON.parse(dataP) : []);
     setServicos(dataS ? JSON.parse(dataS) : []);
     setCustos(dataC ? JSON.parse(dataC) : []);
-  };
+    
+    fetchProdutos();
+  }, [keyS, keyC, fetchProdutos]);
 
   useEffect(() => {
     loadConfig();
-  }, [empresaId]);
-
-  useEffect(() => {
-    localStorage.setItem(keyP, JSON.stringify(produtos));
-  }, [produtos, keyP]);
+  }, [loadConfig]);
 
   useEffect(() => {
     localStorage.setItem(keyS, JSON.stringify(servicos));
@@ -64,15 +77,58 @@ export const useBarbeariaConfig = (empresaId?: string) => {
     localStorage.setItem(keyC, JSON.stringify(custos));
   }, [custos, keyC]);
 
-  // Produtos
-  const addProduto = (produto: Omit<Produto, 'id'>) => {
-    setProdutos(prev => [...prev, { ...produto, id: Date.now().toString() }]);
+  // Produtos (API API)
+  const addProduto = async (produto: Omit<Produto, 'id'>) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/barber-products`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(produto)
+      });
+      if (response.ok) {
+        fetchProdutos();
+      }
+    } catch (e) {
+      console.error('Erro ao addProduto', e);
+    }
   };
-  const removeProduto = (id: string) => {
-    setProdutos(prev => prev.filter(p => p.id !== id));
+
+  const removeProduto = async (id: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/barber-products/${id}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        fetchProdutos();
+      }
+    } catch (e) {
+      console.error('Erro ao removeProduto', e);
+    }
   };
-  const updateProduto = (id: string, produto: Partial<Produto>) => {
-    setProdutos(prev => prev.map(p => p.id === id ? { ...p, ...produto } : p));
+
+  const updateProduto = async (id: string, produto: Partial<Produto>) => {
+    try {
+      // Use PATCH for stock if only 'estoque' is sent, else PUT/PATCH depending on fields.
+      // The instructions mention: app.put("/api/barber-products/:id",...)
+      // app.patch("/api/barber-products/:id/stock", ...)
+      // Let's use PUT for general updates and PATCH for stock only if we have special needs, but for simplicity:
+      
+      const isOnlyStock = Object.keys(produto).length === 1 && 'estoque' in produto;
+      const url = isOnlyStock 
+        ? `${API_BASE_URL}/api/barber-products/${id}/stock`
+        : `${API_BASE_URL}/api/barber-products/${id}`;
+        
+      const response = await fetch(url, {
+        method: isOnlyStock ? 'PATCH' : 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(produto)
+      });
+      if (response.ok) {
+        fetchProdutos();
+      }
+    } catch (e) {
+      console.error('Erro ao updateProduto', e);
+    }
   };
 
   // Servicos
@@ -92,7 +148,7 @@ export const useBarbeariaConfig = (empresaId?: string) => {
   };
 
   return {
-    produtos, addProduto, removeProduto, updateProduto,
+    produtos, addProduto, removeProduto, updateProduto, fetchProdutos,
     servicos, addServico, removeServico,
     custos, addCusto, removeCusto,
     loadConfig

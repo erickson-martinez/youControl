@@ -61,5 +61,24 @@ export const useBarbeiros = (empresaId?: string) => {
     }
   };
 
-  return { barbeiros, addBarbeiro, removeBarbeiro, reloadBarbeiros };
+  const updateBarbeiro = async (id: string, updates: Partial<Barbeiro>) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/barbers/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates),
+      });
+      if (response.ok) {
+        reloadBarbeiros();
+      } else {
+        console.error('Erro ao atualizar barbeiro via API');
+      }
+    } catch (e) {
+      console.error('Erro ao comunicar atualização do barbeiro', e);
+    }
+  };
+
+  return { barbeiros, addBarbeiro, removeBarbeiro, updateBarbeiro, reloadBarbeiros };
 };

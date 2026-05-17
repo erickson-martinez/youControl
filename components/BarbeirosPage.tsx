@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useBarbeiros } from '../hooks/useBarbeiros';
 import { useBarbeariaConfig, Produto, Servico, Custo } from '../hooks/useBarbeariaConfig';
 import { useBarbeariaRegistros, useBarbeariaAgendamentos } from '../hooks/useBarbeariaRegistros';
-import { UsersIcon, TrashIcon, PlusIcon, TagIcon, CogIcon, CashIcon, DocumentTextIcon, ChartBarIcon, ClipboardListIcon, CheckCircleIcon, XCircleIcon } from './icons';
+import { UsersIcon, TrashIcon, PencilIcon, PlusIcon, TagIcon, CogIcon, CashIcon, DocumentTextIcon, ChartBarIcon, ClipboardListIcon, CheckCircleIcon, XCircleIcon, ChevronLeftIcon, ChevronRightIcon } from './icons';
 import { Empresa, User } from '../types';
 import { API_BASE_URL } from '../constants';
 
@@ -17,6 +17,13 @@ interface BarbeirosPageProps {
 
 const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user, empresa }) => {
   const [activeTab, setActiveTab] = useState<'barbeiros' | 'produtos' | 'servicos' | 'custos' | 'metas' | 'registros'>('barbeiros');
+  const tabsRef = useRef<HTMLDivElement>(null);
+
+  const scrollTabs = (direction: 'left' | 'right') => {
+    if (tabsRef.current) {
+      tabsRef.current.scrollBy({ left: direction === 'left' ? -200 : 200, behavior: 'smooth' });
+    }
+  };
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8 pb-20">
@@ -62,54 +69,73 @@ const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user, empresa }) => {
       </div>
 
       {/* Tabs */}
-      <div className="flex flex-wrap gap-2 bg-gray-900 border border-gray-800 p-2 rounded-2xl">
-        <button
-          onClick={() => setActiveTab('barbeiros')}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 px-5 text-sm font-semibold rounded-xl transition-all whitespace-nowrap ${
-            activeTab === 'barbeiros' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-800'
-          }`}
+      <div className="relative group">
+        <button 
+          onClick={() => scrollTabs('left')}
+          className="absolute -left-6 md:-left-8 top-1/2 -translate-y-1/2 bg-gray-800 text-white rounded-full p-2 z-10 shadow-lg border border-gray-700 hover:bg-gray-700 hover:text-blue-400 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 hidden md:block"
         >
-          <UsersIcon className="w-4 h-4" /> Barbeiros
+          <ChevronLeftIcon className="w-5 h-5" />
         </button>
-        <button
-          onClick={() => setActiveTab('produtos')}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 px-5 text-sm font-semibold rounded-xl transition-all whitespace-nowrap ${
-            activeTab === 'produtos' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-800'
-          }`}
+
+        <div 
+          ref={tabsRef}
+          className="flex overflow-x-auto gap-2 bg-gray-900 border border-gray-800 p-2 rounded-2xl scroll-smooth [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
         >
-          <TagIcon className="w-4 h-4" /> Produtos
-        </button>
-        <button
-          onClick={() => setActiveTab('servicos')}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 px-5 text-sm font-semibold rounded-xl transition-all whitespace-nowrap ${
-            activeTab === 'servicos' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-800'
-          }`}
+          <button
+            onClick={() => setActiveTab('barbeiros')}
+            className={`flex items-center justify-center gap-2 py-3 px-6 text-sm font-semibold rounded-xl transition-all whitespace-nowrap ${
+              activeTab === 'barbeiros' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-800'
+            }`}
+          >
+            <UsersIcon className="w-4 h-4" /> Barbeiros
+          </button>
+          <button
+            onClick={() => setActiveTab('produtos')}
+            className={`flex items-center justify-center gap-2 py-3 px-6 text-sm font-semibold rounded-xl transition-all whitespace-nowrap ${
+              activeTab === 'produtos' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-800'
+            }`}
+          >
+            <TagIcon className="w-4 h-4" /> Produtos
+          </button>
+          <button
+            onClick={() => setActiveTab('servicos')}
+            className={`flex items-center justify-center gap-2 py-3 px-6 text-sm font-semibold rounded-xl transition-all whitespace-nowrap ${
+              activeTab === 'servicos' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-800'
+            }`}
+          >
+            <DocumentTextIcon className="w-4 h-4" /> Serviços
+          </button>
+          <button
+            onClick={() => setActiveTab('custos')}
+            className={`flex items-center justify-center gap-2 py-3 px-6 text-sm font-semibold rounded-xl transition-all whitespace-nowrap ${
+              activeTab === 'custos' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-800'
+            }`}
+          >
+            <CashIcon className="w-4 h-4" /> Custos
+          </button>
+          <button
+            onClick={() => setActiveTab('metas')}
+            className={`flex items-center justify-center gap-2 py-3 px-6 text-sm font-semibold rounded-xl transition-all whitespace-nowrap ${
+              activeTab === 'metas' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-800'
+            }`}
+          >
+            <ChartBarIcon className="w-4 h-4" /> Metas
+          </button>
+          <button
+            onClick={() => setActiveTab('registros')}
+            className={`flex items-center justify-center gap-2 py-3 px-6 text-sm font-semibold rounded-xl transition-all whitespace-nowrap ${
+              activeTab === 'registros' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-800'
+            }`}
+          >
+            <ClipboardListIcon className="w-4 h-4" /> Registros & Agendamentos
+          </button>
+        </div>
+
+        <button 
+          onClick={() => scrollTabs('right')}
+          className="absolute -right-6 md:-right-8 top-1/2 -translate-y-1/2 bg-gray-800 text-white rounded-full p-2 z-10 shadow-lg border border-gray-700 hover:bg-gray-700 hover:text-blue-400 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 hidden md:block"
         >
-          <DocumentTextIcon className="w-4 h-4" /> Serviços
-        </button>
-        <button
-          onClick={() => setActiveTab('custos')}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 px-5 text-sm font-semibold rounded-xl transition-all whitespace-nowrap ${
-            activeTab === 'custos' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-800'
-          }`}
-        >
-          <CashIcon className="w-4 h-4" /> Custos
-        </button>
-        <button
-          onClick={() => setActiveTab('metas')}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 px-5 text-sm font-semibold rounded-xl transition-all whitespace-nowrap ${
-            activeTab === 'metas' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-800'
-          }`}
-        >
-          <ChartBarIcon className="w-4 h-4" /> Metas
-        </button>
-        <button
-          onClick={() => setActiveTab('registros')}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 px-5 text-sm font-semibold rounded-xl transition-all whitespace-nowrap ${
-            activeTab === 'registros' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-800'
-          }`}
-        >
-          <ClipboardListIcon className="w-4 h-4" /> Registros & Agendamentos
+          <ChevronRightIcon className="w-5 h-5" />
         </button>
       </div>
 
@@ -127,9 +153,10 @@ const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user, empresa }) => {
 // --- TABS COMPONENTS ---
 
 const TabBarbeiros = ({ empresaId }: { empresaId?: string }) => {
-  const { barbeiros, addBarbeiro, removeBarbeiro, reloadBarbeiros } = useBarbeiros(empresaId);
+  const { barbeiros, addBarbeiro, removeBarbeiro, updateBarbeiro, reloadBarbeiros } = useBarbeiros(empresaId);
   const { addCusto } = useBarbeariaConfig(empresaId);
   
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
   const [comissao, setComissao] = useState('');
@@ -141,6 +168,26 @@ const TabBarbeiros = ({ empresaId }: { empresaId?: string }) => {
     setDias(prev => prev.includes(dia) ? prev.filter(d => d !== dia) : [...prev, dia]);
   };
 
+  const handleEdit = (barbeiro: any) => {
+    setEditingId(barbeiro.id);
+    setNome(barbeiro.nome);
+    setTelefone(barbeiro.telefone || '');
+    setComissao(barbeiro.comissao?.toString() || '');
+    setCorte(barbeiro.corte?.toString() || '');
+    setDias(barbeiro.diasTrabalhados || []);
+    setCustoDiario(''); // Maybe later keep track of this, but not in barbeiro directly
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setNome('');
+    setTelefone('');
+    setComissao('');
+    setCorte('');
+    setCustoDiario('');
+    setDias([]);
+  };
+
   const [loading, setLoading] = useState(false);
 
   const handleCadastrar = async (e: React.FormEvent) => {
@@ -148,6 +195,25 @@ const TabBarbeiros = ({ empresaId }: { empresaId?: string }) => {
     if (!nome.trim()) return alert("Nome é obrigatório");
     
     setLoading(true);
+
+    const payload = {
+        nome,
+        telefone,
+        comissao: Number(comissao) || 0,
+        corte: Number(corte) || 0,
+        diasTrabalhados: dias,
+        linkId: empresaId
+    };
+
+    if (editingId) {
+      // Editar
+      if (updateBarbeiro) {
+        await updateBarbeiro(editingId, payload);
+      }
+      cancelEdit();
+      setLoading(false);
+      return;
+    }
 
     if (telefone.trim()) {
       const cleanPhone = telefone.replace(/\D/g, '');
@@ -181,14 +247,6 @@ const TabBarbeiros = ({ empresaId }: { empresaId?: string }) => {
     }
 
     try {
-        const payload = {
-            nome,
-            telefone,
-            comissao: Number(comissao) || 0,
-            corte: Number(corte) || 0,
-            diasTrabalhados: dias,
-            linkId: empresaId
-        };
         const response = await fetch(`${API_BASE_URL}/api/barbers`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -214,13 +272,7 @@ const TabBarbeiros = ({ empresaId }: { empresaId?: string }) => {
       });
     }
 
-    setNome('');
-    setTelefone('');
-    setComissao('');
-    setCorte('');
-    setCustoDiario('');
-    setDias([]);
-    
+    cancelEdit();
     setLoading(false);
   };
 
@@ -228,8 +280,16 @@ const TabBarbeiros = ({ empresaId }: { empresaId?: string }) => {
     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
       {/* Formulário de Cadastro */}
       <div className="bg-gray-800/80 p-6 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
-        <h2 className="text-xl font-bold text-white mb-6 border-b border-gray-700/50 pb-3 flex items-center gap-2">
-          <PlusIcon className="w-5 h-5 text-blue-500" /> Cadastrar Barbeiro
+        <h2 className="text-xl font-bold text-white mb-6 border-b border-gray-700/50 pb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {editingId ? <PencilIcon className="w-5 h-5 text-yellow-500" /> : <PlusIcon className="w-5 h-5 text-blue-500" />}
+            {editingId ? 'Editar Barbeiro' : 'Cadastrar Barbeiro'}
+          </div>
+          {editingId && (
+            <button onClick={cancelEdit} className="text-sm text-gray-400 hover:text-white underline">
+              Cancelar
+            </button>
+          )}
         </h2>
         
         <form onSubmit={handleCadastrar} className="space-y-4">
@@ -274,19 +334,21 @@ const TabBarbeiros = ({ empresaId }: { empresaId?: string }) => {
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Custo Variável por Dia de Trabalho (Transporte, Alimentação...)</label>
-            <div className="relative">
-              <span className="absolute left-3 top-2 text-gray-500">R$</span>
-              <input 
-                type="number" step="0.01" min="0"
-                value={custoDiario} onChange={e => setCustoDiario(e.target.value)}
-                className="w-full bg-gray-700 text-white border border-gray-600 rounded pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                placeholder="Ex: 20.00"
-              />
+          {!editingId && (
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Custo Variável por Dia de Trabalho</label>
+              <div className="relative">
+                <span className="absolute left-3 top-2 text-gray-500">R$</span>
+                <input 
+                  type="number" step="0.01" min="0"
+                  value={custoDiario} onChange={e => setCustoDiario(e.target.value)}
+                  className="w-full bg-gray-700 text-white border border-gray-600 rounded pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                  placeholder="Ex: 20.00"
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Será adicionado aos Custos Variáveis nas datas de trabalho.</p>
             </div>
-            <p className="text-xs text-gray-500 mt-1">Será adicionado aos Custos Variáveis focado nos dias selecionados abaixo.</p>
-          </div>
+          )}
 
           <div>
             <label className="block text-sm text-gray-400 mb-2">Dias Trabalhados</label>
@@ -312,10 +374,10 @@ const TabBarbeiros = ({ empresaId }: { empresaId?: string }) => {
             <button 
               type="submit"
               disabled={loading}
-              className={`w-full flex items-center justify-center gap-2 font-semibold py-2 px-4 rounded-lg transition-colors ${loading ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}
+              className={`w-full flex items-center justify-center gap-2 font-semibold py-2 px-4 rounded-lg transition-colors ${loading ? 'bg-blue-400 cursor-not-allowed' : (editingId ? 'bg-yellow-600 hover:bg-yellow-500 text-white' : 'bg-blue-600 hover:bg-blue-500 text-white')}`}
             >
-              <PlusIcon className="w-5 h-5" />
-              {loading ? 'Salvando...' : 'Salvar Barbeiro'}
+              {editingId ? <PencilIcon className="w-5 h-5" /> : <PlusIcon className="w-5 h-5" />}
+              {loading ? 'Salvando...' : (editingId ? 'Salvar Alterações' : 'Salvar Barbeiro')}
             </button>
           </div>
         </form>
@@ -333,12 +395,22 @@ const TabBarbeiros = ({ empresaId }: { empresaId?: string }) => {
           <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
             {barbeiros.map(barbeiro => (
               <div key={barbeiro.id} className="bg-gray-800/90 p-5 rounded-2xl border border-gray-700/50 flex flex-col gap-4 relative group hover:border-blue-500/30 transition-all shadow-md">
-                <button 
-                  onClick={() => removeBarbeiro(barbeiro.id)}
-                  className="absolute top-4 right-4 text-gray-500 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all bg-gray-900 p-2 rounded-lg"
-                >
-                  <TrashIcon className="w-4 h-4" />
-                </button>
+                <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                  <button 
+                    onClick={() => handleEdit(barbeiro)}
+                    className="text-gray-500 hover:text-yellow-400 bg-gray-900 p-2 rounded-lg"
+                    title="Editar Barbeiro"
+                  >
+                    <PencilIcon className="w-4 h-4" />
+                  </button>
+                  <button 
+                    onClick={() => removeBarbeiro(barbeiro.id)}
+                    className="text-gray-500 hover:text-red-400 bg-gray-900 p-2 rounded-lg"
+                    title="Excluir Barbeiro"
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                  </button>
+                </div>
                 
                 <div>
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
@@ -409,6 +481,7 @@ const TabBarbeiros = ({ empresaId }: { empresaId?: string }) => {
 
 const TabProdutos = ({ empresaId }: { empresaId?: string }) => {
   const { produtos, addProduto, removeProduto, updateProduto } = useBarbeariaConfig(empresaId);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [nome, setNome] = useState('');
   const [categoria, setCategoria] = useState('');
   const [custo, setCusto] = useState('');
@@ -423,11 +496,43 @@ const TabProdutos = ({ empresaId }: { empresaId?: string }) => {
   const numEstoque = Number(estoque) || 0;
   const isAbaixoDoIdeal = numVenda > 0 && numVenda < precoIdeal;
 
+  const handleEdit = (p: any) => {
+    setEditingId(p.id);
+    setNome(p.nome);
+    setCategoria(p.categoria || '');
+    setCusto(p.custo?.toString() || '');
+    setMargemLucro(p.margemLucro?.toString() || '');
+    setPrecoVenda(p.precoVenda?.toString() || '');
+    setEstoque(p.estoque?.toString() || '');
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setNome(''); setCategoria(''); setCusto(''); setMargemLucro(''); setPrecoVenda(''); setEstoque('');
+  };
+
   const handleCadastrar = (e: React.FormEvent) => {
     e.preventDefault();
     if (!nome.trim()) return alert("Nome é obrigatório");
-    addProduto({ nome, categoria: categoria || 'Geral', custo: numCusto, comissao: 0, margemLucro: numMargem, precoVenda: numVenda, estoque: numEstoque, linkId: empresaId });
-    setNome(''); setCategoria(''); setCusto(''); setMargemLucro(''); setPrecoVenda(''); setEstoque('');
+
+    const payload = { 
+      nome, 
+      categoria: categoria || 'Geral', 
+      custo: numCusto, 
+      comissao: 0, 
+      margemLucro: numMargem, 
+      precoVenda: numVenda, 
+      estoque: numEstoque, 
+      linkId: empresaId 
+    };
+
+    if (editingId) {
+      updateProduto(editingId, payload);
+    } else {
+      addProduto(payload);
+    }
+    
+    cancelEdit();
   };
 
   const handleRestock = (p: any) => {
@@ -440,8 +545,16 @@ const TabProdutos = ({ empresaId }: { empresaId?: string }) => {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <div className="bg-gray-800/80 p-6 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
-        <h2 className="text-xl font-bold text-white mb-6 border-b border-gray-700/50 pb-3 flex items-center gap-2">
-           <PlusIcon className="w-5 h-5 text-blue-500" /> Cadastrar Produto
+        <h2 className="text-xl font-bold text-white mb-6 border-b border-gray-700/50 pb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {editingId ? <PencilIcon className="w-5 h-5 text-yellow-500" /> : <PlusIcon className="w-5 h-5 text-blue-500" />}
+            {editingId ? 'Editar Produto' : 'Cadastrar Produto'}
+          </div>
+          {editingId && (
+            <button onClick={cancelEdit} className="text-sm text-gray-400 hover:text-white underline">
+              Cancelar
+            </button>
+          )}
         </h2>
         <form onSubmit={handleCadastrar} className="space-y-4">
           <div className="grid grid-cols-1 gap-4">
@@ -506,8 +619,9 @@ const TabProdutos = ({ empresaId }: { empresaId?: string }) => {
             <p className="text-red-400 text-xs mt-1 font-medium bg-red-500/10 p-2 rounded-lg border border-red-500/20">Aviso: O preço de venda está abaixo do valor ideal sugerido.</p>
           )}
           <div className="pt-4 border-t border-gray-700/50">
-            <button type="submit" className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3 px-4 rounded-xl transition-all shadow-md hover:shadow-blue-500/20">
-              <PlusIcon className="w-5 h-5" /> Salvar Produto
+            <button type="submit" className={`w-full flex items-center justify-center gap-2 font-semibold py-3 px-4 rounded-xl transition-all shadow-md ${editingId ? 'bg-yellow-600 hover:bg-yellow-500 text-white hover:shadow-yellow-500/20' : 'bg-blue-600 hover:bg-blue-500 text-white hover:shadow-blue-500/20'}`}>
+              {editingId ? <PencilIcon className="w-5 h-5" /> : <PlusIcon className="w-5 h-5" />}
+              {editingId ? 'Salvar Alterações' : 'Salvar Produto'}
             </button>
           </div>
         </form>
@@ -527,10 +641,23 @@ const TabProdutos = ({ empresaId }: { empresaId?: string }) => {
               const isBelow = p.precoVenda < ideal;
               return (
                 <div key={p.id} className={`bg-gray-800/90 p-5 rounded-2xl border flex flex-col gap-2 relative group flex-1 transition-all shadow-md hover:border-blue-500/30 ${isBelow ? 'border-yellow-600/50' : 'border-gray-700/50'}`}>
-                  <button onClick={() => removeProduto(p.id)} className="absolute top-4 right-4 text-gray-500 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all bg-gray-900 p-2 rounded-lg">
-                    <TrashIcon className="w-4 h-4" />
-                  </button>
-                  <h3 className="text-lg font-bold text-white pr-8 flex items-center gap-2">
+                  <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                    <button 
+                      onClick={() => handleEdit(p)}
+                      className="text-gray-500 hover:text-yellow-400 bg-gray-900 p-2 rounded-lg"
+                      title="Editar Produto"
+                    >
+                      <PencilIcon className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={() => removeProduto(p.id)} 
+                      className="text-gray-500 hover:text-red-400 bg-gray-900 p-2 rounded-lg"
+                      title="Excluir Produto"
+                    >
+                      <TrashIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <h3 className="text-lg font-bold text-white pr-[72px] flex items-center gap-2">
                     {p.nome}
                   </h3>
                   {p.categoria && <span className="text-xs text-blue-400 font-medium tracking-wide uppercase bg-blue-500/10 w-fit px-2 py-0.5 rounded-md border border-blue-500/20">{p.categoria}</span>}
