@@ -272,20 +272,32 @@ const App: React.FC = () => {
     try {
         const response = await apiFetch(`${API_BASE_URL}/companies/${currentUser.phone}`);
         const data = await response.json();
-        return (data.companies || []).map((emp: any) => ({ ...emp, id: emp._id }));
+        const companiesData = data.companies;
+        const companiesArray = Array.isArray(companiesData) ? companiesData : 
+                              (companiesData ? [companiesData] : []);
+        return companiesArray.map((emp: any) => ({ ...emp, id: emp._id }));
     } catch (error) {
         if (!(error as Error).message.includes('404')) {
           console.error("Falha ao buscar empresas.", error);
-        } else {
-           throw error;
         }
         return [];
     }
   }, [apiFetch]);
 
   const refreshCompanies = useCallback(async (user: User) => {
-    const companyId = await fetchUserCompanyLink(user);
-    const ownedEmpresasRaw = await fetchEmpresas(user);
+    let companyId = null;
+    try {
+        companyId = await fetchUserCompanyLink(user);
+    } catch (e) {
+        console.error("Erro ao buscar link da empresa. Ignorando.", e);
+    }
+
+    let ownedEmpresasRaw: any[] = [];
+    try {
+        ownedEmpresasRaw = await fetchEmpresas(user);
+    } catch (e) {
+        console.error("Erro ao buscar empresas do usuario.", e);
+    }
     const ownedEmpresas = ownedEmpresasRaw.map(e => ({...e, isOwnedByCurrentUser: true }));
 
     let allKnownEmpresas: Empresa[] = [...ownedEmpresas];
@@ -522,9 +534,9 @@ const App: React.FC = () => {
               {activePage === 'treino' && userPermissions.treino && <TreinoPage user={user} />}
               {activePage === 'jogoDaVida' && userPermissions.jogoDaVida && <JogoDaVidaPage />}
               {activePage === 'jornada' && userPermissions.jornada && <JornadaPage user={user} />}
-              {activePage === 'barbearia' && userPermissions.barbearia && <BarbeirosPage user={user} empresa={userCompany} />}
-              {activePage === 'barbeiroAgenda' && userPermissions.barbeiroAgenda && <BarbeiroAgendaPage user={user} empresa={userCompany} isAdmin={userPermissions.barbearia} />}
-              {activePage === 'agendamento' && <AgendamentoPage empresa={userCompany} empresas={empresas} />}
+              {activePage === 'barbearia' && userPermissions.barbearia && <BarbeirosPage user={user} empresa={userCompany || companiesForManagement[0]} />}
+              {activePage === 'barbeiroAgenda' && userPermissions.barbeiroAgenda && <BarbeiroAgendaPage user={user} empresa={userCompany || companiesForManagement[0]} isAdmin={userPermissions.barbearia} />}
+              {activePage === 'agendamento' && <AgendamentoPage empresa={userCompany || companiesForManagement[0]} empresas={empresas} />}
               
               {/* Lanchonete Modules */}
               {activePage === 'burgerCompany' && userPermissions.burgerCompany && <BurgerCompanyPage user={user} />}
