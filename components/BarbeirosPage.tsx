@@ -127,7 +127,7 @@ const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user, empresa }) => {
 // --- TABS COMPONENTS ---
 
 const TabBarbeiros = ({ empresaId }: { empresaId?: string }) => {
-  const { barbeiros, addBarbeiro, removeBarbeiro } = useBarbeiros(empresaId);
+  const { barbeiros, addBarbeiro, removeBarbeiro, reloadBarbeiros } = useBarbeiros(empresaId);
   const { addCusto } = useBarbeariaConfig(empresaId);
   
   const [nome, setNome] = useState('');
@@ -195,14 +195,28 @@ const TabBarbeiros = ({ empresaId }: { empresaId?: string }) => {
       }
     }
 
-    addBarbeiro({
-      nome,
-      telefone,
-      comissao: Number(comissao) || 0,
-      corte: Number(corte) || 0,
-      diasTrabalhados: dias,
-      linkId: empresaId
-    });
+    try {
+        const payload = {
+            nome,
+            telefone,
+            comissao: Number(comissao) || 0,
+            corte: Number(corte) || 0,
+            diasTrabalhados: dias,
+            linkId: empresaId
+        };
+        const response = await fetch(`${API_BASE_URL}/api/barbers`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (response.ok) {
+            await reloadBarbeiros();
+        } else {
+            console.error("Erro ao salvar barbeiro via API", await response.text());
+        }
+    } catch (e) {
+        console.error("Erro ao comunicar com /api/barbers", e);
+    }
 
     const numCusto = Number(custoDiario) || 0;
     if (numCusto > 0 && dias.length > 0) {
