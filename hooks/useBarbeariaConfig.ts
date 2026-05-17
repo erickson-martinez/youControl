@@ -9,6 +9,7 @@ export interface Produto {
   margemLucro: number;
   precoVenda: number;
   estoque: number;
+  linkId?: string;
 }
 
 export interface Servico {
@@ -16,6 +17,7 @@ export interface Servico {
   nome: string;
   categoria: 'cabelo' | 'barba' | string;
   valor: number;
+  linkId?: string;
 }
 
 export interface Custo {
@@ -23,6 +25,7 @@ export interface Custo {
   nome: string;
   valor: number;
   tipo: 'fixo' | 'variavel';
+  linkId?: string;
 }
 
 export const useBarbeariaConfig = (empresaId?: string) => {

@@ -28,28 +28,35 @@ const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user, empresa }) => {
           <div>
             <h1 className="text-3xl font-extrabold text-white tracking-tight">Barbearia Admin</h1>
             <p className="text-gray-400 mt-1 text-sm font-medium">Gestão completa {empresa?.name ? `da ${empresa.name}` : ''}</p>
+            {empresa?.linkId && (
+              <p className="mt-2 text-sm font-bold bg-blue-500/10 text-blue-400 px-2 py-1 rounded inline-flex border border-blue-500/20">
+                Código da Empresa: {empresa.linkId}
+              </p>
+            )}
           </div>
         </div>
         {empresa && (
-          <div className="bg-gray-800 border border-gray-700 p-3 rounded-xl flex items-center gap-3 mt-4">
+          <div className="bg-gray-800 border border-gray-700 p-3 rounded-xl flex flex-col gap-2 mt-4">
             <span className="text-sm font-medium text-gray-300">Link de Agendamento:</span>
-            <input 
-              type="text" 
-              readOnly 
-              value={`${window.location.origin}/agendamento?empresaId=${empresa.linkId || empresa.id}`} 
-              className="bg-gray-900 border border-gray-600 rounded px-2 py-1 text-xs text-gray-400 w-64 focus:outline-none"
-              onClick={(e) => (e.target as HTMLInputElement).select()}
-            />
-            <button 
-              onClick={() => {
-                navigator.clipboard.writeText(`${window.location.origin}/agendamento?empresaId=${empresa.linkId || empresa.id}`);
-                alert("Link copiado!");
-              }}
-              className="text-blue-400 hover:text-blue-300 transition-colors"
-              title="Copiar Link"
-            >
-              <ClipboardListIcon className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-3">
+              <input 
+                type="text" 
+                readOnly 
+                value={`${window.location.origin}/agendamento?empresaId=${empresa.linkId || empresa.id}`} 
+                className="bg-gray-900 border border-gray-600 rounded px-2 py-1 text-xs text-gray-400 w-64 focus:outline-none"
+                onClick={(e) => (e.target as HTMLInputElement).select()}
+              />
+              <button 
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/agendamento?empresaId=${empresa.linkId || empresa.id}`);
+                  alert("Link copiado!");
+                }}
+                className="text-white hover:text-blue-300 transition-colors bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded-lg text-sm font-medium"
+                title="Copiar Link"
+              >
+                Copiar 
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -167,6 +174,21 @@ const TabBarbeiros = ({ empresaId }: { empresaId?: string }) => {
             permissions: ['barbeiroAgenda']
           })
         });
+
+        // Vincula o barbeiro à empresa no módulo de RH (tudo tem relação com o código/linkId)
+        if (empresaId) {
+          await fetch(`${API_BASE_URL}/rh/link-user`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              userPhone: cleanPhone,
+              empresaId: empresaId,
+              status: 'ativo'
+            })
+          });
+        }
 
       } catch (err) {
         console.warn("Erro ao tentar cadastrar/vincular barbeiro na base de usuários:", err);
@@ -405,7 +427,7 @@ const TabProdutos = ({ empresaId }: { empresaId?: string }) => {
   const handleCadastrar = (e: React.FormEvent) => {
     e.preventDefault();
     if (!nome.trim()) return alert("Nome é obrigatório");
-    addProduto({ nome, categoria: categoria || 'Geral', custo: numCusto, comissao: 0, margemLucro: numMargem, precoVenda: numVenda, estoque: numEstoque });
+    addProduto({ nome, categoria: categoria || 'Geral', custo: numCusto, comissao: 0, margemLucro: numMargem, precoVenda: numVenda, estoque: numEstoque, linkId: empresaId });
     setNome(''); setCategoria(''); setCusto(''); setMargemLucro(''); setPrecoVenda(''); setEstoque('');
   };
 
@@ -563,7 +585,7 @@ const TabServicos = ({ empresaId }: { empresaId?: string }) => {
   const handleCadastrar = (e: React.FormEvent) => {
     e.preventDefault();
     if (!nome.trim()) return alert("Nome é obrigatório");
-    addServico({ nome, categoria, valor: Number(valor) || 0 });
+    addServico({ nome, categoria, valor: Number(valor) || 0, linkId: empresaId });
     setNome(''); setValor(''); setCategoria('cabelo');
   };
 
@@ -651,7 +673,7 @@ const TabCustos = ({ empresaId }: { empresaId?: string }) => {
   const handleCadastrar = (e: React.FormEvent) => {
     e.preventDefault();
     if (!nome.trim()) return alert("Nome é obrigatório");
-    addCusto({ nome, valor: Number(valor) || 0, tipo });
+    addCusto({ nome, valor: Number(valor) || 0, tipo, linkId: empresaId });
     setNome(''); setValor(''); setTipo('fixo');
   };
 
@@ -752,11 +774,27 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
   const { barbeiros, reloadBarbeiros } = useBarbeiros(empresaId);
   const { registros } = useBarbeariaRegistros(empresaId);
   const metaKey = empresaId ? `barbearia_meta_${empresaId}` : 'barbearia_meta';
-  const [metaLucro, setMetaLucro] = useState(() => localStorage.getItem(metaKey) || '1000');
+  
+  const [metaLucro, setMetaLucro] = useState(() => {
+    const saved = localStorage.getItem(metaKey);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return parsed.valor ? String(parsed.valor) : saved; // handle legacy string format
+      } catch (e) {
+        return saved;
+      }
+    }
+    return '1000';
+  });
 
   useEffect(() => {
-    localStorage.setItem(metaKey, metaLucro);
-  }, [metaLucro, metaKey]);
+    const metaObj = {
+      valor: metaLucro,
+      linkId: empresaId
+    };
+    localStorage.setItem(metaKey, JSON.stringify(metaObj));
+  }, [metaLucro, metaKey, empresaId]);
 
   const handleReload = () => {
     loadConfig();

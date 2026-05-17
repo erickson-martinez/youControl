@@ -67,7 +67,8 @@ const PublicAgendamentoWrapper = ({ empresaIdParam }: { empresaIdParam?: string 
         return;
       }
       try {
-        const response = await apiFetch(`${API_BASE_URL}/companies?linkId=${empresaIdParam}`);
+        const response = await fetch(`${API_BASE_URL}/companies?linkId=${empresaIdParam}`);
+        if (!response.ok) throw new Error("Erro na rede");
         const data = await response.json();
         if (data && data.companies && data.companies.length > 0) {
           // Find exact match just in case, but response should be filtered

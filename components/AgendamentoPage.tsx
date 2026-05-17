@@ -48,13 +48,13 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
   useEffect(() => {
     if (!hasInitialized) {
       if (empresas.length === 1) {
-          setSelectedEmpresaId(empresas[0].id);
+          setSelectedEmpresaId(empresas[0].linkId || empresas[0].id);
           setHasInitialized(true);
       } else if (empresa && empresas.length > 1) {
           // If the user has a default company but there are more than 1, we don't auto-force it, 
           // or we can auto-force it once. Let's not force it if they have multiple, or we can initialize
           // to default but allow them to go back.
-          setSelectedEmpresaId(empresa.id);
+          setSelectedEmpresaId(empresa.linkId || empresa.id);
           setHasInitialized(true);
       } else if (empresas.length > 0) {
           setHasInitialized(true);
@@ -240,7 +240,7 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
             {empresas.map((e) => (
               <button
                 key={e.id}
-                onClick={() => setSelectedEmpresaId(e.id)}
+                onClick={() => setSelectedEmpresaId(e.linkId || e.id)}
                 className="bg-gray-800 hover:bg-gray-700 hover:border-blue-500/50 transition-all border border-gray-700 p-6 rounded-2xl shadow-lg flex flex-col items-center justify-center gap-3 group"
               >
                 <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center group-hover:bg-blue-500/20 group-hover:scale-110 transition-all">
