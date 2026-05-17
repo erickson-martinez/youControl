@@ -175,21 +175,6 @@ const TabBarbeiros = ({ empresaId }: { empresaId?: string }) => {
           })
         });
 
-        // Vincula o barbeiro à empresa no módulo de RH (tudo tem relação com o código/linkId)
-        if (empresaId) {
-          await fetch(`${API_BASE_URL}/rh/link-user`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              userPhone: cleanPhone,
-              empresaId: empresaId,
-              status: 'ativo'
-            })
-          });
-        }
-
       } catch (err) {
         console.warn("Erro ao tentar cadastrar/vincular barbeiro na base de usuários:", err);
       }

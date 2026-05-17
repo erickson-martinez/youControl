@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { API_BASE_URL } from '../constants';
 
 export interface Barbeiro {
   id: string;
@@ -12,7 +13,6 @@ export interface Barbeiro {
 
 export const useBarbeiros = (empresaId?: string) => {
   const [barbeiros, setBarbeiros] = useState<Barbeiro[]>([]);
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://ais-back-spywtcvinuposzvcjysi4u-315599117564.us-east1.run.app";
 
   const reloadBarbeiros = useCallback(async () => {
     try {
@@ -32,7 +32,7 @@ export const useBarbeiros = (empresaId?: string) => {
       console.error('Erro ao ler barbeiros', e);
       setBarbeiros([]);
     }
-  }, [empresaId, API_BASE_URL]);
+  }, [empresaId]);
 
   // Carregar ao iniciar ou mudar de empresa
   useEffect(() => {
