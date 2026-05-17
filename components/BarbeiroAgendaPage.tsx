@@ -42,8 +42,16 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
     ? agendamentos 
     : agendamentos.filter(a => a.barbeiroId === selectedBarbeiroId || !a.barbeiroId || a.barbeiroId === 'Qualquer um');
   
-  const pendentes = meusAgendamentos.filter(a => a.status === 'pendente').sort((a, b) => new Date(a.dataAgendada).getTime() - new Date(b.dataAgendada).getTime());
+  const pendentes = meusAgendamentos.filter(a => a.status === 'pendente' || a.status === 'atendendo').sort((a, b) => new Date(a.dataAgendada).getTime() - new Date(b.dataAgendada).getTime());
   const concluidos = meusAgendamentos.filter(a => a.status === 'concluido').sort((a, b) => new Date(b.dataAgendada).getTime() - new Date(a.dataAgendada).getTime());
+
+  const handleAtender = (a: any) => {
+    let finalBarbeiroId = a.barbeiroId;
+    if ((!finalBarbeiroId || finalBarbeiroId === 'Qualquer um') && selectedBarbeiroId !== 'todos') {
+      finalBarbeiroId = selectedBarbeiroId;
+    }
+    updateStatus(a.id, 'atendendo', finalBarbeiroId !== 'Qualquer um' ? finalBarbeiroId : undefined);
+  };
 
   const handleConcluir = (a: any) => {
     let finalBarbeiroId = a.barbeiroId;
@@ -269,7 +277,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                       <div key={a.id} className="bg-gray-900/60 p-5 rounded-2xl border border-gray-700 flex flex-col gap-3 shadow-md hover:border-gray-500 transition-all group relative">
                         <div className="flex justify-between items-start">
                           <div>
-                            <h3 className="font-bold text-white text-lg tracking-wide">{a.cliente}</h3>
+                            <h3 className="font-bold text-white text-lg tracking-wide">{a.cliente} {a.status === 'atendendo' && <span className="ml-2 bg-blue-500/20 text-blue-400 text-[10px] px-2 py-1 rounded-full border border-blue-500/30 uppercase tracking-widest">Em Atendimento</span>}</h3>
                             <p className="text-sm text-gray-400 mt-1 font-medium bg-gray-800/50 inline-flex px-2 py-0.5 rounded-lg border border-gray-700">{a.telefone}</p>
                             {selectedBarbeiroId === 'todos' && (
                                 <p className="text-xs text-purple-400 font-bold mt-2 bg-purple-500/10 px-2 py-1 rounded-md w-fit border border-purple-500/20">
@@ -300,12 +308,22 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                         </div>
                         
                         <div className="flex gap-3 pt-4 mt-2 border-t border-gray-800">
-                          <button 
-                            onClick={() => handleConcluir(a)}
-                            className="flex-1 flex items-center justify-center gap-2 bg-green-600/20 hover:bg-green-600 text-green-400 hover:text-white border border-green-500/30 font-bold text-sm py-2.5 rounded-xl transition-all shadow-sm focus:ring-2 focus:ring-green-500"
-                          >
-                            <CheckCircleIcon className="w-5 h-5" /> Concluir Serviço
-                          </button>
+                          {a.status === 'pendente' && selectedBarbeiroId !== 'todos' && (
+                            <button 
+                              onClick={() => handleAtender(a)}
+                              className="flex-1 flex items-center justify-center gap-2 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-500/30 font-bold text-sm py-2.5 rounded-xl transition-all shadow-sm focus:ring-2 focus:ring-blue-500"
+                            >
+                              <ClockIcon className="w-5 h-5" /> Atender
+                            </button>
+                          )}
+                          {isAdmin && (
+                            <button 
+                              onClick={() => handleConcluir(a)}
+                              className="flex-1 flex items-center justify-center gap-2 bg-green-600/20 hover:bg-green-600 text-green-400 hover:text-white border border-green-500/30 font-bold text-sm py-2.5 rounded-xl transition-all shadow-sm focus:ring-2 focus:ring-green-500"
+                            >
+                              <CheckCircleIcon className="w-5 h-5" /> Marcar como PAGO
+                            </button>
+                          )}
                           <button 
                             onClick={() => updateStatus(a.id, 'cancelado')}
                             className="flex items-center justify-center gap-1 bg-gray-800 hover:bg-red-600 text-gray-400 hover:text-white px-4 py-2.5 rounded-xl transition-all border border-gray-700 hover:border-red-500 focus:ring-2 focus:ring-red-500"

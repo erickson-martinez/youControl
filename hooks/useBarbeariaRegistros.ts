@@ -65,7 +65,7 @@ export interface Agendamento {
   servicoId?: string;
   servicosIds?: string[];
   produtosIds?: string[];
-  status: 'pendente' | 'concluido' | 'cancelado';
+  status: 'pendente' | 'atendendo' | 'concluido' | 'cancelado';
 }
 
 export const useBarbeariaAgendamentos = (empresaId?: string) => {
