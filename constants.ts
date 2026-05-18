@@ -42,7 +42,6 @@ const createPermissions = (activeKeys: (keyof MenuPermissions)[]): MenuPermissio
     for (const key of ALL_PERMISSION_KEYS) {
         permissions[key] = activeKeys.includes(key);
     }
-    permissions.agendamento = true;
     return permissions as MenuPermissions;
 };
 

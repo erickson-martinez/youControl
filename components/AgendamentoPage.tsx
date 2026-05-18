@@ -51,12 +51,11 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
           setSelectedEmpresaId(empresas[0].linkId || empresas[0].id);
           setHasInitialized(true);
       } else if (empresa && empresas.length > 1) {
-          // If the user has a default company but there are more than 1, we don't auto-force it, 
-          // or we can auto-force it once. Let's not force it if they have multiple, or we can initialize
-          // to default but allow them to go back.
           setSelectedEmpresaId(empresa.linkId || empresa.id);
           setHasInitialized(true);
       } else if (empresas.length > 0) {
+          setHasInitialized(true);
+      } else {
           setHasInitialized(true);
       }
     }
@@ -295,7 +294,7 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
             onClick={() => setSelectedEmpresaId(undefined)}
             className="absolute left-0 top-0 mt-2 px-3 py-1.5 flex items-center gap-2 text-sm bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 rounded-lg transition-colors"
           >
-            Voc&ecirc; est&aacute; em: <span className="font-bold text-blue-400">{empresas.find(e => e.id === selectedEmpresaId)?.name || 'Outra Unidade'}</span>
+            Voc&ecirc; est&aacute; em: <span className="font-bold text-blue-400">{empresas.find(e => e.linkId === selectedEmpresaId || e.id === selectedEmpresaId)?.name || 'Outra Unidade'}</span>
             <svg className="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>

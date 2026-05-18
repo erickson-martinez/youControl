@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { API_BASE_URL } from '../constants';
 
 export interface RegistroItem {
   idItem: string; // id do produto ou servico
@@ -72,35 +73,67 @@ export const useBarbeariaAgendamentos = (empresaId?: string) => {
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const key = empresaId ? `barbearia_agendamentos_${empresaId}` : 'barbearia_agendamentos';
 
-  const loadAgendamentos = () => {
-    const data = localStorage.getItem(key);
-    if (data) {
-      setAgendamentos(JSON.parse(data));
-    } else {
-      setAgendamentos([]);
+  const loadAgendamentos = useCallback(async () => {
+    try {
+      const url = empresaId 
+        ? `${API_BASE_URL}/api/appointment-barbers?linkId=${empresaId}`
+        : `${API_BASE_URL}/api/appointment-barbers`;
+      const response = await fetch(url);
+      if (response.ok) {
+        const data = await response.json();
+        const mapped = data.map((a: any) => ({ ...a, id: a.id || a._id }));
+        setAgendamentos(mapped);
+      }
+    } catch (e) {
+      console.error('Erro ao carregar agendamentos:', e);
     }
-  };
-
-  useEffect(() => {
-    loadAgendamentos();
   }, [empresaId]);
 
   useEffect(() => {
-    localStorage.setItem(key, JSON.stringify(agendamentos));
-  }, [agendamentos, key]);
+    loadAgendamentos();
+  }, [loadAgendamentos]);
 
-  const addAgendamento = (agendamento: Omit<Agendamento, 'id' | 'dataCadastro' | 'status'>) => {
-    const novo: Agendamento = {
+  const addAgendamento = async (agendamento: Omit<Agendamento, 'id' | 'dataCadastro' | 'status'>) => {
+    const novo = {
       ...agendamento,
-      id: Date.now().toString(),
       dataCadastro: new Date().toISOString(),
-      status: 'pendente'
+      status: 'pendente',
+      linkId: empresaId
     };
-    setAgendamentos(prev => [...prev, novo]);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/appointment-barbers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(novo),
+      });
+      if (response.ok) {
+        loadAgendamentos();
+      } else {
+        console.error('Erro ao adicionar agendamento via API');
+      }
+    } catch (e) {
+      console.error('Erro de conexão ao adicionar agendamento:', e);
+    }
   };
 
-  const updateStatus = (id: string, status: Agendamento['status'], barbeiroId?: string) => {
-    setAgendamentos(prev => prev.map(a => a.id === id ? { ...a, status, ...(barbeiroId ? { barbeiroId } : {}) } : a));
+  const updateStatus = async (id: string, status: Agendamento['status'], barbeiroId?: string) => {
+    try {
+      const body: any = { status };
+      if (barbeiroId) body.barbeiroId = barbeiroId;
+      
+      const response = await fetch(`${API_BASE_URL}/api/appointment-barbers/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (response.ok) {
+        loadAgendamentos();
+      } else {
+        console.error('Erro ao atualizar status do agendamento via API');
+      }
+    } catch (e) {
+      console.error('Erro de conexão ao atualizar status:', e);
+    }
   };
 
   return { agendamentos, addAgendamento, updateStatus, loadAgendamentos };
