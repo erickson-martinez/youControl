@@ -121,7 +121,12 @@ export const useBarbeariaAgendamentos = (empresaId?: string) => {
       const body: any = { status };
       if (barbeiroId) body.barbeiroId = barbeiroId;
       
-      const response = await fetch(`${API_BASE_URL}/api/appointment-barbers/${id}/status`, {
+      const isCancel = status === 'cancelado';
+      const url = isCancel 
+        ? `${API_BASE_URL}/api/appointment-barbers/${id}/cancel`
+        : `${API_BASE_URL}/api/appointment-barbers/${id}/status`;
+
+      const response = await fetch(url, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),

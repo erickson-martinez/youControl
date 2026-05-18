@@ -14,7 +14,7 @@ interface BarbeiroAgendaPageProps {
 const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, isAdmin }) => {
   const resolvedCompanyId = empresa?.linkId || empresa?.id;
   const { barbeiros } = useBarbeiros(resolvedCompanyId);
-  const { agendamentos, updateStatus } = useBarbeariaAgendamentos(resolvedCompanyId);
+  const { agendamentos, updateStatus, loadAgendamentos } = useBarbeariaAgendamentos(resolvedCompanyId);
   const { registros, addRegistro } = useBarbeariaRegistros(resolvedCompanyId);
   const { servicos, produtos, updateProduto } = useBarbeariaConfig(resolvedCompanyId);
 
@@ -119,6 +119,14 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
   const [vendaProdutoId, setVendaProdutoId] = useState('');
   const [vendaCliente, setVendaCliente] = useState('');
 
+  React.useEffect(() => {
+    // Polling a cada 30 segundos usando loadAgendamentos para manter a agenda sempre atualizada
+    const interval = setInterval(() => {
+      loadAgendamentos();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [loadAgendamentos]);
+
   const handleVendaAvulsa = (e: React.FormEvent) => {
     e.preventDefault();
     if (!vendaProdutoId) return alert('Selecione um produto.');
@@ -155,6 +163,12 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
             <h1 className="text-3xl font-extrabold text-white tracking-tight">Minha Agenda</h1>
             <p className="text-gray-400 mt-1 text-sm font-medium">Acompanhe seus clientes e tarefas com facilidade</p>
           </div>
+        </div>
+        <div>
+          <button onClick={loadAgendamentos} className="bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded-xl text-sm font-bold border border-gray-700 transition-colors flex items-center gap-2">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+            Atualizar Agenda
+          </button>
         </div>
       </div>
 
