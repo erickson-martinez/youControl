@@ -44,7 +44,7 @@ const apiToFrontendPermissions = (apiPerms: string[] | null | undefined, userPho
         exemplo: false, financialManual: false,
         burgerProducts: false, burgerPOS: false, burgerWaiter: false, burgerDelivery: false, 
         burgerDashboard: false, burgerClient: false, burgerCompany: false,
-        treino: false, jogoDaVida: false, jornada: false, barbearia: true, barbeiroAgenda: true, agendamento: false
+        treino: false, jogoDaVida: false, jornada: false, barbearia: false, barbeiroAgenda: false, agendamento: false
     };
     if (Array.isArray(apiPerms)) {
         for (const key of apiPerms) {
