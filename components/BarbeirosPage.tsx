@@ -139,7 +139,7 @@ const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user, empresa }) => {
         </button>
       </div>
 
-      {activeTab === 'barbeiros' && <TabBarbeiros empresaId={empresa?.linkId || empresa?.id} />}
+      {activeTab === 'barbeiros' && <TabBarbeiros empresa={empresa} user={user} empresaId={empresa?.linkId || empresa?.id} />}
       {activeTab === 'produtos' && <TabProdutos empresaId={empresa?.linkId || empresa?.id} />}
       {activeTab === 'servicos' && <TabServicos empresaId={empresa?.linkId || empresa?.id} />}
       {activeTab === 'custos' && <TabCustos empresaId={empresa?.linkId || empresa?.id} />}
@@ -152,7 +152,7 @@ const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user, empresa }) => {
 
 // --- TABS COMPONENTS ---
 
-const TabBarbeiros = ({ empresaId }: { empresaId?: string }) => {
+const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empresa?: Empresa, user?: User }) => {
   const { barbeiros, addBarbeiro, removeBarbeiro, updateBarbeiro, reloadBarbeiros } = useBarbeiros(empresaId);
   const { addCusto } = useBarbeariaConfig(empresaId);
   
@@ -386,6 +386,40 @@ const TabBarbeiros = ({ empresaId }: { empresaId?: string }) => {
       <div className="space-y-4">
         <h2 className="text-xl font-bold text-white mb-2">Barbeiros Cadastrados</h2>
         
+        {/* Proprietário Card */}
+        {user && user.phone && !barbeiros.find(b => b.telefone && b.telefone.replace(/\D/g, '') === user.phone!.replace(/\D/g, '')) && (
+          <div className="bg-gray-800/90 p-5 rounded-2xl border border-gray-700/50 flex flex-col gap-4 relative group hover:border-blue-500/30 transition-all shadow-md opacity-70">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-purple-600/20 text-purple-400 flex items-center justify-center text-sm font-bold border border-purple-500/20">
+                    {user.name && user.name.length > 1 ? user.name.substring(0, 2).toUpperCase() : 'PR'}
+                  </div>
+                  {user.name || 'Proprietário'} <span className="text-xs bg-purple-900/30 text-purple-400 px-2 py-0.5 rounded-full border border-purple-500/20">Proprietário</span>
+                </h3>
+                <p className="text-sm text-gray-400 ml-10">{user.phone}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Inativo</span>
+                <button 
+                  onClick={() => {
+                    setNome(user.name || '');
+                    setTelefone(user.phone || '');
+                    // Scroll up to the form
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="w-10 h-6 bg-gray-700 rounded-full relative transition-colors duration-200 focus:outline-none"
+                >
+                  <span className="absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 transform translate-x-0" />
+                </button>
+              </div>
+            </div>
+            <div className="ml-10 text-xs text-gray-500">
+              Para atuar como barbeiro na sua própria barbearia, ative a chave acima para preencher suas comissões e ser listado na agenda.
+            </div>
+          </div>
+        )}
+
         {barbeiros.length === 0 ? (
           <div className="w-full bg-gray-900/50 p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center mt-4">
             <UsersIcon className="w-12 h-12 mb-3 text-gray-700" />
@@ -393,9 +427,12 @@ const TabBarbeiros = ({ empresaId }: { empresaId?: string }) => {
           </div>
         ) : (
           <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-            {barbeiros.map(barbeiro => (
+            {barbeiros.map(barbeiro => {
+              const isOwner = user && user.phone && barbeiro.telefone && barbeiro.telefone.replace(/\D/g, '') === user.phone.replace(/\D/g, '');
+              
+              return (
               <div key={barbeiro.id} className="bg-gray-800/90 p-5 rounded-2xl border border-gray-700/50 flex flex-col gap-4 relative group hover:border-blue-500/30 transition-all shadow-md">
-                <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                <div className="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
                   <button 
                     onClick={() => handleEdit(barbeiro)}
                     className="text-gray-500 hover:text-yellow-400 bg-gray-900 p-2 rounded-lg"
@@ -414,10 +451,11 @@ const TabBarbeiros = ({ empresaId }: { empresaId?: string }) => {
                 
                 <div>
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center text-sm font-bold border border-blue-500/20">
+                    <div className={`w-8 h-8 rounded-full ${isOwner ? 'bg-purple-600/20 text-purple-400 border border-purple-500/20' : 'bg-blue-600/20 text-blue-400 border border-blue-500/20'} flex items-center justify-center text-sm font-bold`}>
                       {barbeiro.nome.substring(0, 2).toUpperCase()}
                     </div>
                     {barbeiro.nome}
+                    {isOwner && <span className="text-xs bg-purple-900/30 text-purple-400 px-2 py-0.5 rounded-full border border-purple-500/20">Proprietário</span>}
                   </h3>
                   {barbeiro.telefone && <p className="text-sm text-gray-400 ml-10">{barbeiro.telefone}</p>}
                 </div>
@@ -471,7 +509,8 @@ const TabBarbeiros = ({ empresaId }: { empresaId?: string }) => {
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

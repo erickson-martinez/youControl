@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useBarbeiros } from '../hooks/useBarbeiros';
 import { useBarbeariaRegistros, useBarbeariaAgendamentos } from '../hooks/useBarbeariaRegistros';
 import { useBarbeariaConfig } from '../hooks/useBarbeariaConfig';
-import { CheckCircleIcon, XCircleIcon, ClockIcon } from './icons';
+import { CheckCircleIcon, XCircleIcon, ClockIcon, ScissorsIcon } from './icons';
 import { User, Empresa } from '../types';
 import { CustomDatePicker } from './CustomDatePicker';
 
@@ -15,7 +15,7 @@ interface BarbeiroAgendaPageProps {
 const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, isAdmin }) => {
   const resolvedCompanyId = empresa?.linkId || empresa?.id;
   const { barbeiros } = useBarbeiros(resolvedCompanyId);
-  const { agendamentos, updateStatus, loadAgendamentos } = useBarbeariaAgendamentos(resolvedCompanyId);
+  const { agendamentos, updateStatus, updateAgendamento, loadAgendamentos } = useBarbeariaAgendamentos(resolvedCompanyId);
   const { registros, addRegistro } = useBarbeariaRegistros(resolvedCompanyId);
   const { servicos, produtos, updateProduto } = useBarbeariaConfig(resolvedCompanyId);
 
@@ -26,19 +26,29 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
   const todayStr = new Date().toISOString().split('T')[0];
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
 
+  const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
+  const [activeAgendamentoId, setActiveAgendamentoId] = useState('');
+  const [itemType, setItemType] = useState<'servico' | 'produto'>('servico');
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [isSelectBarbeiroModalOpen, setIsSelectBarbeiroModalOpen] = useState(false);
+  const [agendamentoToAtender, setAgendamentoToAtender] = useState<any>(null);
+  const [barbeiroToAtender, setBarbeiroToAtender] = useState<string>('');
+  const [errorAlert, setErrorAlert] = useState<string>('');
+
+  const userPhoneNumbers = user?.phone?.replace(/\D/g, '');
+  const barbeiroLogado = barbeiros.find(b => b.telefone && b.telefone.replace(/\D/g, '') === userPhoneNumbers);
+
   React.useEffect(() => {
     if (user && user.phone && barbeiros.length > 0 && !selectedBarbeiroId) {
       if (isAdmin || (empresa?.phone && user.phone.replace(/\D/g, '') === empresa.phone.replace(/\D/g, ''))) {
         setSelectedBarbeiroId('todos');
       } else {
-        const userPhoneNumbers = user.phone.replace(/\D/g, '');
-        const barbeiroLogado = barbeiros.find(b => b.telefone && b.telefone.replace(/\D/g, '') === userPhoneNumbers);
         if (barbeiroLogado) {
           setSelectedBarbeiroId(barbeiroLogado.id);
         }
       }
     }
-  }, [user, barbeiros, selectedBarbeiroId, isAdmin, empresa]);
+  }, [user, barbeiros, selectedBarbeiroId, isAdmin, empresa, barbeiroLogado]);
 
   const barbeiro = selectedBarbeiroId === 'todos' ? { id: 'todos', nome: 'Todos os Barbeiros' } : barbeiros.find(b => b.id === selectedBarbeiroId);
   
@@ -51,25 +61,77 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
   const pendentes = meusAgendamentos.filter(a => a.status === 'pendente' || a.status === 'atendendo').sort((a, b) => new Date(a.dataAgendada).getTime() - new Date(b.dataAgendada).getTime());
   const concluidos = meusAgendamentos.filter(a => a.status === 'concluido').sort((a, b) => new Date(b.dataAgendada).getTime() - new Date(a.dataAgendada).getTime());
 
-  const handleAtender = (a: any) => {
+  const handleAtender = async (a: any) => {
+    const isUnassigned = !a.barbeiroId || a.barbeiroId === 'Qualquer um';
+
     let finalBarbeiroId = a.barbeiroId;
-    if ((!finalBarbeiroId || finalBarbeiroId === 'Qualquer um') && selectedBarbeiroId !== 'todos') {
-      finalBarbeiroId = selectedBarbeiroId;
+
+    if (isUnassigned) {
+      if (barbeiroLogado) {
+        // Logged user is an active barber, assign to him
+        finalBarbeiroId = barbeiroLogado.id;
+        await updateAgendamento(a.id, { status: 'atendendo', barbeiroId: finalBarbeiroId });
+        await updateStatus(a.id, 'atendendo', finalBarbeiroId);
+      } else {
+        // Not an active barber (probably admin)
+        if (barbeiros.length === 1) {
+          finalBarbeiroId = barbeiros[0].id;
+          await updateAgendamento(a.id, { status: 'atendendo', barbeiroId: finalBarbeiroId });
+          await updateStatus(a.id, 'atendendo', finalBarbeiroId);
+        } else if (barbeiros.length > 1) {
+          // Open modal to select barber
+          setAgendamentoToAtender(a);
+          setBarbeiroToAtender('');
+          setIsSelectBarbeiroModalOpen(true);
+          return;
+        } else {
+          // No barbers available? Just atendendo
+          await updateAgendamento(a.id, { status: 'atendendo' });
+          await updateStatus(a.id, 'atendendo', undefined);
+        }
+      }
+    } else {
+      // Already assigned
+      // Provide fallback logic if needed, but per request: "mas só ele pode trocar" meaning it shouldn't be unassigned automatically here.
+      await updateAgendamento(a.id, { status: 'atendendo', barbeiroId: finalBarbeiroId !== 'Qualquer um' ? finalBarbeiroId : undefined });
+      await updateStatus(a.id, 'atendendo', finalBarbeiroId !== 'Qualquer um' ? finalBarbeiroId : undefined);
     }
-    updateStatus(a.id, 'atendendo', finalBarbeiroId !== 'Qualquer um' ? finalBarbeiroId : undefined);
   };
 
-  const handleConcluir = (a: any) => {
+  const confirmAtender = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!barbeiroToAtender || !agendamentoToAtender) return;
+    
+    // First try to update the whole agendamento to ensure barbeiroId is saved
+    await updateAgendamento(agendamentoToAtender.id, { 
+      status: 'atendendo', 
+      barbeiroId: barbeiroToAtender 
+    });
+    // Fallback: Also call updateStatus which hits the /status endpoint explicitly
+    await updateStatus(agendamentoToAtender.id, 'atendendo', barbeiroToAtender);
+    
+    setIsSelectBarbeiroModalOpen(false);
+    setAgendamentoToAtender(null);
+  };
+
+  const handleConcluir = async (a: any) => {
+    if (!a.servicosIds || a.servicosIds.length === 0) {
+      setErrorAlert('É necessário ter pelo menos 1 serviço vinculado para concluir o agendamento.');
+      return;
+    }
+
     let finalBarbeiroId = a.barbeiroId;
     let barbeiroDoAgendamento = barbeiros.find(b => b.id === finalBarbeiroId);
 
-    // Se o agendamento não tem barbeiro definido e um barbeiro logado o conclui, ele assume o agendamento.
-    if ((!finalBarbeiroId || finalBarbeiroId === 'Qualquer um') && selectedBarbeiroId !== 'todos') {
+    // Se um barbeiro logado o conclui, ele assume o agendamento de vez.
+    if (selectedBarbeiroId && selectedBarbeiroId !== 'todos') {
       finalBarbeiroId = selectedBarbeiroId;
       barbeiroDoAgendamento = barbeiros.find(b => b.id === finalBarbeiroId);
     }
 
-    updateStatus(a.id, 'concluido', finalBarbeiroId !== 'Qualquer um' ? finalBarbeiroId : undefined);
+    const decidedBarbeiroId = finalBarbeiroId !== 'Qualquer um' ? finalBarbeiroId : undefined;
+    await updateAgendamento(a.id, { status: 'concluido', barbeiroId: decidedBarbeiroId });
+    await updateStatus(a.id, 'concluido', decidedBarbeiroId);
 
     const agendamentoProdutos: any[] = [];
     if (a.produtosIds && a.produtosIds.length > 0) {
@@ -158,6 +220,30 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
     }
   };
 
+  const handleAddExtraItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeAgendamentoId) return;
+
+    const a = pendentes.find(x => x.id === activeAgendamentoId);
+    if (!a) return;
+
+    let updates: any = {};
+    if (itemType === 'servico') {
+      updates.servicosIds = selectedItemIds;
+    } else {
+      updates.produtosIds = selectedItemIds;
+    }
+    
+    // Atualiza o agendamento no backend (e state local via poll)
+    if (Object.keys(updates).length > 0) {
+      await updateAgendamento(a.id, updates);
+    }
+
+    // Fechar modal
+    setIsAddItemModalOpen(false);
+    setSelectedItemIds([]);
+  };
+
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8 pb-20">
       <div className="flex flex-col md:flex-row md:items-end justify-between border-b border-gray-800 pb-6 gap-4">
@@ -232,6 +318,54 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
             <CustomDatePicker allowPast={true} selectedDate={selectedDate} onChange={(d) => setSelectedDate(d)} />
           </div>
 
+          {errorAlert && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-[#121214] border border-red-900/50 rounded-2xl p-6 md:p-8 w-full max-w-sm shadow-2xl text-center">
+                <div className="w-16 h-16 bg-red-900/20 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/20">
+                  <XCircleIcon className="w-8 h-8" />
+                </div>
+                <h3 className="text-xl font-bold text-white mb-2">Atenção</h3>
+                <p className="text-gray-300 mb-6 text-sm">{errorAlert}</p>
+                <button 
+                  onClick={() => setErrorAlert('')}
+                  className="w-full bg-gray-800 hover:bg-gray-700 text-white font-bold py-3 rounded-xl transition-colors border border-gray-700"
+                >
+                  Entendi
+                </button>
+              </div>
+            </div>
+          )}
+
+          {isSelectBarbeiroModalOpen && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-[#121214] border border-gray-800 rounded-2xl p-6 md:p-8 w-full max-w-md shadow-2xl">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-xl font-bold text-white">Selecionar Barbeiro</h3>
+                  <button onClick={() => { setIsSelectBarbeiroModalOpen(false); setAgendamentoToAtender(null); }} className="text-gray-500 hover:text-gray-300">
+                    <XCircleIcon className="w-6 h-6" />
+                  </button>
+                </div>
+                <form onSubmit={confirmAtender} className="space-y-4">
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Qual barbeiro irá atender?</label>
+                    <select 
+                      required value={barbeiroToAtender} onChange={e => setBarbeiroToAtender(e.target.value)}
+                      className="w-full bg-gray-900/50 text-white border border-gray-800 rounded-xl px-4 py-3 text-sm focus:border-blue-500 focus:outline-none"
+                    >
+                      <option value="">Selecione um barbeiro...</option>
+                      {barbeiros.map(b => (
+                        <option key={b.id} value={b.id}>{b.nome}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 mt-4 rounded-xl transition-colors">
+                    Confirmar e Atender
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
           {isVendaModalOpen && (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
               <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 md:p-8 w-full max-w-md shadow-2xl">
@@ -270,6 +404,82 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
             </div>
           )}
 
+          {isAddItemModalOpen && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+              <div className="bg-[#121214] border border-gray-800 rounded-2xl p-6 md:p-8 w-full max-w-md shadow-2xl">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-xl font-bold text-white">Adicionar Item</h3>
+                  <button onClick={() => setIsAddItemModalOpen(false)} className="text-gray-500 hover:text-gray-300">
+                    <XCircleIcon className="w-6 h-6" />
+                  </button>
+                </div>
+                <form onSubmit={handleAddExtraItem} className="space-y-4">
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1 font-medium">Tipo</label>
+                    <div className="flex gap-2 p-1 bg-gray-900 rounded-lg">
+                      <button type="button" onClick={() => {
+                        setItemType('servico'); 
+                        const curr = pendentes.find(x => x.id === activeAgendamentoId);
+                        setSelectedItemIds(curr?.servicosIds || []);
+                      }} className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all ${itemType === 'servico' ? 'bg-gray-800 text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}>Serviços</button>
+                      <button type="button" onClick={() => {
+                        setItemType('produto'); 
+                        const curr = pendentes.find(x => x.id === activeAgendamentoId);
+                        setSelectedItemIds(curr?.produtosIds || []);
+                      }} className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all ${itemType === 'produto' ? 'bg-gray-800 text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}>Produtos</button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-3 font-medium">{itemType === 'servico' ? 'Serviços Disponíveis' : 'Produtos Disponíveis'}</label>
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                      {itemType === 'servico' ? (
+                        servicos.map(s => (
+                          <label key={s.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedItemIds.includes(s.id) ? 'bg-blue-900/20 border-blue-500/50' : 'bg-gray-900/50 border-gray-800 hover:border-gray-700'}`}>
+                            <input 
+                              type="checkbox" 
+                              checked={selectedItemIds.includes(s.id)} 
+                              onChange={(e) => {
+                                setSelectedItemIds(prev => e.target.checked ? [...prev, s.id] : prev.filter(i => i !== s.id));
+                              }} 
+                              className="w-5 h-5 rounded border-gray-700 text-blue-600 focus:ring-blue-500 bg-gray-800" 
+                            />
+                            <div className="flex-1 flex justify-between items-center">
+                              <span className="text-gray-200 font-medium">{s.nome}</span>
+                              <span className="text-emerald-400 font-bold ml-2 whitespace-nowrap">R$ {s.valor.toFixed(2)}</span>
+                            </div>
+                          </label>
+                        ))
+                      ) : (
+                        produtos.map(p => (
+                          <label key={p.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedItemIds.includes(p.id) ? 'bg-blue-900/20 border-blue-500/50' : 'bg-gray-900/50 border-gray-800 hover:border-gray-700'}`}>
+                            <input 
+                              type="checkbox" 
+                              checked={selectedItemIds.includes(p.id)} 
+                              onChange={(e) => {
+                                setSelectedItemIds(prev => e.target.checked ? [...prev, p.id] : prev.filter(i => i !== p.id));
+                              }} 
+                              className="w-5 h-5 rounded border-gray-700 text-blue-600 focus:ring-blue-500 bg-gray-800" 
+                            />
+                            <div className="flex-1 flex justify-between items-center">
+                              <div>
+                                <div className="text-gray-200 font-medium">{p.nome}</div>
+                                <div className="text-gray-500 text-xs mt-0.5">Estoque: {p.estoque}</div>
+                              </div>
+                              <span className="text-emerald-400 font-bold ml-2 whitespace-nowrap">R$ {p.precoVenda.toFixed(2)}</span>
+                            </div>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                  <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 mt-4 rounded-xl transition-colors">
+                    Salvar Selecionados ({selectedItemIds.length})
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="bg-[#1a1a1d] p-6 md:p-8 rounded-3xl border border-gray-800/60 shadow-2xl">
               <h2 className="text-2xl font-black text-gray-100 mb-6 border-b border-gray-800/80 pb-4 flex justify-between items-center tracking-tight">
@@ -300,20 +510,33 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                     return (
                       <div key={a.id} className={`bg-[#121214] p-5 rounded-2xl border ${a.status === 'atendendo' ? 'border-blue-500/50 shadow-blue-500/10' : 'border-gray-800/60 hover:border-gray-700'} text-white shadow-xl transition-all relative flex flex-col gap-4`}>
                         <div className="flex justify-between items-start">
-                          <div className="flex flex-col gap-1.5">
+                          <div className="flex flex-col gap-1.5 flex-1">
+                            {a.status === 'atendendo' && (
+                              <div className="w-fit bg-blue-500/10 text-blue-400 text-[10px] px-2.5 py-1 rounded-md border border-blue-500/30 uppercase tracking-widest font-bold flex items-center gap-1.5 shadow-sm shadow-blue-500/10 mb-0.5">
+                                <ScissorsIcon className="w-3.5 h-3.5" /> EM ATENDIMENTO
+                              </div>
+                            )}
                             <h3 className="font-bold text-xl text-gray-100 flex items-center gap-2">
                               {a.cliente} 
-                              {a.status === 'atendendo' && (
-                                <span className="bg-blue-500/20 text-blue-400 text-[10px] px-2 py-1 rounded-full border border-blue-500/30 uppercase tracking-widest leading-none">Em Atendimento</span>
-                              )}
                             </h3>
                             <p className="text-xs text-gray-400 font-mono tracking-tight bg-gray-800/80 w-fit px-2 py-1 rounded-md border border-gray-700/50">{a.telefone}</p>
                             
-                            {selectedBarbeiroId === 'todos' && (
+                            {isAdmin ? (
+                                <select
+                                  value={a.barbeiroId || 'Qualquer um'}
+                                  onChange={(e) => updateAgendamento(a.id, { barbeiroId: e.target.value })}
+                                  className="mt-1 flex items-center gap-1.5 text-xs text-indigo-300 font-medium bg-indigo-900/20 px-2 py-1 rounded-md w-fit border border-indigo-500/20 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                                >
+                                  <option className="bg-gray-900 text-gray-300" value="Qualquer um">💈 Sem preferência</option>
+                                  {barbeiros.map(b => (
+                                    <option className="bg-gray-900 text-gray-300" key={b.id} value={b.id}>💈 {b.nome}</option>
+                                  ))}
+                                </select>
+                              ) : (
                                 <p className="flex items-center gap-1.5 mt-1 text-xs text-indigo-300 font-medium bg-indigo-900/20 px-2.5 py-1 rounded-md w-fit border border-indigo-500/20">
                                     <span className="text-[10px]">💈</span> {barbeiros.find(b => b.id === a.barbeiroId)?.nome || 'Sem preferência'}
                                 </p>
-                            )}
+                              )}
                             {a.quantidadePessoas && a.quantidadePessoas > 1 && (
                               <p className="flex items-center gap-1.5 mt-1 text-xs text-orange-300 font-medium bg-orange-900/20 px-2.5 py-1.5 rounded-md w-fit border border-orange-500/20">
                                 👥 {a.quantidadePessoas} Pessoas
@@ -360,6 +583,27 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                               <ClockIcon className="w-4 h-4" /> Atender
                             </button>
                           )}
+                          {a.status === 'atendendo' && (
+                            <>
+                              <button 
+                                onClick={() => { 
+                                  setActiveAgendamentoId(a.id); 
+                                  setItemType('servico');
+                                  setSelectedItemIds(a.servicosIds || []);
+                                  setIsAddItemModalOpen(true); 
+                                }}
+                                className="flex-[0.8] flex items-center justify-center gap-2 bg-gray-800 text-gray-300 font-semibold text-sm py-2.5 rounded-xl transition-all border border-gray-700 hover:bg-gray-700 hover:text-white active:scale-[0.98]"
+                              >
+                                + Adicionar Item
+                              </button>
+                              <button 
+                                onClick={() => handleConcluir(a)}
+                                className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 text-white font-black tracking-wide text-sm py-2.5 rounded-xl transition-all shadow-md hover:bg-emerald-500 hover:shadow-emerald-500/20 active:scale-[0.98]"
+                              >
+                                <CheckCircleIcon className="w-4 h-4" /> CONCLUIR
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     );
@@ -394,38 +638,33 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                     return (
                       <div key={a.id} className="bg-[#121214]/60 p-4 rounded-xl border border-gray-800 flex flex-col gap-3 group hover:border-gray-700 hover:bg-[#121214] transition-all">
                         <div className="flex justify-between items-start">
-                          <div className="flex flex-col gap-1.5">
+                          <div className="flex flex-col gap-1.5 flex-1">
+                            <div className="w-fit bg-emerald-500/10 text-emerald-400 font-bold text-[10px] px-2.5 py-1 rounded-md border border-emerald-500/20 uppercase tracking-widest flex items-center gap-1.5 shadow-sm shadow-emerald-500/10 mb-0.5">
+                              <CheckCircleIcon className="w-3.5 h-3.5" />
+                              CONCLUÍDO
+                            </div>
                             <h3 className="font-bold text-gray-300 text-lg flex items-center gap-2">
                               {a.cliente}
                             </h3>
-                            <div className="flex flex-col gap-1 mt-1">
-                              {servicosDoAgendamento.map(s => (
-                                <span key={s.id} className="text-xs font-medium text-gray-400 bg-gray-900/50 border border-gray-800/50 px-2 py-1 rounded-md tracking-wide w-fit">
-                                  {s.nome}
-                                </span>
-                              ))}
-                              {a.produtosIds && a.produtosIds.map((pId: string) => {
-                                const p = produtos.find(prod => prod.id === pId);
-                                if (!p) return null;
-                                return (
-                                  <span key={pId} className="text-xs font-medium text-blue-300/80 bg-blue-900/20 border border-blue-800/30 px-2 py-1 rounded-md tracking-wide w-fit">
-                                    {p.nome}
-                                  </span>
-                                );
-                              })}
-                            </div>
-                            {selectedBarbeiroId === 'todos' && (
+                            {isAdmin ? (
+                                <select
+                                  value={a.barbeiroId || 'Qualquer um'}
+                                  onChange={(e) => updateAgendamento(a.id, { barbeiroId: e.target.value })}
+                                  className="mt-1 bg-transparent text-[10px] text-gray-500 font-medium w-fit focus:outline-none cursor-pointer border border-gray-700/50 rounded-sm px-1 py-0.5"
+                                >
+                                  <option className="bg-gray-900 text-gray-300" value="Qualquer um">✂️ Sem preferência</option>
+                                  {barbeiros.map(b => (
+                                    <option className="bg-gray-900 text-gray-300" key={b.id} value={b.id}>✂️ {b.nome}</option>
+                                  ))}
+                                </select>
+                              ) : (
                                 <p className="flex items-center gap-1.5 mt-1 text-[10px] text-gray-500 font-medium">
-                                    <span className="opacity-70">✂️</span> {barbeiros.find(b => b.id === a.barbeiroId)?.nome || 'Sem preferência'}
+                                    <ScissorsIcon className="w-3 h-3 opacity-70" /> {barbeiros.find(b => b.id === a.barbeiroId)?.nome || 'Sem preferência'}
                                 </p>
-                            )}
+                              )}
                           </div>
                           
                           <div className="flex flex-col items-end gap-1.5">
-                            <div className="bg-emerald-500/10 text-emerald-400 font-bold text-xs px-2.5 py-1 rounded-lg border border-emerald-500/20 uppercase tracking-widest flex items-center gap-1">
-                              <CheckCircleIcon className="w-3 h-3" />
-                              Concluído
-                            </div>
                             <div className="text-right">
                               <div className="text-gray-300 font-bold text-sm tracking-tight">
                                 {a.horarios && a.horarios.length > 0 
@@ -435,6 +674,23 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                               </div>
                             </div>
                           </div>
+                        </div>
+
+                        <div className="flex flex-col gap-2 w-full mt-1">
+                          {servicosDoAgendamento.map(s => (
+                            <div key={s.id} className="flex justify-between items-center text-sm bg-gray-800/30 px-3 py-2 rounded-lg border border-gray-700/30 w-full">
+                              <span className="text-gray-300 font-medium truncate">{s.nome}</span>
+                            </div>
+                          ))}
+                          {a.produtosIds && a.produtosIds.map((pId: string) => {
+                            const p = produtos.find(prod => prod.id === pId);
+                            if (!p) return null;
+                            return (
+                              <div key={pId} className="flex justify-between items-center text-sm bg-blue-900/10 px-3 py-2 rounded-lg border border-blue-800/20 w-full">
+                                <span className="text-blue-400 font-medium truncate">{p.nome}</span>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     );

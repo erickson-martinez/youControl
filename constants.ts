@@ -45,6 +45,6 @@ const createPermissions = (activeKeys: (keyof MenuPermissions)[]): MenuPermissio
     return permissions as MenuPermissions;
 };
 
-export const FALLBACK_PERMISSIONS = createPermissions(['financeiro', 'graficos', 'exemplo', 'financialManual', 'treino', 'jogoDaVida', 'jornada']);
-export const NEW_COLLABORATOR_PERMISSIONS = createPermissions(['financeiro', 'graficos', 'os', 'ponto', 'exemplo', 'financialManual', 'treino', 'jogoDaVida', 'jornada']);
-export const MODAL_DEFAULT_PERMISSIONS = createPermissions(['financeiro', 'graficos', 'exemplo', 'financialManual', 'treino', 'jogoDaVida', 'jornada']);
+export const FALLBACK_PERMISSIONS = createPermissions(['financeiro', 'graficos', 'exemplo', 'financialManual', 'treino', 'jogoDaVida', 'jornada', 'barbearia', 'barbeiroAgenda']);
+export const NEW_COLLABORATOR_PERMISSIONS = createPermissions(['financeiro', 'graficos', 'os', 'ponto', 'exemplo', 'financialManual', 'treino', 'jogoDaVida', 'jornada', 'barbearia', 'barbeiroAgenda']);
+export const MODAL_DEFAULT_PERMISSIONS = createPermissions(['financeiro', 'graficos', 'exemplo', 'financialManual', 'treino', 'jogoDaVida', 'jornada', 'barbearia', 'barbeiroAgenda']);

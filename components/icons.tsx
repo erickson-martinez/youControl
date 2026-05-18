@@ -284,3 +284,10 @@ export const PrinterIcon: React.FC<IconProps> = ({ className }) => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
   </svg>
 );
+
+export const ScissorsIcon: React.FC<IconProps> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M14.536 8.464L18.07 4.93a1 1 0 011.414 0l1.414 1.414a1 1 0 010 1.414l-3.534 3.534.034.034a4 4 0 11-5.656 5.656l-3.535 3.535a1 1 0 01-1.414 0l-1.414-1.414a1 1 0 010-1.414l3.535-3.535a4 4 0 115.656-5.656l.035.034zm-7.07 9.897a2 2 0 10-2.828-2.828 2 2 0 002.828 2.828zM18.364 8.463a2 2 0 10-2.828-2.827 2 2 0 002.828 2.827z" />
+  </svg>
+);
+

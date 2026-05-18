@@ -144,5 +144,23 @@ export const useBarbeariaAgendamentos = (empresaId?: string) => {
     }
   };
 
-  return { agendamentos, addAgendamento, updateStatus, loadAgendamentos };
+  const updateAgendamento = async (id: string, updates: Partial<Agendamento>) => {
+    try {
+      // Tenta fazer o PUT completo
+      const response = await fetch(`${API_BASE_URL}/api/appointment-barbers/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (response.ok) {
+        loadAgendamentos();
+      } else {
+        console.error('Erro ao atualizar agendamento via API');
+      }
+    } catch (e) {
+      console.error('Erro de conexão ao atualizar:', e);
+    }
+  };
+
+  return { agendamentos, addAgendamento, updateStatus, updateAgendamento, loadAgendamentos };
 };
