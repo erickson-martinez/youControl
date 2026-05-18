@@ -494,120 +494,218 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
               ) : (
                 <div className="space-y-4 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar">
                   {pendentes.map(a => {
-                    const dataObj = new Date(a.dataAgendada);
-                    
-                    const servicosDoAgendamento: any[] = [];
-                    if (a.servicosIds && a.servicosIds.length > 0) {
-                      a.servicosIds.forEach((sId: string) => {
-                        const s = servicos.find(x => x.id === sId);
-                        if (s) servicosDoAgendamento.push(s);
-                      });
-                    } else if (a.servicoId) {
-                      const s = servicos.find(x => x.id === a.servicoId);
-                      if (s) servicosDoAgendamento.push(s);
-                    }
+                      const dataObj = new Date(a.dataAgendada);
 
-                    return (
-                      <div key={a.id} className={`bg-[#121214] p-5 rounded-2xl border ${a.status === 'atendendo' ? 'border-blue-500/50 shadow-blue-500/10' : 'border-gray-800/60 hover:border-gray-700'} text-white shadow-xl transition-all relative flex flex-col gap-4`}>
-                        <div className="flex justify-between items-start">
-                          <div className="flex flex-col gap-1.5 flex-1">
-                            {a.status === 'atendendo' && (
-                              <div className="w-fit bg-blue-500/10 text-blue-400 text-[10px] px-2.5 py-1 rounded-md border border-blue-500/30 uppercase tracking-widest font-bold flex items-center gap-1.5 shadow-sm shadow-blue-500/10 mb-0.5">
-                                <ScissorsIcon className="w-3.5 h-3.5" /> EM ATENDIMENTO
-                              </div>
-                            )}
-                            <h3 className="font-bold text-xl text-gray-100 flex items-center gap-2">
-                              {a.cliente} 
-                            </h3>
-                            <p className="text-xs text-gray-400 font-mono tracking-tight bg-gray-800/80 w-fit px-2 py-1 rounded-md border border-gray-700/50">{a.telefone}</p>
-                            
-                            {isAdmin ? (
+                      const servicosDoAgendamento: any[] = [];
+                      let valorTotal = 0;
+
+                      // Serviços
+                      if (a.servicosIds && a.servicosIds.length > 0) {
+                        a.servicosIds.forEach((sId: string) => {
+                          const s = servicos.find(x => x.id === sId);
+
+                          if (s) {
+                            servicosDoAgendamento.push(s);
+                            valorTotal += s.valor;
+                          }
+                        });
+                      } else if (a.servicoId) {
+                        const s = servicos.find(x => x.id === a.servicoId);
+
+                        if (s) {
+                          servicosDoAgendamento.push(s);
+                          valorTotal += s.valor;
+                        }
+                      }
+
+                      // Produtos
+                      if (a.produtosIds && a.produtosIds.length > 0) {
+                        a.produtosIds.forEach((pId: string) => {
+                          const p = produtos.find(prod => prod.id === pId);
+
+                          if (p) {
+                            valorTotal += p.precoVenda;
+                          }
+                        });
+                      }
+
+                      return (
+                        <div
+                          key={a.id}
+                          className={`bg-[#121214] p-5 rounded-2xl border ${
+                            a.status === 'atendendo'
+                              ? 'border-blue-500/50 shadow-blue-500/10'
+                              : 'border-gray-800/60 hover:border-gray-700'
+                          } text-white shadow-xl transition-all relative flex flex-col gap-4`}
+                        >
+                          <div className="flex justify-between items-start">
+                            <div className="flex flex-col gap-1.5 flex-1">
+                              {a.status === 'atendendo' && (
+                                <div className="w-fit bg-blue-500/10 text-blue-400 text-[10px] px-2.5 py-1 rounded-md border border-blue-500/30 uppercase tracking-widest font-bold flex items-center gap-1.5 shadow-sm shadow-blue-500/10 mb-0.5">
+                                  <ScissorsIcon className="w-3.5 h-3.5" />
+                                  EM ATENDIMENTO
+                                </div>
+                              )}
+
+                              <h3 className="font-bold text-xl text-gray-100 flex items-center gap-2">
+                                {a.cliente}
+                              </h3>
+
+                              <p className="text-xs text-gray-400 font-mono tracking-tight bg-gray-800/80 w-fit px-2 py-1 rounded-md border border-gray-700/50">
+                                {a.telefone}
+                              </p>
+
+                              {isAdmin ? (
                                 <select
                                   value={a.barbeiroId || 'Qualquer um'}
-                                  onChange={(e) => updateAgendamento(a.id, { barbeiroId: e.target.value })}
+                                  onChange={(e) =>
+                                    updateAgendamento(a.id, {
+                                      barbeiroId: e.target.value,
+                                    })
+                                  }
                                   className="mt-1 flex items-center gap-1.5 text-xs text-indigo-300 font-medium bg-indigo-900/20 px-2 py-1 rounded-md w-fit border border-indigo-500/20 focus:outline-none focus:border-indigo-500 cursor-pointer"
                                 >
-                                  <option className="bg-gray-900 text-gray-300" value="Qualquer um">💈 Sem preferência</option>
+                                  <option
+                                    className="bg-gray-900 text-gray-300"
+                                    value="Qualquer um"
+                                  >
+                                    💈 Sem preferência
+                                  </option>
+
                                   {barbeiros.map(b => (
-                                    <option className="bg-gray-900 text-gray-300" key={b.id} value={b.id}>💈 {b.nome}</option>
+                                    <option
+                                      className="bg-gray-900 text-gray-300"
+                                      key={b.id}
+                                      value={b.id}
+                                    >
+                                      💈 {b.nome}
+                                    </option>
                                   ))}
                                 </select>
                               ) : (
                                 <p className="flex items-center gap-1.5 mt-1 text-xs text-indigo-300 font-medium bg-indigo-900/20 px-2.5 py-1 rounded-md w-fit border border-indigo-500/20">
-                                    <span className="text-[10px]">💈</span> {barbeiros.find(b => b.id === a.barbeiroId)?.nome || 'Sem preferência'}
+                                  <span className="text-[10px]">💈</span>
+                                  {barbeiros.find(b => b.id === a.barbeiroId)?.nome ||
+                                    'Sem preferência'}
                                 </p>
                               )}
-                            {a.quantidadePessoas && a.quantidadePessoas > 1 && (
-                              <p className="flex items-center gap-1.5 mt-1 text-xs text-orange-300 font-medium bg-orange-900/20 px-2.5 py-1.5 rounded-md w-fit border border-orange-500/20">
-                                👥 {a.quantidadePessoas} Pessoas
-                                {a.nomesAcompanhantes && <span className="opacity-70 mx-1">|</span>}
-                                {a.nomesAcompanhantes && <span className="opacity-60 font-normal">{a.nomesAcompanhantes}</span>}
-                              </p>
+
+                              {a.quantidadePessoas && a.quantidadePessoas > 1 && (
+                                <p className="flex items-center gap-1.5 mt-1 text-xs text-orange-300 font-medium bg-orange-900/20 px-2.5 py-1.5 rounded-md w-fit border border-orange-500/20">
+                                  👥 {a.quantidadePessoas} Pessoas
+                                  {a.nomesAcompanhantes && (
+                                    <span className="opacity-70 mx-1">|</span>
+                                  )}
+                                  {a.nomesAcompanhantes && (
+                                    <span className="opacity-60 font-normal">
+                                      {a.nomesAcompanhantes}
+                                    </span>
+                                  )}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="flex flex-col items-end gap-1">
+                              <div className="bg-blue-600/10 text-blue-400 font-black text-xl px-3 py-1.5 rounded-xl border border-blue-500/20 tabular-nums tracking-tighter shadow-inner">
+                                {a.horarios && a.horarios.length > 0
+                                  ? a.horarios.join(', ')
+                                  : dataObj.toLocaleTimeString([], {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col gap-2 mt-2">
+                            {servicosDoAgendamento.map(s => (
+                              <div
+                                key={s.id}
+                                className="flex justify-between items-center text-sm bg-gray-800/30 px-3 py-2 rounded-lg border border-gray-700/30"
+                              >
+                                <span className="text-gray-300 font-medium">
+                                  {s.nome}
+                                </span>
+
+                                <span className="text-emerald-400 font-bold tracking-tight">
+                                  R$ {s.valor.toFixed(2)}
+                                </span>
+                              </div>
+                            ))}
+
+                            {a.produtosIds &&
+                              a.produtosIds.map((pId: string) => {
+                                const p = produtos.find(prod => prod.id === pId);
+
+                                if (!p) return null;
+
+                                return (
+                                  <div
+                                    key={pId}
+                                    className="flex justify-between items-center text-sm bg-gray-800/30 px-3 py-2 rounded-lg border border-gray-700/30"
+                                  >
+                                    <span className="text-blue-300 font-medium text-xs">
+                                      {p.nome}
+                                    </span>
+
+                                    <span className="text-blue-400 font-bold tracking-tight text-xs">
+                                      R$ {p.precoVenda.toFixed(2)}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+
+                            {valorTotal > 0 && (
+                              <div className="flex justify-between items-center text-sm px-3 py-2 border-t border-gray-700/50 mt-1">
+                                <span className="text-gray-400 font-medium">
+                                  Total
+                                </span>
+
+                                <span className="text-emerald-400 font-bold text-base">
+                                  R$ {valorTotal.toFixed(2)}
+                                </span>
+                              </div>
                             )}
                           </div>
-                          <div className="flex flex-col items-end gap-1">
-                            <div className="bg-blue-600/10 text-blue-400 font-black text-xl px-3 py-1.5 rounded-xl border border-blue-500/20 tabular-nums tracking-tighter shadow-inner">
-                              {a.horarios && a.horarios.length > 0 
-                                ? a.horarios.join(', ') 
-                                : dataObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
-                              }
-                            </div>
+
+                          <div className="flex gap-2 pt-4 mt-1 border-t border-gray-800/80">
+                            {a.status === 'pendente' && (
+                              <button
+                                onClick={() => handleAtender(a)}
+                                className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white font-semibold text-sm py-2.5 rounded-xl transition-all shadow-md hover:bg-blue-500 hover:shadow-blue-500/20 active:scale-[0.98]"
+                              >
+                                <ClockIcon className="w-4 h-4" />
+                                Atender
+                              </button>
+                            )}
+
+                            {a.status === 'atendendo' && (
+                              <>
+                                <button
+                                  onClick={() => {
+                                    setActiveAgendamentoId(a.id);
+                                    setItemType('servico');
+                                    setSelectedItemIds(a.servicosIds || []);
+                                    setIsAddItemModalOpen(true);
+                                  }}
+                                  className="flex-[0.8] flex items-center justify-center gap-2 bg-gray-800 text-gray-300 font-semibold text-sm py-2.5 rounded-xl transition-all border border-gray-700 hover:bg-gray-700 hover:text-white active:scale-[0.98]"
+                                >
+                                  + Adicionar Item
+                                </button>
+
+                                <button
+                                  onClick={() => handleConcluir(a)}
+                                  className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 text-white font-black tracking-wide text-sm py-2.5 rounded-xl transition-all shadow-md hover:bg-emerald-500 hover:shadow-emerald-500/20 active:scale-[0.98]"
+                                >
+                                  <CheckCircleIcon className="w-4 h-4" />
+                                  CONCLUIR
+                                </button>
+                              </>
+                            )}
                           </div>
                         </div>
-
-                        <div className="flex flex-col gap-2 mt-2">
-                          {servicosDoAgendamento.map(s => (
-                            <div key={s.id} className="flex justify-between items-center text-sm bg-gray-800/30 px-3 py-2 rounded-lg border border-gray-700/30">
-                              <span className="text-gray-300 font-medium">{s.nome}</span>
-                              <span className="text-emerald-400 font-bold tracking-tight">R$ {s.valor.toFixed(2)}</span>
-                            </div>
-                          ))}
-                          {a.produtosIds && a.produtosIds.map((pId: string) => {
-                            const p = produtos.find(prod => prod.id === pId);
-                            if (!p) return null;
-                            return (
-                              <div key={pId} className="flex justify-between items-center text-sm bg-gray-800/30 px-3 py-2 rounded-lg border border-gray-700/30">
-                                <span className="text-blue-300 font-medium text-xs">{p.nome}</span>
-                                <span className="text-blue-400 font-bold tracking-tight text-xs">R$ {p.precoVenda.toFixed(2)}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                        
-                        <div className="flex gap-2 pt-4 mt-1 border-t border-gray-800/80">
-                          {a.status === 'pendente' && (
-                            <button 
-                              onClick={() => handleAtender(a)}
-                              className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white font-semibold text-sm py-2.5 rounded-xl transition-all shadow-md hover:bg-blue-500 hover:shadow-blue-500/20 active:scale-[0.98]"
-                            >
-                              <ClockIcon className="w-4 h-4" /> Atender
-                            </button>
-                          )}
-                          {a.status === 'atendendo' && (
-                            <>
-                              <button 
-                                onClick={() => { 
-                                  setActiveAgendamentoId(a.id); 
-                                  setItemType('servico');
-                                  setSelectedItemIds(a.servicosIds || []);
-                                  setIsAddItemModalOpen(true); 
-                                }}
-                                className="flex-[0.8] flex items-center justify-center gap-2 bg-gray-800 text-gray-300 font-semibold text-sm py-2.5 rounded-xl transition-all border border-gray-700 hover:bg-gray-700 hover:text-white active:scale-[0.98]"
-                              >
-                                + Adicionar Item
-                              </button>
-                              <button 
-                                onClick={() => handleConcluir(a)}
-                                className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 text-white font-black tracking-wide text-sm py-2.5 rounded-xl transition-all shadow-md hover:bg-emerald-500 hover:shadow-emerald-500/20 active:scale-[0.98]"
-                              >
-                                <CheckCircleIcon className="w-4 h-4" /> CONCLUIR
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
                 </div>
               )}
             </div>
@@ -625,14 +723,28 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                     const dataObj = new Date(a.dataAgendada);
                     
                     const servicosDoAgendamento: any[] = [];
+                    let valorTotal = 0;
                     if (a.servicosIds && a.servicosIds.length > 0) {
                       a.servicosIds.forEach((sId: string) => {
                         const s = servicos.find(x => x.id === sId);
-                        if (s) servicosDoAgendamento.push(s);
+                        if (s) {
+                          servicosDoAgendamento.push(s);
+                          valorTotal += s.valor;
+                        }
                       });
                     } else if (a.servicoId) {
                       const s = servicos.find(x => x.id === a.servicoId);
-                      if (s) servicosDoAgendamento.push(s);
+                      if (s) {
+                        servicosDoAgendamento.push(s);
+                        valorTotal += s.valor;
+                      }
+                    }
+
+                    if (a.produtosIds && a.produtosIds.length > 0) {
+                      a.produtosIds.forEach((pId: string) => {
+                        const p = produtos.find(prod => prod.id === pId);
+                        if (p) valorTotal += p.precoVenda;
+                      });
                     }
 
                     return (
@@ -691,6 +803,12 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                               </div>
                             );
                           })}
+                          {valorTotal > 0 && (
+                            <div className="flex justify-between items-center text-sm px-3 py-2 border-t border-gray-700/50 mt-1">
+                              <span className="text-gray-400 font-medium">Total</span>
+                              <span className="text-emerald-400 font-bold text-base">R$ {valorTotal.toFixed(2)}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );

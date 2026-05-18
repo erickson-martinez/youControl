@@ -131,6 +131,12 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
       return;
     }
 
+    const justNumbers = telefone.replace(/\D/g, "");
+    if (justNumbers.length < 10 || justNumbers.length > 11) {
+      alert("Por favor, insira um telefone válido com código de área (DDD) contendo 10 ou 11 dígitos.");
+      return;
+    }
+
     if (
       quantidadePessoas > 1 &&
       horariosSelecionados.length < quantidadePessoas
@@ -351,7 +357,13 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
                   type="tel"
                   required
                   value={telefone}
-                  onChange={(e) => setTelefone(e.target.value)}
+                  onChange={(e) => {
+                    let val = e.target.value.replace(/\D/g, "");
+                    if (val.length > 11) val = val.substring(0, 11);
+                    if (val.length > 2) val = `(${val.substring(0, 2)}) ${val.substring(2)}`;
+                    if (val.length > 9) val = `${val.substring(0, 10)}-${val.substring(10)}`;
+                    setTelefone(val);
+                  }}
                   onBlur={handleTelefoneBlur}
                   className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-blue-500"
                   placeholder="(DDD) 99999-9999"
