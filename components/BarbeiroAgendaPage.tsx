@@ -4,6 +4,7 @@ import { useBarbeariaRegistros, useBarbeariaAgendamentos } from '../hooks/useBar
 import { useBarbeariaConfig } from '../hooks/useBarbeariaConfig';
 import { CheckCircleIcon, XCircleIcon, ClockIcon } from './icons';
 import { User, Empresa } from '../types';
+import { CustomDatePicker } from './CustomDatePicker';
 
 interface BarbeiroAgendaPageProps {
   user: User;
@@ -21,6 +22,9 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
   // Vamos assumir que o barbeiro pode escolher quem ele é na tela, ou se o número de telefone 
   // dele bater com algum cadastro, pegar automaticamente.
   const [selectedBarbeiroId, setSelectedBarbeiroId] = useState<string>('');
+  
+  const todayStr = new Date().toISOString().split('T')[0];
+  const [selectedDate, setSelectedDate] = useState<string>(todayStr);
 
   React.useEffect(() => {
     if (user && user.phone && barbeiros.length > 0 && !selectedBarbeiroId) {
@@ -38,9 +42,11 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
 
   const barbeiro = selectedBarbeiroId === 'todos' ? { id: 'todos', nome: 'Todos os Barbeiros' } : barbeiros.find(b => b.id === selectedBarbeiroId);
   
-  const meusAgendamentos = selectedBarbeiroId === 'todos' 
+  const agendamentosByBarbeiro = selectedBarbeiroId === 'todos' 
     ? agendamentos 
     : agendamentos.filter(a => a.barbeiroId === selectedBarbeiroId || !a.barbeiroId || a.barbeiroId === 'Qualquer um');
+    
+  const meusAgendamentos = agendamentosByBarbeiro.filter(a => a.dataAgendada.startsWith(selectedDate));
   
   const pendentes = meusAgendamentos.filter(a => a.status === 'pendente' || a.status === 'atendendo').sort((a, b) => new Date(a.dataAgendada).getTime() - new Date(b.dataAgendada).getTime());
   const concluidos = meusAgendamentos.filter(a => a.status === 'concluido').sort((a, b) => new Date(b.dataAgendada).getTime() - new Date(a.dataAgendada).getTime());
@@ -221,6 +227,10 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
               </button>
             </div>
           </div>
+          
+          <div className="mb-8">
+            <CustomDatePicker allowPast={true} selectedDate={selectedDate} onChange={(d) => setSelectedDate(d)} />
+          </div>
 
           {isVendaModalOpen && (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -301,7 +311,18 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                           </div>
                           <div className="text-right bg-blue-900/20 p-2 rounded-xl border border-blue-800/30">
                             <p className="text-blue-400 font-black">{dataObj.toLocaleDateString()}</p>
-                            <p className="text-gray-300 font-bold">{dataObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                            <p className="text-gray-300 font-bold">
+                              {a.horarios && a.horarios.length > 0 
+                                ? a.horarios.join(', ') 
+                                : dataObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+                              }
+                            </p>
+                            {a.quantidadePessoas && a.quantidadePessoas > 1 && (
+                              <p className="text-orange-400 text-xs font-bold mt-1 max-w-[80px]">
+                                {a.quantidadePessoas} Pessoas
+                                <br/><span className="text-[10px] text-orange-300 font-normal">{a.nomesAcompanhantes}</span>
+                              </p>
+                            )}
                           </div>
                         </div>
                         <div className="mt-2 space-x-2 flex flex-wrap gap-y-2">

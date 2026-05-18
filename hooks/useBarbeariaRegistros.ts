@@ -66,6 +66,10 @@ export interface Agendamento {
   servicoId?: string;
   servicosIds?: string[];
   produtosIds?: string[];
+  horarios?: string[];
+  quantidadePessoas?: number;
+  nomesAcompanhantes?: string;
+  valorTotalPrevisto?: number;
   status: 'pendente' | 'atendendo' | 'concluido' | 'cancelado';
 }
 
@@ -81,7 +85,12 @@ export const useBarbeariaAgendamentos = (empresaId?: string) => {
       const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
-        const mapped = data.map((a: any) => ({ ...a, id: a.id || a._id }));
+        const mapped = data.map((a: any) => ({ 
+          ...a, 
+          id: a.id || a._id,
+          cliente: a.clienteNome || a.cliente,
+          telefone: a.clienteTelefone || a.telefone,
+        }));
         setAgendamentos(mapped);
       }
     } catch (e) {
@@ -93,18 +102,12 @@ export const useBarbeariaAgendamentos = (empresaId?: string) => {
     loadAgendamentos();
   }, [loadAgendamentos]);
 
-  const addAgendamento = async (agendamento: Omit<Agendamento, 'id' | 'dataCadastro' | 'status'>) => {
-    const novo = {
-      ...agendamento,
-      dataCadastro: new Date().toISOString(),
-      status: 'pendente',
-      linkId: empresaId
-    };
+  const addAgendamento = async (agendamentoData: any) => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/appointment-barbers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(novo),
+        body: JSON.stringify(agendamentoData),
       });
       if (response.ok) {
         loadAgendamentos();

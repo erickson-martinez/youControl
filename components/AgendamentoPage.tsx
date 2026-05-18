@@ -18,6 +18,7 @@ const HORARIOS = [
 ];
 
 import { Empresa } from "../types";
+import { CustomDatePicker } from "./CustomDatePicker";
 
 export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: Empresa, empresas?: Empresa[] }) {
   const [selectedEmpresaId, setSelectedEmpresaId] = useState<string | undefined>();
@@ -148,29 +149,26 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
       }
     }
 
-    const clienteFinal =
-      quantidadePessoas > 1
-        ? `${nome} (+ ${quantidadePessoas - 1}: ${nomesAcompanhantes})`
-        : nome;
+    const totalPrevisto = 
+      servicos.filter(s => servicosSelecionados.includes(s.id)).reduce((a, b) => a + Number(b.preco || 0), 0) +
+      produtos.filter(p => produtosSelecionados.includes(p.idItem)).reduce((a, b) => a + Number(b.preco || 0), 0);
 
-    horariosSelecionados.forEach((horario, index) => {
-      const dataAgendada = `${data}T${horario}:00`;
+    const payload = {
+      clienteNome: nome,
+      clienteTelefone: telefone,
+      barbeiroId: barbeiroId || "",
+      servicosIds: servicosSelecionados,
+      produtosIds: produtosSelecionados,
+      dataAgendada: `${data}T${horariosSelecionados[0]}:00`,
+      horarios: horariosSelecionados,
+      status: "pendente",
+      quantidadePessoas,
+      nomesAcompanhantes: quantidadePessoas > 1 ? nomesAcompanhantes : "",
+      valorTotalPrevisto: totalPrevisto,
+      linkId: selectedEmpresaId
+    };
 
-      addAgendamento({
-        telefone,
-        cliente: index === 0 ? clienteFinal : `${nome} (Acompanhante ${index})`,
-        barbeiroId: barbeiroId || undefined,
-        servicosIds:
-          index === 0 && servicosSelecionados.length > 0
-            ? servicosSelecionados
-            : undefined,
-        produtosIds:
-          index === 0 && produtosSelecionados.length > 0
-            ? produtosSelecionados
-            : undefined,
-        dataAgendada,
-      });
-    });
+    addAgendamento(payload);
 
     setAgendado(true);
   };
@@ -503,20 +501,19 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">
-                  Data *
+              <div className="col-span-1 md:col-span-2">
+                <label className="block text-sm text-gray-400 mb-2">
+                  Selecione a Data *
                 </label>
-                <input
-                  type="date"
-                  required
-                  value={data}
-                  onChange={(e) => {
-                    setData(e.target.value);
+                <CustomDatePicker
+                  selectedDate={data}
+                  onChange={(d) => {
+                    setData(d);
                     setHorariosSelecionados([]); // Reset time when date changes
                   }}
-                  min={todayDate}
-                  className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-blue-500"
+                  onMonthChange={() => {
+                    setHorariosSelecionados([]); // Reset on month change if needed
+                  }}
                 />
                 {data && availableHorarios.length === 0 && (
                   <p className="text-red-400 text-xs mt-2">
@@ -524,7 +521,7 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
                   </p>
                 )}
               </div>
-              <div>
+              <div className="col-span-1 md:col-span-2 mt-4">
                 <label className="block text-sm text-gray-400 mb-2">
                   Horários *{" "}
                   <span className="text-xs font-normal text-gray-500">
