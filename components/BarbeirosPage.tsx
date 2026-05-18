@@ -703,23 +703,50 @@ const TabProdutos = ({ empresaId }: { empresaId?: string }) => {
 };
 
 const TabServicos = ({ empresaId }: { empresaId?: string }) => {
-  const { servicos, addServico, removeServico } = useBarbeariaConfig(empresaId);
+  const { servicos, addServico, removeServico, updateServico } = useBarbeariaConfig(empresaId);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [nome, setNome] = useState('');
   const [categoria, setCategoria] = useState<'cabelo' | 'barba' | string>('cabelo');
   const [valor, setValor] = useState('');
 
+  const handleEdit = (s: any) => {
+    setEditingId(s.id);
+    setNome(s.nome);
+    setCategoria(s.categoria || 'cabelo');
+    setValor(s.valor?.toString() || '');
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setNome(''); setValor(''); setCategoria('cabelo');
+  };
+
   const handleCadastrar = (e: React.FormEvent) => {
     e.preventDefault();
     if (!nome.trim()) return alert("Nome é obrigatório");
-    addServico({ nome, categoria, valor: Number(valor) || 0, linkId: empresaId });
-    setNome(''); setValor(''); setCategoria('cabelo');
+    
+    const payload = { nome, categoria, valor: Number(valor) || 0, linkId: empresaId };
+    if (editingId) {
+      updateServico(editingId, payload);
+    } else {
+      addServico(payload);
+    }
+    cancelEdit();
   };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <div className="bg-gray-800/80 p-6 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
-        <h2 className="text-xl font-bold text-white mb-6 border-b border-gray-700/50 pb-3 flex items-center gap-2">
-          <PlusIcon className="w-5 h-5 text-blue-500" /> Cadastrar Serviço
+        <h2 className="text-xl font-bold text-white mb-6 border-b border-gray-700/50 pb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {editingId ? <PencilIcon className="w-5 h-5 text-yellow-500" /> : <PlusIcon className="w-5 h-5 text-blue-500" />}
+            {editingId ? 'Editar Serviço' : 'Cadastrar Serviço'}
+          </div>
+          {editingId && (
+            <button onClick={cancelEdit} className="text-sm text-gray-400 hover:text-white underline">
+              Cancelar
+            </button>
+          )}
         </h2>
         <form onSubmit={handleCadastrar} className="space-y-4">
           <div>
@@ -751,8 +778,9 @@ const TabServicos = ({ empresaId }: { empresaId?: string }) => {
             />
           </div>
           <div className="pt-4 border-t border-gray-700/50">
-            <button type="submit" className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2.5 px-4 rounded-xl transition-all shadow-md hover:shadow-blue-500/20">
-              <PlusIcon className="w-5 h-5" /> Salvar Serviço
+            <button type="submit" className={`w-full flex items-center justify-center gap-2 font-semibold py-2.5 px-4 rounded-xl transition-all shadow-md ${editingId ? 'bg-yellow-600 hover:bg-yellow-500 text-white hover:shadow-yellow-500/20' : 'bg-blue-600 hover:bg-blue-500 text-white hover:shadow-blue-500/20'}`}>
+              {editingId ? <PencilIcon className="w-5 h-5" /> : <PlusIcon className="w-5 h-5" />}
+              {editingId ? 'Salvar Alterações' : 'Salvar Serviço'}
             </button>
           </div>
         </form>
@@ -768,10 +796,23 @@ const TabServicos = ({ empresaId }: { empresaId?: string }) => {
           <div className="grid gap-6 max-h-[650px] overflow-y-auto pr-2 custom-scrollbar" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
             {servicos.map(s => (
               <div key={s.id} className="bg-gray-800/90 p-5 rounded-2xl border border-gray-700/50 flex flex-col gap-2 group hover:border-blue-500/30 transition-all shadow-md relative">
-                <button onClick={() => removeServico(s.id)} className="absolute top-4 right-4 text-gray-500 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all bg-gray-900 p-2 rounded-lg">
-                  <TrashIcon className="w-4 h-4" />
-                </button>
-                <div className="pr-8">
+                <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                  <button 
+                    onClick={() => handleEdit(s)}
+                    className="text-gray-500 hover:text-yellow-400 bg-gray-900 p-2 rounded-lg"
+                    title="Editar Serviço"
+                  >
+                    <PencilIcon className="w-4 h-4" />
+                  </button>
+                  <button 
+                    onClick={() => removeServico(s.id)}
+                    className="text-gray-500 hover:text-red-400 bg-gray-900 p-2 rounded-lg"
+                    title="Excluir Serviço"
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="pr-[72px]">
                   <h3 className="font-bold text-white text-lg">{s.nome}</h3>
                   <div className="flex gap-2 mt-1">
                     <span className="text-blue-400 text-[11px] font-medium tracking-wide uppercase px-2 py-0.5 mt-1 bg-blue-500/10 border border-blue-500/20 rounded-md">{s.categoria}</span>

@@ -20,6 +20,7 @@ export interface Servico {
   categoria: 'cabelo' | 'barba' | string;
   valor: number;
   linkId?: string;
+  _id?: string;
 }
 
 export interface Custo {
@@ -55,15 +56,30 @@ export const useBarbeariaConfig = (empresaId?: string) => {
     }
   }, [empresaId]);
 
+  const fetchServicos = useCallback(async () => {
+    try {
+      const url = empresaId 
+        ? `${API_BASE_URL}/api/barber-services?linkId=${empresaId}`
+        : `${API_BASE_URL}/api/barber-services`;
+      const response = await fetch(url);
+      if (response.ok) {
+        const data = await response.json();
+        const mapped = data.map((s: any) => ({ ...s, id: s.id || s._id }));
+        setServicos(mapped);
+      }
+    } catch (e) {
+      console.error('Erro ao buscar servicos', e);
+    }
+  }, [empresaId]);
+
   const loadConfig = useCallback(() => {
-    const dataS = localStorage.getItem(keyS);
     const dataC = localStorage.getItem(keyC);
     
-    setServicos(dataS ? JSON.parse(dataS) : []);
     setCustos(dataC ? JSON.parse(dataC) : []);
     
     fetchProdutos();
-  }, [keyS, keyC, fetchProdutos]);
+    fetchServicos();
+  }, [keyC, fetchProdutos, fetchServicos]);
 
   useEffect(() => {
     loadConfig();
@@ -131,12 +147,48 @@ export const useBarbeariaConfig = (empresaId?: string) => {
     }
   };
 
-  // Servicos
-  const addServico = (servico: Omit<Servico, 'id'>) => {
-    setServicos(prev => [...prev, { ...servico, id: Date.now().toString() }]);
+  // Servicos (API API)
+  const addServico = async (servico: Omit<Servico, 'id'>) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/barber-services`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(servico)
+      });
+      if (response.ok) {
+        fetchServicos();
+      }
+    } catch (e) {
+      console.error('Erro ao addServico', e);
+    }
   };
-  const removeServico = (id: string) => {
-    setServicos(prev => prev.filter(s => s.id !== id));
+
+  const removeServico = async (id: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/barber-services/${id}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        fetchServicos();
+      }
+    } catch (e) {
+      console.error('Erro ao removeServico', e);
+    }
+  };
+
+  const updateServico = async (id: string, servico: Partial<Servico>) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/barber-services/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(servico)
+      });
+      if (response.ok) {
+        fetchServicos();
+      }
+    } catch (e) {
+      console.error('Erro ao updateServico', e);
+    }
   };
 
   // Custos
@@ -149,7 +201,7 @@ export const useBarbeariaConfig = (empresaId?: string) => {
 
   return {
     produtos, addProduto, removeProduto, updateProduto, fetchProdutos,
-    servicos, addServico, removeServico,
+    servicos, addServico, removeServico, updateServico, fetchServicos,
     custos, addCusto, removeCusto,
     loadConfig
   };
