@@ -128,6 +128,7 @@ const App: React.FC = () => {
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [canUserClockIn, setCanUserClockIn] = useState(false);
   const [linkedCompanyId, setLinkedCompanyId] = useState<string | null>(null);
+  const [linkedId, setLinkedId] = useState<string | null>(null);
   const [aprovarHorasDate, setAprovarHorasDate] = useState(new Date());
   
   const [isLoading, setIsLoading] = useState(true); 
@@ -255,6 +256,7 @@ const App: React.FC = () => {
             const activeLink = data.employees.find((emp: any) => emp.status === 'ativo');
             const companyId = activeLink ? activeLink.company : null;
             setLinkedCompanyId(companyId);
+            setLinkedId(activeLink.linkId)
             return companyId;
         }
         setLinkedCompanyId(null);
@@ -267,6 +269,7 @@ const App: React.FC = () => {
         setLinkedCompanyId(null);
         return null;
     }
+
   }, [apiFetch]);
 
   const fetchEmpresas = useCallback(async (currentUser: User): Promise<Empresa[]> => {
@@ -279,43 +282,10 @@ const App: React.FC = () => {
         
         const mapped = companiesArray.map((emp: any) => ({ ...emp, id: emp._id }));
         
-        // Fallback mockup if API returns nothing so the Admin screen still works
-        if (mapped.length === 0 && currentUser.phone === '67985726820') {
-           return [{
-              id: "6a0781070a484a896b68560c",
-              name: "Império",
-              phone: "67985726820",
-              email: "erickson.imperio@gmail.com",
-              address: "conde do pinhal",
-              city: "Campo Grande",
-              state: "MS",
-              zipCode: "79071160",
-              status: "ativo",
-              linkId: "9987788",
-              isOwnedByCurrentUser: true
-           }];
-        }
-        
         return mapped;
     } catch (error) {
         if (!(error as Error).message.includes('404')) {
           console.error("Falha ao buscar empresas.", error);
-        }
-        
-        if (currentUser.phone === '67985726820') {
-           return [{
-              id: "6a0781070a484a896b68560c",
-              name: "Império",
-              phone: "67985726820",
-              email: "erickson.imperio@gmail.com",
-              address: "conde do pinhal",
-              city: "Campo Grande",
-              state: "MS",
-              zipCode: "79071160",
-              status: "ativo",
-              linkId: "9987788",
-              isOwnedByCurrentUser: true
-           }];
         }
         
         return [];
@@ -573,7 +543,7 @@ const App: React.FC = () => {
               {activePage === 'jogoDaVida' && userPermissions.jogoDaVida && <JogoDaVidaPage />}
               {activePage === 'jornada' && userPermissions.jornada && <JornadaPage user={user} />}
               {activePage === 'barbearia' && userPermissions.barbearia && <BarbeirosPage user={user} empresa={userCompany || companiesForManagement[0]} />}
-              {activePage === 'barbeiroAgenda' && userPermissions.barbeiroAgenda && <BarbeiroAgendaPage user={user} empresa={userCompany || companiesForManagement[0]} isAdmin={userPermissions.barbearia} />}
+              {activePage === 'barbeiroAgenda' && userPermissions.barbeiroAgenda && <BarbeiroAgendaPage user={user} linkId={linkedId} empresa={userCompany || companiesForManagement[0]} isAdmin={userPermissions.barbearia} />}
               {activePage === 'agendamento' && <AgendamentoPage empresa={userCompany || companiesForManagement[0]} empresas={empresas} />}
               
               {/* Lanchonete Modules */}

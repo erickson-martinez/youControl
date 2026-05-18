@@ -10,10 +10,13 @@ interface BarbeiroAgendaPageProps {
   user: User;
   empresa?: Empresa;
   isAdmin?: boolean;
+  linkId?: String;
 }
 
-const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, isAdmin }) => {
-  const resolvedCompanyId = empresa?.linkId || empresa?.id;
+const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, linkId, isAdmin }) => {
+
+
+  const resolvedCompanyId = `${linkId}` || empresa?.id;
   const { barbeiros } = useBarbeiros(resolvedCompanyId);
   const { agendamentos, updateStatus, updateAgendamento, loadAgendamentos } = useBarbeariaAgendamentos(resolvedCompanyId);
   const { registros, addRegistro } = useBarbeariaRegistros(resolvedCompanyId);
