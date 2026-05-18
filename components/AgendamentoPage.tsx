@@ -38,7 +38,16 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
   const [produtosSelecionados, setProdutosSelecionados] = useState<string[]>(
     [],
   );
-  const [data, setData] = useState("");
+  const [data, setData] = useState(() => {
+    const d = new Date();
+    if (d.getHours() >= 19) {
+      d.setDate(d.getDate() + 1);
+    }
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  });
   const [horariosSelecionados, setHorariosSelecionados] = useState<string[]>(
     [],
   );

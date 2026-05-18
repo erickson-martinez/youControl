@@ -271,10 +271,10 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="bg-gray-800/80 p-6 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
-              <h2 className="text-xl font-bold text-white mb-6 border-b border-gray-700/50 pb-3 flex justify-between items-center">
+            <div className="bg-[#1a1a1d] p-6 md:p-8 rounded-3xl border border-gray-800/60 shadow-2xl">
+              <h2 className="text-2xl font-black text-gray-100 mb-6 border-b border-gray-800/80 pb-4 flex justify-between items-center tracking-tight">
                 <span>Próximos Agendamentos</span>
-                <span className="bg-blue-600 font-bold text-white text-xs px-2 py-1 rounded-lg">{pendentes.length}</span>
+                <span className="bg-blue-600 shadow-lg shadow-blue-500/20 font-black text-white text-sm px-3 py-1 rounded-xl">{pendentes.length}</span>
               </h2>
               {pendentes.length === 0 ? (
                 <div className="w-full bg-gray-900/50 p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center">
@@ -298,74 +298,68 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                     }
 
                     return (
-                      <div key={a.id} className="bg-gray-900/60 p-5 rounded-2xl border border-gray-700 flex flex-col gap-3 shadow-md hover:border-gray-500 transition-all group relative">
+                      <div key={a.id} className={`bg-[#121214] p-5 rounded-2xl border ${a.status === 'atendendo' ? 'border-blue-500/50 shadow-blue-500/10' : 'border-gray-800/60 hover:border-gray-700'} text-white shadow-xl transition-all relative flex flex-col gap-4`}>
                         <div className="flex justify-between items-start">
-                          <div>
-                            <h3 className="font-bold text-white text-lg tracking-wide">{a.cliente} {a.status === 'atendendo' && <span className="ml-2 bg-blue-500/20 text-blue-400 text-[10px] px-2 py-1 rounded-full border border-blue-500/30 uppercase tracking-widest">Em Atendimento</span>}</h3>
-                            <p className="text-sm text-gray-400 mt-1 font-medium bg-gray-800/50 inline-flex px-2 py-0.5 rounded-lg border border-gray-700">{a.telefone}</p>
+                          <div className="flex flex-col gap-1.5">
+                            <h3 className="font-bold text-xl text-gray-100 flex items-center gap-2">
+                              {a.cliente} 
+                              {a.status === 'atendendo' && (
+                                <span className="bg-blue-500/20 text-blue-400 text-[10px] px-2 py-1 rounded-full border border-blue-500/30 uppercase tracking-widest leading-none">Em Atendimento</span>
+                              )}
+                            </h3>
+                            <p className="text-xs text-gray-400 font-mono tracking-tight bg-gray-800/80 w-fit px-2 py-1 rounded-md border border-gray-700/50">{a.telefone}</p>
+                            
                             {selectedBarbeiroId === 'todos' && (
-                                <p className="text-xs text-purple-400 font-bold mt-2 bg-purple-500/10 px-2 py-1 rounded-md w-fit border border-purple-500/20">
-                                    💈 Barbeiro: {barbeiros.find(b => b.id === a.barbeiroId)?.nome || 'Desconhecido'}
+                                <p className="flex items-center gap-1.5 mt-1 text-xs text-indigo-300 font-medium bg-indigo-900/20 px-2.5 py-1 rounded-md w-fit border border-indigo-500/20">
+                                    <span className="text-[10px]">💈</span> {barbeiros.find(b => b.id === a.barbeiroId)?.nome || 'Sem preferência'}
                                 </p>
                             )}
+                            {a.quantidadePessoas && a.quantidadePessoas > 1 && (
+                              <p className="flex items-center gap-1.5 mt-1 text-xs text-orange-300 font-medium bg-orange-900/20 px-2.5 py-1.5 rounded-md w-fit border border-orange-500/20">
+                                👥 {a.quantidadePessoas} Pessoas
+                                {a.nomesAcompanhantes && <span className="opacity-70 mx-1">|</span>}
+                                {a.nomesAcompanhantes && <span className="opacity-60 font-normal">{a.nomesAcompanhantes}</span>}
+                              </p>
+                            )}
                           </div>
-                          <div className="text-right bg-blue-900/20 p-2 rounded-xl border border-blue-800/30">
-                            <p className="text-blue-400 font-black">{dataObj.toLocaleDateString()}</p>
-                            <p className="text-gray-300 font-bold">
+                          <div className="flex flex-col items-end gap-1">
+                            <div className="bg-blue-600/10 text-blue-400 font-black text-xl px-3 py-1.5 rounded-xl border border-blue-500/20 tabular-nums tracking-tighter shadow-inner">
                               {a.horarios && a.horarios.length > 0 
                                 ? a.horarios.join(', ') 
                                 : dataObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
                               }
-                            </p>
-                            {a.quantidadePessoas && a.quantidadePessoas > 1 && (
-                              <p className="text-orange-400 text-xs font-bold mt-1 max-w-[80px]">
-                                {a.quantidadePessoas} Pessoas
-                                <br/><span className="text-[10px] text-orange-300 font-normal">{a.nomesAcompanhantes}</span>
-                              </p>
-                            )}
+                            </div>
                           </div>
                         </div>
-                        <div className="mt-2 space-x-2 flex flex-wrap gap-y-2">
+
+                        <div className="flex flex-col gap-2 mt-2">
                           {servicosDoAgendamento.map(s => (
-                            <div key={s.id} className="text-xs font-bold tracking-wide text-gray-300 bg-gray-800 px-3 py-1.5 rounded-lg border border-gray-700 inline-flex shadow-inner">
-                              {s.nome} <span className="text-gray-500 mx-2">|</span> <span className="text-green-400">R$ {s.valor.toFixed(2)}</span>
+                            <div key={s.id} className="flex justify-between items-center text-sm bg-gray-800/30 px-3 py-2 rounded-lg border border-gray-700/30">
+                              <span className="text-gray-300 font-medium">{s.nome}</span>
+                              <span className="text-emerald-400 font-bold tracking-tight">R$ {s.valor.toFixed(2)}</span>
                             </div>
                           ))}
                           {a.produtosIds && a.produtosIds.map((pId: string) => {
                             const p = produtos.find(prod => prod.id === pId);
                             if (!p) return null;
                             return (
-                              <div key={pId} className="text-xs font-bold tracking-wide text-blue-300 bg-blue-900/30 px-3 py-1.5 rounded-lg border border-blue-800/50 inline-flex shadow-inner">
-                                {p.nome} <span className="text-blue-500/50 mx-2">|</span> <span className="text-blue-400">R$ {p.precoVenda.toFixed(2)}</span>
+                              <div key={pId} className="flex justify-between items-center text-sm bg-gray-800/30 px-3 py-2 rounded-lg border border-gray-700/30">
+                                <span className="text-blue-300 font-medium text-xs">{p.nome}</span>
+                                <span className="text-blue-400 font-bold tracking-tight text-xs">R$ {p.precoVenda.toFixed(2)}</span>
                               </div>
                             );
                           })}
                         </div>
                         
-                        <div className="flex gap-3 pt-4 mt-2 border-t border-gray-800">
-                          {a.status === 'pendente' && selectedBarbeiroId !== 'todos' && (
+                        <div className="flex gap-2 pt-4 mt-1 border-t border-gray-800/80">
+                          {a.status === 'pendente' && (
                             <button 
                               onClick={() => handleAtender(a)}
-                              className="flex-1 flex items-center justify-center gap-2 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-500/30 font-bold text-sm py-2.5 rounded-xl transition-all shadow-sm focus:ring-2 focus:ring-blue-500"
+                              className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white font-semibold text-sm py-2.5 rounded-xl transition-all shadow-md hover:bg-blue-500 hover:shadow-blue-500/20 active:scale-[0.98]"
                             >
-                              <ClockIcon className="w-5 h-5" /> Atender
+                              <ClockIcon className="w-4 h-4" /> Atender
                             </button>
                           )}
-                          {isAdmin && (
-                            <button 
-                              onClick={() => handleConcluir(a)}
-                              className="flex-1 flex items-center justify-center gap-2 bg-green-600/20 hover:bg-green-600 text-green-400 hover:text-white border border-green-500/30 font-bold text-sm py-2.5 rounded-xl transition-all shadow-sm focus:ring-2 focus:ring-green-500"
-                            >
-                              <CheckCircleIcon className="w-5 h-5" /> Marcar como PAGO
-                            </button>
-                          )}
-                          <button 
-                            onClick={() => updateStatus(a.id, 'cancelado')}
-                            className="flex items-center justify-center gap-1 bg-gray-800 hover:bg-red-600 text-gray-400 hover:text-white px-4 py-2.5 rounded-xl transition-all border border-gray-700 hover:border-red-500 focus:ring-2 focus:ring-red-500"
-                            title="Cancelar Agendamento"
-                          >
-                            <XCircleIcon className="w-5 h-5" />
-                          </button>
                         </div>
                       </div>
                     );
@@ -374,8 +368,8 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
               )}
             </div>
 
-            <div className="bg-gray-800/50 p-6 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl opacity-90 h-fit">
-              <h2 className="text-xl font-bold text-white mb-6 border-b border-gray-700/50 pb-3">Histórico Recente</h2>
+            <div className="bg-[#1a1a1d] p-6 md:p-8 rounded-3xl border border-gray-800/60 shadow-2xl h-fit">
+              <h2 className="text-xl font-bold text-gray-300 mb-6 border-b border-gray-800/80 pb-4 flex justify-between items-center tracking-tight">Histórico Recente</h2>
               {concluidos.length === 0 ? (
                 <div className="w-full bg-gray-900/50 p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center">
                   <CheckCircleIcon className="w-12 h-12 mb-3 text-gray-700" />
@@ -398,29 +392,48 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                     }
 
                     return (
-                      <div key={a.id} className="bg-gray-900/40 border border-gray-800 p-4 rounded-xl flex flex-col gap-2 group hover:border-gray-600 transition-all">
+                      <div key={a.id} className="bg-[#121214]/60 p-4 rounded-xl border border-gray-800 flex flex-col gap-3 group hover:border-gray-700 hover:bg-[#121214] transition-all">
                         <div className="flex justify-between items-start">
-                          <div>
-                            <h3 className="font-bold text-white">{a.cliente}</h3>
-                            <div className="flex flex-wrap gap-2 mt-2">
+                          <div className="flex flex-col gap-1.5">
+                            <h3 className="font-bold text-gray-300 text-lg flex items-center gap-2">
+                              {a.cliente}
+                            </h3>
+                            <div className="flex flex-col gap-1 mt-1">
                               {servicosDoAgendamento.map(s => (
-                                <span key={s.id} className="text-[10px] font-bold text-gray-400 bg-gray-800 border border-gray-700 px-2 py-0.5 rounded-md uppercase tracking-wider">{s.nome}</span>
+                                <span key={s.id} className="text-xs font-medium text-gray-400 bg-gray-900/50 border border-gray-800/50 px-2 py-1 rounded-md tracking-wide w-fit">
+                                  {s.nome}
+                                </span>
                               ))}
                               {a.produtosIds && a.produtosIds.map((pId: string) => {
                                 const p = produtos.find(prod => prod.id === pId);
                                 if (!p) return null;
-                                return <span key={pId} className="text-[10px] font-bold text-blue-300 bg-blue-900/30 border border-blue-800/50 px-2 py-0.5 rounded-md uppercase tracking-wider">{p.nome}</span>;
+                                return (
+                                  <span key={pId} className="text-xs font-medium text-blue-300/80 bg-blue-900/20 border border-blue-800/30 px-2 py-1 rounded-md tracking-wide w-fit">
+                                    {p.nome}
+                                  </span>
+                                );
                               })}
                             </div>
                             {selectedBarbeiroId === 'todos' && (
-                                <p className="text-[10px] uppercase font-bold text-gray-500 mt-2">
-                                    ✂️ {barbeiros.find(b => b.id === a.barbeiroId)?.nome || 'Desconhecido'}
+                                <p className="flex items-center gap-1.5 mt-1 text-[10px] text-gray-500 font-medium">
+                                    <span className="opacity-70">✂️</span> {barbeiros.find(b => b.id === a.barbeiroId)?.nome || 'Sem preferência'}
                                 </p>
                             )}
                           </div>
-                          <div className="text-right flex flex-col items-end gap-1">
-                            <span className="text-[10px] font-bold bg-green-500/10 text-green-400 border border-green-500/20 px-2 py-0.5 rounded-md tracking-wider uppercase">Concluído</span>
-                            <p className="text-xs text-gray-500 font-medium">{dataObj.toLocaleDateString()}</p>
+                          
+                          <div className="flex flex-col items-end gap-1.5">
+                            <div className="bg-emerald-500/10 text-emerald-400 font-bold text-xs px-2.5 py-1 rounded-lg border border-emerald-500/20 uppercase tracking-widest flex items-center gap-1">
+                              <CheckCircleIcon className="w-3 h-3" />
+                              Concluído
+                            </div>
+                            <div className="text-right">
+                              <div className="text-gray-300 font-bold text-sm tracking-tight">
+                                {a.horarios && a.horarios.length > 0 
+                                  ? a.horarios.join(', ') 
+                                  : dataObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+                                }
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
