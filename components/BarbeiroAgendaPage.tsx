@@ -44,9 +44,9 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
 
   const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
-  const [activeAgendamentoId, setActiveAgendamentoId] = useState('');
-  const [itemType, setItemType] = useState<'servico' | 'produto'>('servico');
-  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [activeAgendamentoId, setActiveAgendamentoId] = useState<string | null>(null);
+  const [selectedServicosIds, setSelectedServicosIds] = useState<string[]>([]);
+  const [selectedProdutosIds, setSelectedProdutosIds] = useState<string[]>([]);
   const [isSelectBarbeiroModalOpen, setIsSelectBarbeiroModalOpen] = useState(false);
   const [agendamentoToAtender, setAgendamentoToAtender] = useState<any>(null);
   const [barbeiroToAtender, setBarbeiroToAtender] = useState<string>('');
@@ -102,7 +102,10 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
     if (agendamento.produtosIds && agendamento.produtosIds.length > 0) {
       agendamento.produtosIds.forEach((pId: string) => {
         const p = produtos.find(prod => prod.id === pId);
-        if (p) comissaoProdutos += p.precoVenda * ((barbeiro.comissao || 0) / 100);
+        if (p) {
+          const override = Number(p.comissao) > 0 ? Number(p.comissao) : Number(barbeiro.comissao || 0);
+          comissaoProdutos += p.precoVenda * (override / 100);
+        }
       });
     }
 
@@ -370,11 +373,8 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
     if (!a) return;
 
     let updates: any = {};
-    if (itemType === 'servico') {
-      updates.servicosIds = selectedItemIds;
-    } else {
-      updates.produtosIds = selectedItemIds;
-    }
+    updates.servicosIds = selectedServicosIds;
+    updates.produtosIds = selectedProdutosIds;
     
     // Atualiza o agendamento no backend (e state local via poll)
     if (Object.keys(updates).length > 0) {
@@ -383,7 +383,8 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
 
     // Fechar modal
     setIsAddItemModalOpen(false);
-    setSelectedItemIds([]);
+    setSelectedServicosIds([]);
+    setSelectedProdutosIds([]);
   };
 
   return (
@@ -540,29 +541,6 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm text-gray-400 mb-1">Serviços (Opcionais)</label>
-                      <div className="bg-gray-700 border border-gray-600 rounded p-3 max-h-40 overflow-y-auto w-full custom-scrollbar">
-                        {servicos.length === 0 && <p className="text-gray-500 text-sm">Nenhum serviço.</p>}
-                        {servicos.map(s => (
-                          <label key={s.id} className="flex items-center space-x-3 mb-2 cursor-pointer pb-2 border-b border-gray-600/50 last:mb-0 last:pb-0 last:border-0">
-                            <input
-                              type="checkbox"
-                              className="rounded text-blue-500 bg-gray-600 border-gray-500 focus:ring-blue-500 w-4 h-4 cursor-pointer"
-                              checked={addClienteServicos.includes(s.id)}
-                              onChange={(e) => {
-                                if (e.target.checked) setAddClienteServicos(prev => [...prev, s.id]);
-                                else setAddClienteServicos(prev => prev.filter(id => id !== s.id));
-                              }}
-                            />
-                            <span className="text-sm font-medium text-gray-200">
-                              {s.nome} <span className="text-green-400">R$ {s.valor.toFixed(2)}</span>
-                            </span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
                       <label className="block text-sm text-gray-400 mb-1">Produtos (Opcionais)</label>
                       <div className="bg-gray-700 border border-gray-600 rounded p-3 max-h-40 overflow-y-auto w-full custom-scrollbar">
                         {produtos.length === 0 && <p className="text-gray-500 text-sm">Nenhum produto.</p>}
@@ -579,6 +557,29 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                             />
                             <span className="text-sm font-medium text-gray-200">
                               {p.nome} <span className="text-blue-400">R$ {p.precoVenda.toFixed(2)}</span>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1">Serviços (Opcionais)</label>
+                      <div className="bg-gray-700 border border-gray-600 rounded p-3 max-h-40 overflow-y-auto w-full custom-scrollbar">
+                        {servicos.length === 0 && <p className="text-gray-500 text-sm">Nenhum serviço.</p>}
+                        {servicos.map(s => (
+                          <label key={s.id} className="flex items-center space-x-3 mb-2 cursor-pointer pb-2 border-b border-gray-600/50 last:mb-0 last:pb-0 last:border-0">
+                            <input
+                              type="checkbox"
+                              className="rounded text-blue-500 bg-gray-600 border-gray-500 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                              checked={addClienteServicos.includes(s.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) setAddClienteServicos(prev => [...prev, s.id]);
+                                else setAddClienteServicos(prev => prev.filter(id => id !== s.id));
+                              }}
+                            />
+                            <span className="text-sm font-medium text-gray-200">
+                              {s.nome} <span className="text-green-400">R$ {s.valor.toFixed(2)}</span>
                             </span>
                           </label>
                         ))}
@@ -661,75 +662,71 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
 
           {isAddItemModalOpen && (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-              <div className="bg-[#121214] border border-gray-800 rounded-2xl p-6 md:p-8 w-full max-w-md shadow-2xl">
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-xl font-bold text-white">Adicionar Item</h3>
+              <div className="bg-[#121214] border border-gray-800 rounded-2xl p-6 md:p-8 w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
+                <div className="flex justify-between items-center mb-6 shrink-0">
+                  <h3 className="text-xl font-bold text-white">Adicionar Itens</h3>
                   <button onClick={() => setIsAddItemModalOpen(false)} className="text-gray-500 hover:text-gray-300">
                     <XCircleIcon className="w-6 h-6" />
                   </button>
                 </div>
-                <form onSubmit={handleAddExtraItem} className="space-y-4">
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-1 font-medium">Tipo</label>
-                    <div className="flex gap-2 p-1 bg-gray-900 rounded-lg">
-                      <button type="button" onClick={() => {
-                        setItemType('servico'); 
-                        const curr = pendentes.find(x => x.id === activeAgendamentoId);
-                        setSelectedItemIds(curr?.servicosIds || []);
-                      }} className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all ${itemType === 'servico' ? 'bg-gray-800 text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}>Serviços</button>
-                      <button type="button" onClick={() => {
-                        setItemType('produto'); 
-                        const curr = pendentes.find(x => x.id === activeAgendamentoId);
-                        setSelectedItemIds(curr?.produtosIds || []);
-                      }} className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all ${itemType === 'produto' ? 'bg-gray-800 text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}>Produtos</button>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-3 font-medium">{itemType === 'servico' ? 'Serviços Disponíveis' : 'Produtos Disponíveis'}</label>
-                    <div className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
-                      {itemType === 'servico' ? (
-                        servicos.map(s => (
-                          <label key={s.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedItemIds.includes(s.id) ? 'bg-blue-900/20 border-blue-500/50' : 'bg-gray-900/50 border-gray-800 hover:border-gray-700'}`}>
-                            <input 
-                              type="checkbox" 
-                              checked={selectedItemIds.includes(s.id)} 
-                              onChange={(e) => {
-                                setSelectedItemIds(prev => e.target.checked ? [...prev, s.id] : prev.filter(i => i !== s.id));
-                              }} 
-                              className="w-5 h-5 rounded border-gray-700 text-blue-600 focus:ring-blue-500 bg-gray-800" 
-                            />
-                            <div className="flex-1 flex justify-between items-center">
-                              <span className="text-gray-200 font-medium">{s.nome}</span>
-                              <span className="text-emerald-400 font-bold ml-2 whitespace-nowrap">R$ {s.valor.toFixed(2)}</span>
-                            </div>
-                          </label>
-                        ))
-                      ) : (
-                        produtos.map(p => (
-                          <label key={p.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedItemIds.includes(p.id) ? 'bg-blue-900/20 border-blue-500/50' : 'bg-gray-900/50 border-gray-800 hover:border-gray-700'}`}>
-                            <input 
-                              type="checkbox" 
-                              checked={selectedItemIds.includes(p.id)} 
-                              onChange={(e) => {
-                                setSelectedItemIds(prev => e.target.checked ? [...prev, p.id] : prev.filter(i => i !== p.id));
-                              }} 
-                              className="w-5 h-5 rounded border-gray-700 text-blue-600 focus:ring-blue-500 bg-gray-800" 
-                            />
-                            <div className="flex-1 flex justify-between items-center">
-                              <div>
-                                <div className="text-gray-200 font-medium">{p.nome}</div>
-                                <div className="text-gray-500 text-xs mt-0.5">Estoque: {p.estoque}</div>
+                <form onSubmit={handleAddExtraItem} className="flex flex-col flex-1 min-h-0">
+                  <div className="overflow-y-auto pr-2 custom-scrollbar flex-1 min-h-0 space-y-6">
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-3 font-medium">Produtos Disponíveis</label>
+                      <div className="space-y-2">
+                          {produtos.length > 0 ? produtos.map(p => (
+                            <label key={p.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedProdutosIds.includes(p.id) ? 'bg-blue-900/20 border-blue-500/50' : 'bg-gray-900/50 border-gray-800 hover:border-gray-700'}`}>
+                              <input 
+                                type="checkbox" 
+                                checked={selectedProdutosIds.includes(p.id)} 
+                                onChange={(e) => {
+                                  setSelectedProdutosIds(prev => e.target.checked ? [...prev, p.id] : prev.filter(i => i !== p.id));
+                                }} 
+                                className="w-5 h-5 rounded border-gray-700 text-blue-600 focus:ring-blue-500 bg-gray-800 shrink-0" 
+                              />
+                              <div className="flex-1 flex justify-between items-center min-w-0">
+                                <div className="truncate pr-2">
+                                  <div className="text-gray-200 font-medium truncate">{p.nome}</div>
+                                  <div className="text-gray-500 text-xs mt-0.5">Estoque: {p.estoque}</div>
+                                </div>
+                                <span className="text-emerald-400 font-bold ml-2 whitespace-nowrap shrink-0">R$ {p.precoVenda.toFixed(2)}</span>
                               </div>
-                              <span className="text-emerald-400 font-bold ml-2 whitespace-nowrap">R$ {p.precoVenda.toFixed(2)}</span>
-                            </div>
-                          </label>
-                        ))
-                      )}
+                            </label>
+                          )) : (
+                            <div className="text-sm text-gray-500 p-3 bg-gray-900/30 rounded-xl border border-gray-800 text-center">Nenhum produto cadastrado.</div>
+                          )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-3 font-medium">Serviços Disponíveis</label>
+                      <div className="space-y-2">
+                          {servicos.length > 0 ? servicos.map(s => (
+                            <label key={s.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedServicosIds.includes(s.id) ? 'bg-blue-900/20 border-blue-500/50' : 'bg-gray-900/50 border-gray-800 hover:border-gray-700'}`}>
+                              <input 
+                                type="checkbox" 
+                                checked={selectedServicosIds.includes(s.id)} 
+                                onChange={(e) => {
+                                  setSelectedServicosIds(prev => e.target.checked ? [...prev, s.id] : prev.filter(i => i !== s.id));
+                                }} 
+                                className="w-5 h-5 rounded border-gray-700 text-blue-600 focus:ring-blue-500 bg-gray-800 shrink-0" 
+                              />
+                              <div className="flex-1 flex justify-between items-center min-w-0">
+                                <span className="text-gray-200 font-medium truncate pr-2">{s.nome}</span>
+                                <span className="text-emerald-400 font-bold ml-2 whitespace-nowrap shrink-0">R$ {s.valor.toFixed(2)}</span>
+                              </div>
+                            </label>
+                          )) : (
+                            <div className="text-sm text-gray-500 p-3 bg-gray-900/30 rounded-xl border border-gray-800 text-center">Nenhum serviço cadastrado.</div>
+                          )}
+                      </div>
                     </div>
                   </div>
-                  <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 mt-4 rounded-xl transition-colors">
-                    Salvar Selecionados ({selectedItemIds.length})
-                  </button>
+                  <div className="shrink-0 pt-4 mt-2 border-t border-gray-800/50">
+                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-colors shrink-0">
+                      Salvar Selecionados ({selectedServicosIds.length + selectedProdutosIds.length})
+                    </button>
+                  </div>
                 </form>
               </div>
             </div>
@@ -961,8 +958,8 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                                 <button
                                   onClick={() => {
                                     setActiveAgendamentoId(a.id);
-                                    setItemType('servico');
-                                    setSelectedItemIds(a.servicosIds || []);
+                                    setSelectedServicosIds(a.servicosIds || []);
+                                    setSelectedProdutosIds(a.produtosIds || []);
                                     setIsAddItemModalOpen(true);
                                   }}
                                   className="flex-[0.8] flex items-center justify-center gap-2 bg-gray-800 text-gray-300 font-semibold text-sm py-2.5 rounded-xl transition-all border border-gray-700 hover:bg-gray-700 hover:text-white active:scale-[0.98]"

@@ -525,12 +525,15 @@ const TabProdutos = ({ empresaId }: { empresaId?: string }) => {
   const [categoria, setCategoria] = useState('');
   const [custo, setCusto] = useState('');
   const [margemLucro, setMargemLucro] = useState('');
+  const [comissao, setComissao] = useState('');
   const [precoVenda, setPrecoVenda] = useState('');
   const [estoque, setEstoque] = useState('');
 
   const numCusto = Number(custo) || 0;
   const numMargem = Number(margemLucro) || 0;
-  const precoIdeal = numCusto + (numCusto * (numMargem / 100));
+  const numComissao = Number(comissao) || 0;
+  const semComissao = numCusto + (numCusto * (numMargem / 100));
+  const precoIdeal = numComissao > 0 && numComissao < 100 ? semComissao / (1 - numComissao / 100) : semComissao;
   const numVenda = Number(precoVenda) || 0;
   const numEstoque = Number(estoque) || 0;
   const isAbaixoDoIdeal = numVenda > 0 && numVenda < precoIdeal;
@@ -541,13 +544,14 @@ const TabProdutos = ({ empresaId }: { empresaId?: string }) => {
     setCategoria(p.categoria || '');
     setCusto(p.custo?.toString() || '');
     setMargemLucro(p.margemLucro?.toString() || '');
+    setComissao(p.comissao?.toString() || '');
     setPrecoVenda(p.precoVenda?.toString() || '');
     setEstoque(p.estoque?.toString() || '');
   };
 
   const cancelEdit = () => {
     setEditingId(null);
-    setNome(''); setCategoria(''); setCusto(''); setMargemLucro(''); setPrecoVenda(''); setEstoque('');
+    setNome(''); setCategoria(''); setCusto(''); setMargemLucro(''); setComissao(''); setPrecoVenda(''); setEstoque('');
   };
 
   const handleCadastrar = (e: React.FormEvent) => {
@@ -558,7 +562,7 @@ const TabProdutos = ({ empresaId }: { empresaId?: string }) => {
       nome, 
       categoria: categoria || 'Geral', 
       custo: numCusto, 
-      comissao: 0, 
+      comissao: numComissao, 
       margemLucro: numMargem, 
       precoVenda: numVenda, 
       estoque: numEstoque, 
@@ -629,6 +633,14 @@ const TabProdutos = ({ empresaId }: { empresaId?: string }) => {
                 type="number" step="0.1" required value={margemLucro} onChange={e => setMargemLucro(e.target.value)}
                 className="w-full bg-gray-900 text-white border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 shadow-inner"
                 placeholder="Ex: 50"
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-sm text-gray-400 mb-1">Comissão Exclusiva (%) - Opcional</label>
+              <input 
+                type="number" step="0.1" value={comissao} onChange={e => setComissao(e.target.value)}
+                className="w-full bg-gray-900 text-white border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 shadow-inner"
+                placeholder="Deixe em branco para usar a comissão do barbeiro"
               />
             </div>
           </div>
@@ -716,8 +728,9 @@ const TabProdutos = ({ empresaId }: { empresaId?: string }) => {
                     </div>
                   </div>
                   
-                  <div className="flex gap-2 text-xs mt-2 items-center">
+                  <div className="flex gap-2 text-xs mt-2 items-center flex-wrap">
                      <span className="bg-gray-900 px-2 py-1 rounded-md text-gray-400 border border-gray-800">Lucro: {p.margemLucro}%</span>
+                     {p.comissao > 0 && <span className="bg-blue-900/20 px-2 py-1 rounded-md text-blue-400 border border-blue-800/50 font-medium tracking-wide">Comissão: {p.comissao}%</span>}
                      <span className="bg-gray-900 px-2 py-1 rounded-md text-gray-400 border border-gray-800 font-medium">Estoque: {p.estoque ?? 0}</span>
                   </div>
                   
@@ -1256,7 +1269,9 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
           comissaoServicos += item.valor * (barbeiro.corte / 100);
         } else if (item.tipo === 'produto') {
           totalProdutos += item.valor;
-          comissaoProdutos += item.valor * (barbeiro.comissao / 100);
+          const produtoObj = produtos.find(p => p.id === item.idItem);
+          const override = produtoObj && Number(produtoObj.comissao) > 0 ? Number(produtoObj.comissao) : Number(barbeiro.comissao);
+          comissaoProdutos += item.valor * ((override || 0) / 100);
         }
       });
     });

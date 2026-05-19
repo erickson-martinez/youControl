@@ -210,21 +210,43 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
 
   const todayDate = new Date().toISOString().split("T")[0];
 
+  const capacityPerSlot = barbeiros.length || 1;
+
   const availableHorarios = useMemo(() => {
     if (!data) return HORARIOS;
-    if (data > todayDate) return HORARIOS;
+    if (data < todayDate) return [];
 
-    // If data == todayDate, filter out past hours
-    const nowHour = new Date().getHours();
-    const nowMinute = new Date().getMinutes();
+    let validHorarios = HORARIOS;
 
-    return HORARIOS.filter((h) => {
-      const [hHour, hMinute] = h.split(":").map(Number);
-      if (hHour > nowHour) return true;
-      if (hHour === nowHour && hMinute > nowMinute) return true;
-      return false;
+    if (data === todayDate) {
+      const nowHour = new Date().getHours();
+      const nowMinute = new Date().getMinutes();
+      validHorarios = validHorarios.filter((h) => {
+        const [hHour, hMinute] = h.split(":").map(Number);
+        if (hHour > nowHour) return true;
+        if (hHour === nowHour && hMinute > nowMinute) return true;
+        return false;
+      });
+    }
+
+    const appointmentsOnDate = agendamentos.filter(
+      (a) => a.dataAgendada.startsWith(data) && a.status !== "cancelado"
+    );
+
+    return validHorarios.filter((h) => {
+      let currentCount = 0;
+      appointmentsOnDate.forEach((a) => {
+        if (a.horarios && a.horarios.includes(h)) {
+          if (barbeiroId && a.barbeiroId === barbeiroId) {
+            currentCount += 999;
+          } else {
+            currentCount += a.quantidadePessoas || 1;
+          }
+        }
+      });
+      return currentCount + quantidadePessoas <= capacityPerSlot;
     });
-  }, [data, todayDate]);
+  }, [data, todayDate, agendamentos, barbeiros.length, barbeiroId, quantidadePessoas]);
 
   const toggleHorario = (h: string) => {
     setHorariosSelecionados((prev) => {
@@ -439,83 +461,72 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
               )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-6 pt-4 border-t border-gray-700">
               <div>
-                <label className="block text-sm text-gray-400 mb-2">
-                  Serviços (Opcionais)
-                </label>
-                <div className="bg-gray-700 border border-gray-600 rounded p-3 max-h-40 overflow-y-auto w-full custom-scrollbar">
-                  {servicos.length === 0 && (
-                    <p className="text-gray-500 text-sm">
-                      Nenhum serviço disponível.
-                    </p>
+                <label className="block text-sm text-gray-400 mb-3 font-medium">Produtos Disponíveis (Opcionais)</label>
+                <div className="space-y-4">
+                  {Object.entries(produtosPorCategoria).length === 0 && (
+                    <p className="text-gray-500 text-sm p-3 bg-gray-900/30 rounded-xl border border-gray-800 text-center">Nenhum produto disponível.</p>
                   )}
-                  {servicos.map((s) => (
-                    <label
-                      key={s.id}
-                      className="flex items-center space-x-3 mb-2 cursor-pointer pb-2 border-b border-gray-600/50 last:mb-0 last:pb-0 last:border-0"
-                    >
-                      <input
-                        type="checkbox"
-                        className="rounded text-blue-500 bg-gray-600 border-gray-500 focus:ring-blue-500 w-4 h-4 cursor-pointer"
-                        checked={servicosSelecionados.includes(s.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setServicosSelecionados((prev) => [...prev, s.id]);
-                          } else {
-                            setServicosSelecionados((prev) =>
-                              prev.filter((id) => id !== s.id),
-                            );
-                          }
-                        }}
-                      />
-                      <span className="text-sm text-gray-200 font-medium">
-                        {s.nome}{" "}
-                        <span className="text-green-400 ml-1">
-                          R$ {s.valor.toFixed(2)}
-                        </span>
-                      </span>
-                    </label>
+                  {Object.entries(produtosPorCategoria).map(([cat, prods]) => (
+                    <div key={cat}>
+                       <h4 className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">{cat}</h4>
+                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                         {prods.map(p => (
+                            <label key={p.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${produtosSelecionados.includes(p.id) ? 'bg-blue-900/20 border-blue-500/50' : 'bg-gray-900/50 border-gray-800 hover:border-gray-700'}`}>
+                              <input 
+                                type="checkbox" 
+                                checked={produtosSelecionados.includes(p.id)} 
+                                onChange={(e) => {
+                                  if (e.target.checked) setProdutosSelecionados(prev => [...prev, p.id]);
+                                  else setProdutosSelecionados(prev => prev.filter(i => i !== p.id));
+                                }} 
+                                className="w-5 h-5 rounded border-gray-700 text-blue-600 focus:ring-blue-500 bg-gray-800 shrink-0" 
+                              />
+                              <div className="flex-1 flex justify-between items-center min-w-0">
+                                <div className="truncate pr-2">
+                                  <div className="text-gray-200 font-medium truncate">{p.nome}</div>
+                                  <div className="text-gray-500 text-xs mt-0.5">Estoque: {p.estoque}</div>
+                                </div>
+                                <span className="text-blue-400 font-bold ml-2 whitespace-nowrap shrink-0">R$ {p.precoVenda.toFixed(2)}</span>
+                              </div>
+                            </label>
+                         ))}
+                       </div>
+                    </div>
                   ))}
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm text-gray-400 mb-2">
-                  Produtos (Opcionais)
-                </label>
-                <div className="bg-gray-700 border border-gray-600 rounded p-3 max-h-40 overflow-y-auto w-full custom-scrollbar">
-                  {produtos.length === 0 && (
-                    <p className="text-gray-500 text-sm">
-                      Nenhum produto disponível.
-                    </p>
+                <label className="block text-sm text-gray-400 mb-3 font-medium">Serviços Disponíveis (Opcionais)</label>
+                <div className="space-y-4">
+                  {Object.entries(servicosPorCategoria).length === 0 && (
+                    <p className="text-gray-500 text-sm p-3 bg-gray-900/30 rounded-xl border border-gray-800 text-center">Nenhum serviço disponível.</p>
                   )}
-                  {produtos.map((p) => (
-                    <label
-                      key={p.id}
-                      className="flex items-center space-x-3 mb-2 cursor-pointer pb-2 border-b border-gray-600/50 last:mb-0 last:pb-0 last:border-0"
-                    >
-                      <input
-                        type="checkbox"
-                        className="rounded text-blue-500 bg-gray-600 border-gray-500 focus:ring-blue-500 w-4 h-4 cursor-pointer"
-                        checked={produtosSelecionados.includes(p.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setProdutosSelecionados((prev) => [...prev, p.id]);
-                          } else {
-                            setProdutosSelecionados((prev) =>
-                              prev.filter((id) => id !== p.id),
-                            );
-                          }
-                        }}
-                      />
-                      <span className="text-sm text-gray-200 font-medium">
-                        {p.nome}{" "}
-                        <span className="text-blue-300 ml-1">
-                          R$ {p.precoVenda.toFixed(2)}
-                        </span>
-                      </span>
-                    </label>
+                  {Object.entries(servicosPorCategoria).map(([cat, servs]) => (
+                    <div key={cat}>
+                       <h4 className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">{cat}</h4>
+                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                         {servs.map(s => (
+                            <label key={s.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${servicosSelecionados.includes(s.id) ? 'bg-blue-900/20 border-blue-500/50' : 'bg-gray-900/50 border-gray-800 hover:border-gray-700'}`}>
+                              <input 
+                                type="checkbox" 
+                                checked={servicosSelecionados.includes(s.id)} 
+                                onChange={(e) => {
+                                  if (e.target.checked) setServicosSelecionados(prev => [...prev, s.id]);
+                                  else setServicosSelecionados(prev => prev.filter(i => i !== s.id));
+                                }} 
+                                className="w-5 h-5 rounded border-gray-700 text-blue-600 focus:ring-blue-500 bg-gray-800 shrink-0" 
+                              />
+                              <div className="flex-1 flex justify-between items-center min-w-0">
+                                <span className="text-gray-200 font-medium truncate pr-2">{s.nome}</span>
+                                <span className="text-emerald-400 font-bold ml-2 whitespace-nowrap shrink-0">R$ {s.valor.toFixed(2)}</span>
+                              </div>
+                            </label>
+                         ))}
+                       </div>
+                    </div>
                   ))}
                 </div>
               </div>
