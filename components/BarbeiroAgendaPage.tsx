@@ -13,12 +13,26 @@ interface BarbeiroAgendaPageProps {
   linkId?: String;
 }
 
+const HORARIOS = [
+  "14:00",
+  "14:30",
+  "15:00",
+  "15:30",
+  "16:00",
+  "16:30",
+  "17:00",
+  "17:30",
+  "18:00",
+  "18:30",
+  "19:00",
+];
+
 const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, linkId, isAdmin }) => {
 
 
   const resolvedCompanyId = `${linkId}` || empresa?.id;
   const { barbeiros } = useBarbeiros(resolvedCompanyId);
-  const { agendamentos, updateStatus, updateAgendamento, loadAgendamentos } = useBarbeariaAgendamentos(resolvedCompanyId);
+  const { agendamentos, addAgendamento, updateStatus, updateAgendamento, loadAgendamentos } = useBarbeariaAgendamentos(resolvedCompanyId);
   const { registros, addRegistro } = useBarbeariaRegistros(resolvedCompanyId);
   const { servicos, produtos, updateProduto } = useBarbeariaConfig(resolvedCompanyId);
 
@@ -63,6 +77,45 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
   
   const pendentes = meusAgendamentos.filter(a => a.status === 'pendente' || a.status === 'atendendo').sort((a, b) => new Date(a.dataAgendada).getTime() - new Date(b.dataAgendada).getTime());
   const concluidos = meusAgendamentos.filter(a => a.status === 'concluido').sort((a, b) => new Date(b.dataAgendada).getTime() - new Date(a.dataAgendada).getTime());
+
+  const currentMonth = selectedDate.substring(0, 7);
+  const meusAgendamentosMes = agendamentosByBarbeiro.filter(a => a.dataAgendada.startsWith(currentMonth));
+  const concluidosMes = meusAgendamentosMes.filter(a => a.status === 'concluido').sort((a, b) => new Date(b.dataAgendada).getTime() - new Date(a.dataAgendada).getTime());
+
+  const computeComissao = (agendamento: any, bId: string) => {
+    const barbeiro = barbeiros.find(b => b.id === bId);
+    if (!barbeiro) return 0;
+    
+    let comissaoServicos = 0;
+    let comissaoProdutos = 0;
+
+    if (agendamento.servicosIds && agendamento.servicosIds.length > 0) {
+      agendamento.servicosIds.forEach((sId: string) => {
+        const s = servicos.find(x => x.id === sId);
+        if (s) comissaoServicos += s.valor * ((barbeiro.corte || 0) / 100);
+      });
+    } else if (agendamento.servicoId) {
+      const s = servicos.find(x => x.id === agendamento.servicoId);
+      if (s) comissaoServicos += s.valor * ((barbeiro.corte || 0) / 100);
+    }
+
+    if (agendamento.produtosIds && agendamento.produtosIds.length > 0) {
+      agendamento.produtosIds.forEach((pId: string) => {
+        const p = produtos.find(prod => prod.id === pId);
+        if (p) comissaoProdutos += p.precoVenda * ((barbeiro.comissao || 0) / 100);
+      });
+    }
+
+    return comissaoServicos + comissaoProdutos;
+  };
+
+  const totalComissaoDia = React.useMemo(() => {
+    return concluidos.reduce((acc, a) => acc + computeComissao(a, a.barbeiroId || selectedBarbeiroId), 0);
+  }, [concluidos, selectedBarbeiroId, servicos, produtos, barbeiros]);
+
+  const totalComissaoMes = React.useMemo(() => {
+    return concluidosMes.reduce((acc, a) => acc + computeComissao(a, a.barbeiroId || selectedBarbeiroId), 0);
+  }, [concluidosMes, selectedBarbeiroId, servicos, produtos, barbeiros]);
 
   const handleAtender = async (a: any) => {
     const isUnassigned = !a.barbeiroId || a.barbeiroId === 'Qualquer um';
@@ -186,9 +239,43 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
     }
   };
 
-  const [isVendaModalOpen, setIsVendaModalOpen] = useState(false);
-  const [vendaProdutoId, setVendaProdutoId] = useState('');
-  const [vendaCliente, setVendaCliente] = useState('');
+  const [isAddClienteModalOpen, setIsAddClienteModalOpen] = useState(false);
+  const [addClienteNome, setAddClienteNome] = useState('');
+  const [addClienteTelefone, setAddClienteTelefone] = useState('');
+  const [addClienteServicos, setAddClienteServicos] = useState<string[]>([]);
+  const [addClienteProdutos, setAddClienteProdutos] = useState<string[]>([]);
+  const [addClienteData, setAddClienteData] = useState<string>(todayStr);
+  const [addClienteHora, setAddClienteHora] = useState('');
+  const [addClienteDescricao, setAddClienteDescricao] = useState('');
+  const [activeTab, setActiveTab] = useState<'proximos' | 'historico' | 'resumoMensal'>('proximos');
+
+  const addClienteTotal = React.useMemo(() => {
+    let total = 0;
+    addClienteServicos.forEach(id => {
+      const s = servicos.find(x => x.id === id);
+      if (s) total += s.valor;
+    });
+    addClienteProdutos.forEach(id => {
+      const p = produtos.find(x => x.id === id);
+      if (p) total += p.precoVenda;
+    });
+    return total;
+  }, [addClienteServicos, addClienteProdutos, servicos, produtos]);
+
+  const availableHorariosAddCliente = React.useMemo(() => {
+    if (!addClienteData) return HORARIOS;
+    if (addClienteData > todayStr) return HORARIOS;
+
+    const nowHour = new Date().getHours();
+    const nowMinute = new Date().getMinutes();
+
+    return HORARIOS.filter((h) => {
+      const [hHour, hMinute] = h.split(":").map(Number);
+      if (hHour > nowHour) return true;
+      if (hHour === nowHour && hMinute > nowMinute) return true;
+      return false;
+    });
+  }, [addClienteData, todayStr]);
 
   React.useEffect(() => {
     // Polling a cada 30 segundos usando loadAgendamentos para manter a agenda sempre atualizada
@@ -198,29 +285,81 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
     return () => clearInterval(interval);
   }, [loadAgendamentos]);
 
-  const handleVendaAvulsa = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!vendaProdutoId) return alert('Selecione um produto.');
-    const p = produtos.find(prod => prod.id === vendaProdutoId);
-    if (!p) return;
-    
-    if (barbeiro && p) {
-      addRegistro({
-        cliente: vendaCliente || 'Cliente Balcão',
-        telefone: '',
-        barbeiroId: barbeiro.id,
-        barbeiroNome: barbeiro.nome,
-        itens: [{ idItem: p.id, nome: p.nome, tipo: 'produto', valor: p.precoVenda }],
-        total: p.precoVenda
-      });
-      if (p.estoque > 0) {
-        updateProduto(p.id, { estoque: p.estoque - 1 });
-      }
-      setIsVendaModalOpen(false);
-      setVendaProdutoId('');
-      setVendaCliente('');
-      alert('Venda registrada com sucesso!');
+  const handleAddClienteSubmit = async (statusFinal: 'atendendo' | 'concluido') => {
+    if (!addClienteTelefone || !addClienteHora || !addClienteData) {
+      alert("Preencha telefone, data e hora.");
+      return;
     }
+    
+    const justNumbers = addClienteTelefone.replace(/\D/g, "");
+    if (justNumbers.length < 10 || justNumbers.length > 11) {
+      alert("Por favor, insira um telefone válido com código de área (DDD) contendo 10 ou 11 dígitos.");
+      return;
+    }
+
+    if (addClienteServicos.length === 0 && addClienteProdutos.length === 0) {
+      alert("Selecione ao menos um serviço ou produto.");
+      return;
+    }
+
+    const agendamentoData: any = {
+      clienteNome: addClienteNome || "Cliente Avulso",
+      clienteTelefone: addClienteTelefone,
+      barbeiroId: selectedBarbeiroId === 'todos' ? '' : selectedBarbeiroId,
+      servicosIds: addClienteServicos,
+      produtosIds: addClienteProdutos,
+      dataAgendada: `${addClienteData}T${addClienteHora}:00`,
+      horarios: [addClienteHora],
+      status: statusFinal,
+      quantidadePessoas: 1,
+      nomesAcompanhantes: "",
+      descricao: addClienteDescricao,
+      linkId: resolvedCompanyId
+    };
+
+    const added = await addAgendamento(agendamentoData);
+    
+    // Se foi 'concluido', precisamos gravar no fluxo de caixa:
+    if (statusFinal === 'concluido') {
+      const itens: any[] = [];
+      let total = 0;
+      
+      addClienteServicos.forEach(sId => {
+        const s = servicos.find(x => x.id === sId);
+        if (s) {
+          itens.push({ idItem: s.id, nome: s.nome, tipo: 'servico', valor: s.valor });
+          total += s.valor;
+        }
+      });
+      
+      addClienteProdutos.forEach(pId => {
+        const p = produtos.find(x => x.id === pId);
+        if (p) {
+          itens.push({ idItem: p.id, nome: p.nome, tipo: 'produto', valor: p.precoVenda });
+          total += p.precoVenda;
+        }
+      });
+      
+      addRegistro({
+        cliente: addClienteNome,
+        telefone: addClienteTelefone,
+        barbeiroId: selectedBarbeiroId === 'todos' ? 'Qualquer um' : selectedBarbeiroId,
+        barbeiroNome: selectedBarbeiroId === 'todos' ? 'Qualquer um' : (barbeiro?.nome || 'Qualquer um'),
+        itens,
+        total
+      });
+    }
+
+    // Limpar estados
+    setIsAddClienteModalOpen(false);
+    setAddClienteNome('');
+    setAddClienteTelefone('');
+    setAddClienteServicos([]);
+    setAddClienteProdutos([]);
+    setAddClienteData(todayStr);
+    setAddClienteHora('');
+    setAddClienteDescricao('');
+    loadAgendamentos();
   };
 
   const handleAddExtraItem = async (e: React.FormEvent) => {
@@ -307,13 +446,10 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
             </div>
             <div className="flex items-center gap-3 w-full sm:w-auto">
               {barbeiro?.id !== 'todos' && (
-                <button onClick={() => setIsVendaModalOpen(true)} className="flex-1 sm:flex-none text-sm font-bold text-green-400 hover:text-green-300 bg-green-500/10 hover:bg-green-500/20 px-4 py-2.5 rounded-xl transition-all border border-green-500/20 whitespace-nowrap">
-                  💰 Vender Produto
+                <button onClick={() => setIsAddClienteModalOpen(true)} className="flex-1 sm:flex-none text-sm font-bold text-green-400 hover:text-green-300 bg-green-500/10 hover:bg-green-500/20 px-4 py-2.5 rounded-xl transition-all border border-green-500/20 whitespace-nowrap">
+                  + Adicionar Cliente
                 </button>
               )}
-              <button onClick={() => setSelectedBarbeiroId('')} className="flex-1 sm:flex-none text-sm font-bold text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 px-4 py-2.5 rounded-xl transition-all border border-blue-500/20 whitespace-nowrap">
-                Trocar Perfil
-              </button>
             </div>
           </div>
           
@@ -369,40 +505,156 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
             </div>
           )}
 
-          {isVendaModalOpen && (
+          {isAddClienteModalOpen && (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 md:p-8 w-full max-w-md shadow-2xl">
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 md:p-8 w-full max-w-md shadow-2xl overflow-y-auto max-h-[90vh] custom-scrollbar">
                 <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-xl font-bold text-white">Venda Avulsa (Balcão)</h3>
-                  <button onClick={() => setIsVendaModalOpen(false)} className="text-gray-500 hover:text-gray-300">
+                  <h3 className="text-xl font-bold text-white">Adicionar Cliente</h3>
+                  <button onClick={() => setIsAddClienteModalOpen(false)} className="text-gray-500 hover:text-gray-300">
                     <XCircleIcon className="w-6 h-6" />
                   </button>
                 </div>
-                <form onSubmit={handleVendaAvulsa} className="space-y-4">
+                <div className="space-y-4">
                   <div>
-                    <label className="block text-sm text-gray-400 mb-1">Produto</label>
-                    <select 
-                      required value={vendaProdutoId} onChange={e => setVendaProdutoId(e.target.value)}
-                      className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-3 text-sm focus:border-blue-500 focus:outline-none"
-                    >
-                      <option value="">Selecione um produto...</option>
-                      {produtos.map(p => (
-                        <option key={p.id} value={p.id}>{p.nome} - R$ {p.precoVenda.toFixed(2)} (Estoque: {p.estoque})</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-1">Nome do Cliente (Opcional)</label>
+                    <label className="block text-sm text-gray-400 mb-1">Telefone / Celular</label>
                     <input 
-                      type="text" value={vendaCliente} onChange={e => setVendaCliente(e.target.value)}
+                      type="tel" value={addClienteTelefone} onChange={e => {
+                        let val = e.target.value.replace(/\D/g, "");
+                        if (val.length > 11) val = val.substring(0, 11);
+                        if (val.length > 2) val = `(${val.substring(0, 2)}) ${val.substring(2)}`;
+                        if (val.length > 9) val = `${val.substring(0, 10)}-${val.substring(10)}`;
+                        setAddClienteTelefone(val);
+                      }}
                       className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-3 text-sm focus:border-blue-500 focus:outline-none"
-                      placeholder="Ex: João da Silva"
+                      placeholder="(DD) 99999-9999"
                     />
                   </div>
-                  <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 mt-4 rounded-xl transition-colors">
-                    Confirmar Venda
-                  </button>
-                </form>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Nome do Cliente</label>
+                    <input 
+                      type="text" value={addClienteNome} onChange={e => setAddClienteNome(e.target.value)}
+                      className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-3 text-sm focus:border-blue-500 focus:outline-none"
+                      placeholder="Nome do cliente"
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1">Serviços (Opcionais)</label>
+                      <div className="bg-gray-700 border border-gray-600 rounded p-3 max-h-40 overflow-y-auto w-full custom-scrollbar">
+                        {servicos.length === 0 && <p className="text-gray-500 text-sm">Nenhum serviço.</p>}
+                        {servicos.map(s => (
+                          <label key={s.id} className="flex items-center space-x-3 mb-2 cursor-pointer pb-2 border-b border-gray-600/50 last:mb-0 last:pb-0 last:border-0">
+                            <input
+                              type="checkbox"
+                              className="rounded text-blue-500 bg-gray-600 border-gray-500 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                              checked={addClienteServicos.includes(s.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) setAddClienteServicos(prev => [...prev, s.id]);
+                                else setAddClienteServicos(prev => prev.filter(id => id !== s.id));
+                              }}
+                            />
+                            <span className="text-sm font-medium text-gray-200">
+                              {s.nome} <span className="text-green-400">R$ {s.valor.toFixed(2)}</span>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1">Produtos (Opcionais)</label>
+                      <div className="bg-gray-700 border border-gray-600 rounded p-3 max-h-40 overflow-y-auto w-full custom-scrollbar">
+                        {produtos.length === 0 && <p className="text-gray-500 text-sm">Nenhum produto.</p>}
+                        {produtos.map(p => (
+                          <label key={p.id} className="flex items-center space-x-3 mb-2 cursor-pointer pb-2 border-b border-gray-600/50 last:mb-0 last:pb-0 last:border-0">
+                            <input
+                              type="checkbox"
+                              className="rounded text-blue-500 bg-gray-600 border-gray-500 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                              checked={addClienteProdutos.includes(p.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) setAddClienteProdutos(prev => [...prev, p.id]);
+                                else setAddClienteProdutos(prev => prev.filter(id => id !== p.id));
+                              }}
+                            />
+                            <span className="text-sm font-medium text-gray-200">
+                              {p.nome} <span className="text-blue-400">R$ {p.precoVenda.toFixed(2)}</span>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">Selecione a Data *</label>
+                    <CustomDatePicker
+                      selectedDate={addClienteData}
+                      onChange={(d) => {
+                        setAddClienteData(d);
+                        setAddClienteHora('');
+                      }}
+                      onMonthChange={() => {
+                        setAddClienteHora('');
+                      }}
+                    />
+                    {addClienteData && availableHorariosAddCliente.length === 0 && (
+                      <p className="text-red-400 text-xs mt-2">Nenhum horário disponível para esta data hoje.</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">Horários *</label>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {availableHorariosAddCliente.map((h) => (
+                        <button
+                          key={h}
+                          type="button"
+                          onClick={() => setAddClienteHora(h)}
+                          className={`py-1 px-1.5 rounded text-xs text-center border transition-colors ${
+                            addClienteHora === h
+                              ? "bg-blue-600 border-blue-500 text-white"
+                              : "bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700"
+                          }`}
+                        >
+                          {h}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Descrição / Observações (Opcional)</label>
+                    <textarea 
+                      value={addClienteDescricao} 
+                      onChange={e => setAddClienteDescricao(e.target.value)}
+                      className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-3 text-sm focus:border-blue-500 focus:outline-none resize-none h-20 custom-scrollbar"
+                      placeholder="Adicione observações ou comentários sobre o cliente..."
+                    />
+                  </div>
+
+                  <div className="flex justify-end items-center mb-4 mt-2">
+                    <span className="text-gray-300 font-medium">Total:</span>
+                    <span className="text-xl font-bold text-emerald-400 ml-3">R$ {addClienteTotal.toFixed(2)}</span>
+                  </div>
+
+                  <div className="flex gap-3 pt-4 border-t border-gray-800">
+                    <button 
+                      type="button" 
+                      onClick={() => handleAddClienteSubmit('atendendo')} 
+                      className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 pt-4 rounded-xl transition-colors text-sm"
+                    >
+                      Atender
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => handleAddClienteSubmit('concluido')} 
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 pt-4 rounded-xl transition-colors text-sm"
+                    >
+                      Concluir
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -483,8 +735,30 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="bg-[#1a1a1d] p-6 md:p-8 rounded-3xl border border-gray-800/60 shadow-2xl">
+          <div className="flex flex-col sm:flex-row gap-2 bg-gray-900 border border-gray-800 rounded-2xl p-2 mb-6">
+            <button 
+              onClick={() => setActiveTab('proximos')} 
+              className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all ${activeTab === 'proximos' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`}
+            >
+              Próximos Agendamentos ({pendentes.length})
+            </button>
+            <button 
+              onClick={() => setActiveTab('historico')} 
+              className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all ${activeTab === 'historico' ? 'bg-emerald-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`}
+            >
+              Resumo Diário
+            </button>
+            <button 
+              onClick={() => setActiveTab('resumoMensal')} 
+              className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all ${activeTab === 'resumoMensal' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`}
+            >
+              Resumo Mensal
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 gap-8">
+            {activeTab === 'proximos' && (
+            <div className="bg-[#1a1a1d] p-6 md:p-8 rounded-3xl border border-gray-800/60 shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300">
               <h2 className="text-2xl font-black text-gray-100 mb-6 border-b border-gray-800/80 pb-4 flex justify-between items-center tracking-tight">
                 <span>Próximos Agendamentos</span>
                 <span className="bg-blue-600 shadow-lg shadow-blue-500/20 font-black text-white text-sm px-3 py-1 rounded-xl">{pendentes.length}</span>
@@ -712,9 +986,15 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                 </div>
               )}
             </div>
+            )}
 
-            <div className="bg-[#1a1a1d] p-6 md:p-8 rounded-3xl border border-gray-800/60 shadow-2xl h-fit">
-              <h2 className="text-xl font-bold text-gray-300 mb-6 border-b border-gray-800/80 pb-4 flex justify-between items-center tracking-tight">Histórico Recente</h2>
+            {activeTab === 'historico' && (
+            <div className="bg-[#1a1a1d] p-6 md:p-8 rounded-3xl border border-gray-800/60 shadow-2xl h-fit animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <h2 className="text-xl font-bold text-gray-300 mb-6 border-b border-gray-800/80 pb-4 flex justify-between items-center tracking-tight">
+                <span>Resumo Diário</span>
+                <span className="text-emerald-400 font-black text-xl">R$ {totalComissaoDia.toFixed(2)}</span>
+              </h2>
+              <p className="text-gray-400 text-sm mb-4">Abaixo estão os serviços concluídos de hoje e a sua comissão correspondente baseada nos percentuais.</p>
               {concluidos.length === 0 ? (
                 <div className="w-full bg-gray-900/50 p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center">
                   <CheckCircleIcon className="w-12 h-12 mb-3 text-gray-700" />
@@ -808,8 +1088,8 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                           })}
                           {valorTotal > 0 && (
                             <div className="flex justify-between items-center text-sm px-3 py-2 border-t border-gray-700/50 mt-1">
-                              <span className="text-gray-400 font-medium">Total</span>
-                              <span className="text-emerald-400 font-bold text-base">R$ {valorTotal.toFixed(2)}</span>
+                              <span className="text-gray-400 font-medium">Sua Comissão</span>
+                              <span className="text-emerald-400 font-bold text-base">R$ {computeComissao(a, a.barbeiroId || selectedBarbeiroId).toFixed(2)}</span>
                             </div>
                           )}
                         </div>
@@ -819,6 +1099,27 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                 </div>
               )}
             </div>
+            )}
+
+            {activeTab === 'resumoMensal' && (
+              <div className="bg-[#1a1a1d] p-6 md:p-8 rounded-3xl border border-gray-800/60 shadow-2xl h-fit animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <h2 className="text-xl font-bold text-gray-300 mb-6 border-b border-gray-800/80 pb-4 flex justify-between items-center tracking-tight">
+                  <span>Resumo Mensal ({currentMonth.split('-').reverse().join('/')})</span>
+                  <span className="text-purple-400 font-black text-xl">R$ {totalComissaoMes.toFixed(2)}</span>
+                </h2>
+                <p className="text-gray-400 text-sm mb-4">Total de comissões acumuladas considerando todos os serviços concluídos no mês selecionado.</p>
+                <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 flex flex-col items-center justify-center text-center">
+                  <div className="w-16 h-16 bg-purple-900/20 flex items-center justify-center rounded-full mb-4">
+                    <svg className="w-8 h-8 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-gray-300 font-bold text-lg mb-1">Comissão Mensal</h3>
+                  <p className="text-purple-400 font-black text-3xl mb-2">R$ {totalComissaoMes.toFixed(2)}</p>
+                  <p className="text-gray-500 text-sm">Serviços concluídos: <span className="text-white font-medium">{concluidosMes.length}</span></p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

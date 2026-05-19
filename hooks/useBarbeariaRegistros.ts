@@ -110,12 +110,16 @@ export const useBarbeariaAgendamentos = (empresaId?: string) => {
         body: JSON.stringify(agendamentoData),
       });
       if (response.ok) {
+        const data = await response.json();
         loadAgendamentos();
+        return data;
       } else {
         console.error('Erro ao adicionar agendamento via API');
+        return null;
       }
     } catch (e) {
       console.error('Erro de conexão ao adicionar agendamento:', e);
+      return null;
     }
   };
 

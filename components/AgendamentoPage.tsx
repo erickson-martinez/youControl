@@ -549,13 +549,13 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
                     (Selecione {quantidadePessoas})
                   </span>
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-1.5">
                   {availableHorarios.map((h) => (
                     <button
                       key={h}
                       type="button"
                       onClick={() => toggleHorario(h)}
-                      className={`py-1 px-2 rounded text-sm text-center border transition-colors ${
+                      className={`py-1 px-1.5 rounded text-xs text-center border transition-colors ${
                         horariosSelecionados.includes(h)
                           ? "bg-blue-600 border-blue-500 text-white"
                           : "bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700"
