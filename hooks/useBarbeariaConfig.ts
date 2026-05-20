@@ -41,10 +41,12 @@ export const useBarbeariaConfig = (empresaId?: string) => {
   const keyC = `barbearia_custos${suffix}`;
 
   const fetchProdutos = useCallback(async () => {
+    if (!empresaId) {
+      setProdutos([]);
+      return;
+    }
     try {
-      const url = empresaId 
-        ? `${API_BASE_URL}/api/barber-products?linkId=${empresaId}`
-        : `${API_BASE_URL}/api/barber-products`;
+      const url = `${API_BASE_URL}/api/barber-products?linkId=${empresaId}`;
       const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
@@ -57,10 +59,12 @@ export const useBarbeariaConfig = (empresaId?: string) => {
   }, [empresaId]);
 
   const fetchServicos = useCallback(async () => {
+    if (!empresaId) {
+      setServicos([]);
+      return;
+    }
     try {
-      const url = empresaId 
-        ? `${API_BASE_URL}/api/barber-services?linkId=${empresaId}`
-        : `${API_BASE_URL}/api/barber-services`;
+      const url = `${API_BASE_URL}/api/barber-services?linkId=${empresaId}`;
       const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();

@@ -21,7 +21,11 @@ import { Empresa } from "../types";
 import { CustomDatePicker } from "./CustomDatePicker";
 
 export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: Empresa, empresas?: Empresa[] }) {
-  const [selectedEmpresaId, setSelectedEmpresaId] = useState<string | undefined>();
+  const [selectedEmpresaId, setSelectedEmpresaId] = useState<string | undefined>(() => {
+    if (empresas?.length === 1) return empresas[0].linkId || empresas[0].id;
+    if (empresa) return empresa.linkId || empresa.id;
+    return undefined;
+  });
   const [hasInitialized, setHasInitialized] = useState(false);
 
   const { barbeiros, reloadBarbeiros } = useBarbeiros(selectedEmpresaId);

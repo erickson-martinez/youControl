@@ -1264,8 +1264,8 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
 
   const pendentes = agendamentos.filter(a => a.status === 'finalizado').sort((a, b) => new Date(a.dataAgendada).getTime() - new Date(b.dataAgendada).getTime());
   
-  const handleConcluir = (a: any) => {
-    updateStatus(a.id, 'pago');
+  const handleConcluir = async (a: any) => {
+    await updateStatus(a.id, 'pago');
     
     let total = 0;
     const itens = [];
@@ -1295,14 +1295,14 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
           itens.push({ idItem: prod.id, nome: prod.nome, tipo: 'produto', valor: prod.precoVenda });
           total += prod.precoVenda;
           if (prod.estoque !== undefined) {
-             updateProduto(prod.id, { estoque: Math.max(0, prod.estoque - 1) });
+            updateProduto(prod.id, { estoque: Math.max(0, prod.estoque - 1) });
           }
         }
       });
     }
 
     if (itens.length > 0) {
-      addRegistro({
+      await addRegistro({
         cliente: a.cliente,
         telefone: a.telefone,
         barbeiroId: a.barbeiroId,

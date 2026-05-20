@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '../constants';
+import { useBarbeariaConfig } from './useBarbeariaConfig';
+import { useBarbeiros } from './useBarbeiros';
 
 export interface RegistroItem {
   idItem: string; // id do produto ou servico
@@ -18,43 +20,6 @@ export interface RegistroBarbearia {
   itens: RegistroItem[];
   total: number;
 }
-
-export const useBarbeariaRegistros = (empresaId?: string) => {
-  const [registros, setRegistros] = useState<RegistroBarbearia[]>([]);
-  const key = empresaId ? `barbearia_registros_${empresaId}` : 'barbearia_registros';
-
-  const loadRegistros = () => {
-    const data = localStorage.getItem(key);
-    if (data) {
-      setRegistros(JSON.parse(data));
-    } else {
-      setRegistros([]);
-    }
-  };
-
-  useEffect(() => {
-    loadRegistros();
-  }, [empresaId]);
-
-  useEffect(() => {
-    localStorage.setItem(key, JSON.stringify(registros));
-  }, [registros, key]);
-
-  const addRegistro = (registro: Omit<RegistroBarbearia, 'id' | 'data'>) => {
-    const novo = {
-      ...registro,
-      id: Date.now().toString(),
-      data: new Date().toISOString()
-    };
-    setRegistros(prev => [novo, ...prev]);
-  };
-
-  const removeRegistro = (id: string) => {
-    setRegistros(prev => prev.filter(r => r.id !== id));
-  };
-
-  return { registros, addRegistro, removeRegistro, loadRegistros };
-};
 
 export interface Agendamento {
   id: string;
@@ -78,10 +43,12 @@ export const useBarbeariaAgendamentos = (empresaId?: string) => {
   const key = empresaId ? `barbearia_agendamentos_${empresaId}` : 'barbearia_agendamentos';
 
   const loadAgendamentos = useCallback(async () => {
+    if (!empresaId) {
+      setAgendamentos([]);
+      return;
+    }
     try {
-      const url = empresaId 
-        ? `${API_BASE_URL}/api/appointment-barbers?linkId=${empresaId}`
-        : `${API_BASE_URL}/api/appointment-barbers`;
+      const url = `${API_BASE_URL}/api/appointment-barbers?linkId=${empresaId}`;
       const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
@@ -168,3 +135,86 @@ export const useBarbeariaAgendamentos = (empresaId?: string) => {
 
   return { agendamentos, addAgendamento, updateStatus, updateAgendamento, loadAgendamentos };
 };
+export const useBarbeariaRegistros = (empresaId?: string) => {
+  const { agendamentos, loadAgendamentos, updateAgendamento } = useBarbeariaAgendamentos(empresaId);
+  const { servicos, produtos } = useBarbeariaConfig(empresaId);
+  const { barbeiros } = useBarbeiros(empresaId);
+
+  const [registros, setRegistros] = useState<RegistroBarbearia[]>([]);
+
+  const loadRegistros = useCallback(() => {
+    loadAgendamentos();
+  }, [loadAgendamentos]);
+
+  useEffect(() => {
+    if (agendamentos.length === 0 && servicos.length === 0) return;
+    
+    const pagos = agendamentos.filter(a => a.status === 'pago');
+    const logs = pagos.map(a => {
+      const itens: RegistroItem[] = [];
+      let total = 0;
+      
+      if (a.servicosIds && a.servicosIds.length > 0) {
+        a.servicosIds.forEach(id => {
+          const s = servicos.find(x => x.id === id);
+          if (s) {
+            itens.push({ idItem: s.id, nome: s.nome, tipo: 'servico', valor: s.valor });
+            total += s.valor;
+          }
+        });
+      } else if (a.servicoId) {
+        const s = servicos.find(x => x.id === a.servicoId);
+        if (s) {
+          itens.push({ idItem: s.id, nome: s.nome, tipo: 'servico', valor: s.valor });
+          total += s.valor;
+        }
+      }
+
+      if (a.produtosIds) {
+        a.produtosIds.forEach(id => {
+          const p = produtos.find(x => x.id === id);
+          if (p) {
+            itens.push({ idItem: p.id, nome: p.nome, tipo: 'produto', valor: p.precoVenda });
+            total += p.precoVenda;
+          }
+        });
+      }
+      
+      // Se não achou na config (pode ter sido apagado), usa fallback se houver valorTotalPrevisto
+      if (itens.length === 0 && a.valorTotalPrevisto) {
+        total = a.valorTotalPrevisto;
+      }
+
+      const barbeiro = barbeiros.find(b => b.id === a.barbeiroId);
+
+      return {
+        id: a.id,
+        data: a.dataAgendada,
+        cliente: a.cliente,
+        telefone: a.telefone,
+        barbeiroId: a.barbeiroId,
+        barbeiroNome: barbeiro ? barbeiro.nome : 'Qualquer um',
+        itens,
+        total
+      };
+    });
+
+    setRegistros(logs);
+  }, [agendamentos, servicos, produtos, barbeiros]);
+
+  // addRegistro agora é obsoleto para chamadas diretas como era antes se usarmos 'updateStatus' no agendamento.
+  // Mantendo a interface se precisarmos forçar adicionar algo manual (não recomendado agora).
+  const addRegistro = async (registro: Omit<RegistroBarbearia, 'id' | 'data'>) => {
+    // Não faremos isso via essa rota mais, deve-se gerar/usar um agendamento.
+    return null; 
+  };
+
+  const removeRegistro = async (id: string) => {
+    // Deletar ou cancelar no agendamento
+    await fetch(`${API_BASE_URL}/api/appointment-barbers/${id}`, { method: 'DELETE' });
+    loadAgendamentos();
+  };
+
+  return { registros, addRegistro, removeRegistro, loadRegistros };
+};
+

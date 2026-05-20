@@ -15,10 +15,12 @@ export const useBarbeiros = (empresaId?: string) => {
   const [barbeiros, setBarbeiros] = useState<Barbeiro[]>([]);
 
   const reloadBarbeiros = useCallback(async () => {
+    if (!empresaId) {
+      setBarbeiros([]);
+      return;
+    }
     try {
-      const url = empresaId 
-        ? `${API_BASE_URL}/api/barbers?linkId=${empresaId}` 
-        : `${API_BASE_URL}/api/barbers`;
+      const url = `${API_BASE_URL}/api/barbers?linkId=${empresaId}`;
       const response = await fetch(url);
       if (!response.ok) throw new Error('Erro ao buscar barbeiros');
       const data = await response.json();
