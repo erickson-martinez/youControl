@@ -1253,6 +1253,8 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
     return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
   });
 
+  const [activeSubTab, setActiveSubTab] = useState<'aguardando' | 'diario' | 'mensal' | 'historico'>('aguardando');
+
   const handleReload = () => {
     loadRegistros();
     loadAgendamentos();
@@ -1356,102 +1358,173 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
   const comissoesMes = calcularComissoes(registrosFiltradosMes);
 
   return (
-    <div className="space-y-8">
-      {/* Resumo de Comissões */}
-      <div className="bg-gray-800/80 p-6 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
-        <div className="flex flex-col md:flex-row justify-between md:items-center mb-6 gap-4 border-b border-gray-700/50 pb-4">
-          <div>
-             <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-               Resumo de Comissões e Faturamento
-             </h2>
-             <p className="text-gray-400 text-sm mt-1">Valores agrupados por barbeiro.</p>
-          </div>
-          <div>
-            <input 
-              type="date"
-              value={dataFiltro}
-              onChange={(e) => setDataFiltro(e.target.value)}
-              className="bg-gray-900 border border-gray-700 text-white font-bold rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3"
-            />
-          </div>
-        </div>
-        
-        <div className="mb-8">
-            <h3 className="text-lg font-bold text-gray-300 mb-4 tracking-wide">Diário ({dataFiltro.split('-').reverse().join('/')})</h3>
-            {comissoesDia.length === 0 ? (
-              <div className="w-full bg-gray-900/50 p-6 rounded-2xl border border-gray-800 text-center text-gray-500">
-                <p>Nenhuma venda ou serviço registrado para esta data.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {comissoesDia.map((c, idx) => (
-                  <div key={idx} className="bg-gray-900/60 p-5 rounded-2xl border border-gray-700 flex flex-col gap-2 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-3 opacity-10">
-                        <svg className="w-16 h-16 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    </div>
-                    <h3 className="font-bold text-white text-lg z-10">{c.barbeiro.nome}</h3>
-                    <div className="text-xs text-gray-400 mb-2 border-b border-gray-800 pb-2">Fat. Bruto: <span className="font-bold text-white">R$ {c.faturamentoTotal.toFixed(2)}</span></div>
-                    
-                    <div className="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
-                      <span className="text-gray-400">Serviços ({c.barbeiro.corte}%)</span>
-                      <span className="text-green-400 font-medium">R$ {c.comissaoServicos.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
-                      <span className="text-gray-400">Produtos ({c.barbeiro.comissao}%)</span>
-                      <span className="text-blue-400 font-medium">R$ {c.comissaoProdutos.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center mt-2 pt-1 border-t border-gray-800">
-                      <span className="text-gray-300 font-bold text-sm">Comissão a Pagar</span>
-                      <span className="text-green-400 font-black text-xl">R$ {c.totalComissao.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center mt-1 bg-blue-900/10 p-2 rounded-lg border border-blue-500/20">
-                      <span className="text-blue-200 font-bold text-xs uppercase">Liquidez (Barbearia)</span>
-                      <span className="text-blue-400 font-black text-sm">R$ {c.caixaBarbearia.toFixed(2)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-        </div>
+    <div className="space-y-6">
+      {/* Tabs Nav for Sub-sections */}
+      <div className="bg-gray-800/80 p-2 md:p-3 rounded-2xl border border-gray-700/50 shadow-md">
+        <nav className="flex flex-col sm:flex-row gap-2">
+          <button
+            onClick={() => setActiveSubTab('aguardando')}
+            className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 ${
+              activeSubTab === 'aguardando' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-700'
+            }`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            Aguardando Pagamento
+          </button>
+          
+          <button
+            onClick={() => setActiveSubTab('historico')}
+            className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 ${
+              activeSubTab === 'historico' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-700'
+            }`}
+          >
+            <ClipboardListIcon className="w-4 h-4" />
+            Histórico (Fechados)
+          </button>
 
-        <div className="pt-6 border-t border-gray-700/50">
-            <h3 className="text-lg font-bold text-gray-300 mb-4 tracking-wide">Mensal ({dataFiltro.split('-').slice(0,2).reverse().join('/')})</h3>
-            {comissoesMes.length === 0 ? (
-              <div className="w-full bg-gray-900/50 p-6 rounded-2xl border border-gray-800 text-center text-gray-500">
-                <p>Nenhum registro encontrado para este mês.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {comissoesMes.map((c, idx) => (
-                  <div key={idx} className="bg-gray-900/40 p-5 rounded-2xl border border-gray-700 flex flex-col gap-2 relative overflow-hidden">
-                    <h3 className="font-bold text-white text-lg z-10">{c.barbeiro.nome}</h3>
-                    <div className="text-xs text-gray-400 mb-2 border-b border-gray-800 pb-2">Fat. Bruto Mensal: <span className="font-bold text-white">R$ {c.faturamentoTotal.toFixed(2)}</span></div>
-                    
-                    <div className="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
-                      <span className="text-gray-400">Serviços</span>
-                      <span className="text-green-400 font-medium">R$ {c.comissaoServicos.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
-                      <span className="text-gray-400">Produtos</span>
-                      <span className="text-blue-400 font-medium">R$ {c.comissaoProdutos.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center mt-2 pt-1 border-t border-gray-800">
-                      <span className="text-gray-300 font-bold text-sm">Comissão Mensal</span>
-                      <span className="text-emerald-400 font-black text-lg">R$ {c.totalComissao.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center mt-1 bg-blue-900/10 p-2 rounded-lg border border-blue-500/20">
-                      <span className="text-blue-200 font-bold text-xs uppercase">Liquidez (Barbearia)</span>
-                      <span className="text-blue-400 font-black text-sm">R$ {c.caixaBarbearia.toFixed(2)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-        </div>
+          <button
+            onClick={() => setActiveSubTab('diario')}
+            className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 ${
+              activeSubTab === 'diario' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-700'
+            }`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+            Comissões Hoje
+          </button>
+          
+          <button
+            onClick={() => setActiveSubTab('mensal')}
+            className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 ${
+              activeSubTab === 'mensal' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-700'
+            }`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+            Comissões Mês
+          </button>
+        </nav>
       </div>
 
-      {/* Agendamentos Pendentes */}
-      <div className="bg-gray-800/80 p-6 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
+      {activeSubTab === 'diario' && (
+        <div className="grid grid-cols-1 gap-6">
+          <div className="bg-gray-800/80 p-6 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
+            <div className="flex flex-col md:flex-row justify-between md:items-center mb-6 gap-4 border-b border-gray-700/50 pb-4">
+              <div>
+                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                   Resumo Diário de Comissões
+                 </h2>
+                 <p className="text-gray-400 text-sm mt-1">Valores agrupados por barbeiro referentes à data selecionada.</p>
+              </div>
+              <div>
+                <input 
+                  type="date"
+                  value={dataFiltro}
+                  onChange={(e) => setDataFiltro(e.target.value)}
+                  className="bg-gray-900 border border-gray-700 text-white font-bold rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3"
+                />
+              </div>
+            </div>
+            
+            <div>
+                <h3 className="text-lg font-bold text-gray-300 mb-4 tracking-wide">Hoje ({dataFiltro.split('-').reverse().join('/')})</h3>
+                {comissoesDia.length === 0 ? (
+                  <div className="w-full bg-gray-900/50 p-6 rounded-2xl border border-gray-800 text-center text-gray-500">
+                    <p>Nenhuma venda ou serviço registrado para esta data.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {comissoesDia.map((c, idx) => (
+                      <div key={idx} className="bg-gray-900/60 p-5 rounded-2xl border border-gray-700 flex flex-col gap-2 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-3 opacity-10">
+                            <svg className="w-16 h-16 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        </div>
+                        <h3 className="font-bold text-white text-lg z-10">{c.barbeiro.nome}</h3>
+                        <div className="text-xs text-gray-400 mb-2 border-b border-gray-800 pb-2">Fat. Bruto: <span className="font-bold text-white">R$ {c.faturamentoTotal.toFixed(2)}</span></div>
+                        
+                        <div className="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
+                          <span className="text-gray-400">Serviços ({c.barbeiro.corte}%)</span>
+                          <span className="text-green-400 font-medium">R$ {c.comissaoServicos.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
+                          <span className="text-gray-400">Produtos ({c.barbeiro.comissao}%)</span>
+                          <span className="text-blue-400 font-medium">R$ {c.comissaoProdutos.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center mt-2 pt-1 border-t border-gray-800">
+                          <span className="text-gray-300 font-bold text-sm">Comissão a Pagar</span>
+                          <span className="text-green-400 font-black text-xl">R$ {c.totalComissao.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center mt-1 bg-blue-900/10 p-2 rounded-lg border border-blue-500/20">
+                          <span className="text-blue-200 font-bold text-xs uppercase">Liquidez (Barbearia)</span>
+                          <span className="text-blue-400 font-black text-sm">R$ {c.caixaBarbearia.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeSubTab === 'mensal' && (
+        <div className="grid grid-cols-1 gap-6">
+          <div className="bg-gray-800/80 p-6 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
+            <div className="flex flex-col md:flex-row justify-between md:items-center mb-6 gap-4 border-b border-gray-700/50 pb-4">
+              <div>
+                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                   Resumo Mensal de Comissões
+                 </h2>
+                 <p className="text-gray-400 text-sm mt-1">Valores acumulados para o mês selecionado ({dataFiltro.split('-').slice(0,2).reverse().join('/')}).</p>
+              </div>
+              <div>
+                <input 
+                  type="month"
+                  value={dataFiltro.substring(0, 7)}
+                  onChange={(e) => setDataFiltro(`${e.target.value}-01`)}
+                  className="bg-gray-900 border border-gray-700 text-white font-bold rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3 w-full"
+                />
+              </div>
+            </div>
+
+            <div>
+                <h3 className="text-lg font-bold text-gray-300 mb-4 tracking-wide">Mês de {dataFiltro.split('-').slice(0,2).reverse().join('/')}</h3>
+                {comissoesMes.length === 0 ? (
+                  <div className="w-full bg-gray-900/50 p-6 rounded-2xl border border-gray-800 text-center text-gray-500">
+                    <p>Nenhum registro encontrado para este mês.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {comissoesMes.map((c, idx) => (
+                      <div key={idx} className="bg-gray-900/40 p-5 rounded-2xl border border-gray-700 flex flex-col gap-2 relative overflow-hidden">
+                        <h3 className="font-bold text-white text-lg z-10">{c.barbeiro.nome}</h3>
+                        <div className="text-xs text-gray-400 mb-2 border-b border-gray-800 pb-2">Fat. Bruto Mensal: <span className="font-bold text-white">R$ {c.faturamentoTotal.toFixed(2)}</span></div>
+                        
+                        <div className="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
+                          <span className="text-gray-400">Serviços</span>
+                          <span className="text-green-400 font-medium">R$ {c.comissaoServicos.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
+                          <span className="text-gray-400">Produtos</span>
+                          <span className="text-blue-400 font-medium">R$ {c.comissaoProdutos.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center mt-2 pt-1 border-t border-gray-800">
+                          <span className="text-gray-300 font-bold text-sm">Comissão Mensal</span>
+                          <span className="text-emerald-400 font-black text-lg">R$ {c.totalComissao.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center mt-1 bg-blue-900/10 p-2 rounded-lg border border-blue-500/20">
+                          <span className="text-blue-200 font-bold text-xs uppercase">Liquidez (Barbearia)</span>
+                          <span className="text-blue-400 font-black text-sm">R$ {c.caixaBarbearia.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeSubTab === 'aguardando' && (
+        <div className="bg-gray-800/80 p-6 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">Aguardando Pagamento <span className="bg-gray-900 border border-gray-700 text-sm font-bold text-blue-400 py-0.5 px-2 rounded-lg">{pendentes.length}</span></h2>
           <button
@@ -1544,7 +1617,9 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
           </div>
         )}
       </div>
+      )}
 
+      {activeSubTab === 'historico' && (
       <div className="bg-gray-800/80 p-6 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
         <h2 className="text-xl font-bold text-white mb-6">Histórico de Registros <span className="text-gray-500 text-sm font-normal ml-2">(Vendas/Cortes)</span></h2>
         {registros.length === 0 ? (
@@ -1559,7 +1634,13 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
               return (
                 <div key={r.id} className="bg-gray-900/40 p-4 rounded-xl border border-gray-800 flex flex-col md:flex-row md:items-center justify-between gap-4 group hover:border-gray-600 transition-all">
                   <div>
-                    <h3 className="font-bold text-white text-lg">{r.cliente}</h3>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className="w-fit bg-emerald-500/10 text-emerald-400 font-bold text-[10px] px-2 py-0.5 rounded-md border border-emerald-500/20 uppercase tracking-widest flex items-center gap-1 shadow-sm">
+                        <CheckCircleIcon className="w-3 h-3" />
+                         PAGO
+                      </div>
+                      <h3 className="font-bold text-white text-lg">{r.cliente}</h3>
+                    </div>
                     <div className="flex items-center gap-3 mt-1">
                       <p className="text-xs font-medium text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-500/20">{dataObj.toLocaleDateString()} {dataObj.toLocaleTimeString()}</p>
                       <p className="text-xs text-gray-400 font-medium">Barbeiro: <span className="text-gray-300">{r.barbeiroNome || 'N/A'}</span></p>
@@ -1585,6 +1666,7 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 };

@@ -88,11 +88,11 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
   const meusAgendamentos = agendamentosByBarbeiro.filter(a => a.dataAgendada.startsWith(selectedDate));
   
   const pendentes = meusAgendamentos.filter(a => a.status === 'pendente' || a.status === 'atendendo').sort((a, b) => new Date(a.dataAgendada).getTime() - new Date(b.dataAgendada).getTime());
-  const finalizados = meusAgendamentos.filter(a => a.status === 'finalizado').sort((a, b) => new Date(b.dataAgendada).getTime() - new Date(a.dataAgendada).getTime());
+  const finalizados = meusAgendamentos.filter(a => a.status === 'finalizado' || a.status === 'pago').sort((a, b) => new Date(b.dataAgendada).getTime() - new Date(a.dataAgendada).getTime());
 
   const currentMonth = selectedDate.substring(0, 7);
   const meusAgendamentosMes = agendamentosByBarbeiro.filter(a => a.dataAgendada.startsWith(currentMonth));
-  const finalizadosMes = meusAgendamentosMes.filter(a => a.status === 'finalizado').sort((a, b) => new Date(b.dataAgendada).getTime() - new Date(a.dataAgendada).getTime());
+  const finalizadosMes = meusAgendamentosMes.filter(a => a.status === 'finalizado' || a.status === 'pago').sort((a, b) => new Date(b.dataAgendada).getTime() - new Date(a.dataAgendada).getTime());
 
   const computeComissao = (agendamento: any, bId: string) => {
     const barbeiro = barbeiros.find(b => b.id === bId);
@@ -243,14 +243,6 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
         total += p.precoVenda;
       });
 
-      addRegistro({
-        cliente: a.cliente,
-        telefone: a.telefone,
-        barbeiroId: barbeiroDoAgendamento?.id || a.barbeiroId,
-        barbeiroNome: barbeiroDoAgendamento?.nome || 'Qualquer um',
-        itens,
-        total
-      });
     }
   };
 
@@ -355,14 +347,6 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
         }
       });
       
-      addRegistro({
-        cliente: addClienteNome,
-        telefone: addClienteTelefone,
-        barbeiroId: selectedBarbeiroId === 'todos' ? 'Qualquer um' : selectedBarbeiroId,
-        barbeiroNome: selectedBarbeiroId === 'todos' ? 'Qualquer um' : (barbeiro?.nome || 'Qualquer um'),
-        itens,
-        total
-      });
     }
 
     // Limpar estados
@@ -1055,10 +1039,17 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                       <div key={a.id} className="bg-[#121214]/60 p-4 rounded-xl border border-gray-800 flex flex-col gap-3 group hover:border-gray-700 hover:bg-[#121214] transition-all">
                         <div className="flex justify-between items-start">
                           <div className="flex flex-col gap-1.5 flex-1">
-                            <div className="w-fit bg-emerald-500/10 text-emerald-400 font-bold text-[10px] px-2.5 py-1 rounded-md border border-emerald-500/20 uppercase tracking-widest flex items-center gap-1.5 shadow-sm shadow-emerald-500/10 mb-0.5">
-                              <CheckCircleIcon className="w-3.5 h-3.5" />
-                              CONCLUÍDO
-                            </div>
+                            {a.status === 'pago' ? (
+                              <div className="w-fit bg-emerald-500/10 text-emerald-400 font-bold text-[10px] px-2.5 py-1 rounded-md border border-emerald-500/20 uppercase tracking-widest flex items-center gap-1.5 shadow-sm shadow-emerald-500/10 mb-0.5">
+                                <CheckCircleIcon className="w-3.5 h-3.5" />
+                                PAGO
+                              </div>
+                            ) : (
+                              <div className="w-fit bg-blue-500/10 text-blue-400 font-bold text-[10px] px-2.5 py-1 rounded-md border border-blue-500/20 uppercase tracking-widest flex items-center gap-1.5 shadow-sm shadow-blue-500/10 mb-0.5">
+                                <CheckCircleIcon className="w-3.5 h-3.5" />
+                                FINALIZADO (AGUARD. PAGAMENTO)
+                              </div>
+                            )}
                             <h3 className="font-bold text-gray-300 text-lg flex items-center gap-2">
                               {a.cliente}
                             </h3>
