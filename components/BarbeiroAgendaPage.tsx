@@ -76,11 +76,11 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
   const meusAgendamentos = agendamentosByBarbeiro.filter(a => a.dataAgendada.startsWith(selectedDate));
   
   const pendentes = meusAgendamentos.filter(a => a.status === 'pendente' || a.status === 'atendendo').sort((a, b) => new Date(a.dataAgendada).getTime() - new Date(b.dataAgendada).getTime());
-  const concluidos = meusAgendamentos.filter(a => a.status === 'concluido').sort((a, b) => new Date(b.dataAgendada).getTime() - new Date(a.dataAgendada).getTime());
+  const finalizados = meusAgendamentos.filter(a => a.status === 'finalizado').sort((a, b) => new Date(b.dataAgendada).getTime() - new Date(a.dataAgendada).getTime());
 
   const currentMonth = selectedDate.substring(0, 7);
   const meusAgendamentosMes = agendamentosByBarbeiro.filter(a => a.dataAgendada.startsWith(currentMonth));
-  const concluidosMes = meusAgendamentosMes.filter(a => a.status === 'concluido').sort((a, b) => new Date(b.dataAgendada).getTime() - new Date(a.dataAgendada).getTime());
+  const finalizadosMes = meusAgendamentosMes.filter(a => a.status === 'finalizado').sort((a, b) => new Date(b.dataAgendada).getTime() - new Date(a.dataAgendada).getTime());
 
   const computeComissao = (agendamento: any, bId: string) => {
     const barbeiro = barbeiros.find(b => b.id === bId);
@@ -113,12 +113,12 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
   };
 
   const totalComissaoDia = React.useMemo(() => {
-    return concluidos.reduce((acc, a) => acc + computeComissao(a, a.barbeiroId || selectedBarbeiroId), 0);
-  }, [concluidos, selectedBarbeiroId, servicos, produtos, barbeiros]);
+    return finalizados.reduce((acc, a) => acc + computeComissao(a, a.barbeiroId || selectedBarbeiroId), 0);
+  }, [finalizados, selectedBarbeiroId, servicos, produtos, barbeiros]);
 
   const totalComissaoMes = React.useMemo(() => {
-    return concluidosMes.reduce((acc, a) => acc + computeComissao(a, a.barbeiroId || selectedBarbeiroId), 0);
-  }, [concluidosMes, selectedBarbeiroId, servicos, produtos, barbeiros]);
+    return finalizadosMes.reduce((acc, a) => acc + computeComissao(a, a.barbeiroId || selectedBarbeiroId), 0);
+  }, [finalizadosMes, selectedBarbeiroId, servicos, produtos, barbeiros]);
 
   const handleAtender = async (a: any) => {
     const isUnassigned = !a.barbeiroId || a.barbeiroId === 'Qualquer um';
@@ -189,8 +189,8 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
     }
 
     const decidedBarbeiroId = finalBarbeiroId !== 'Qualquer um' ? finalBarbeiroId : undefined;
-    await updateAgendamento(a.id, { status: 'concluido', barbeiroId: decidedBarbeiroId });
-    await updateStatus(a.id, 'concluido', decidedBarbeiroId);
+    await updateAgendamento(a.id, { status: 'finalizado', barbeiroId: decidedBarbeiroId });
+    await updateStatus(a.id, 'finalizado', decidedBarbeiroId);
 
     const agendamentoProdutos: any[] = [];
     if (a.produtosIds && a.produtosIds.length > 0) {
@@ -288,7 +288,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
     return () => clearInterval(interval);
   }, [loadAgendamentos]);
 
-  const handleAddClienteSubmit = async (statusFinal: 'atendendo' | 'concluido') => {
+  const handleAddClienteSubmit = async (statusFinal: 'atendendo' | 'finalizado') => {
     if (!addClienteTelefone || !addClienteHora || !addClienteData) {
       alert("Preencha telefone, data e hora.");
       return;
@@ -322,8 +322,8 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
 
     const added = await addAgendamento(agendamentoData);
     
-    // Se foi 'concluido', precisamos gravar no fluxo de caixa:
-    if (statusFinal === 'concluido') {
+    // Se foi 'finalizado', precisamos gravar no fluxo de caixa:
+    if (statusFinal === 'finalizado') {
       const itens: any[] = [];
       let total = 0;
       
@@ -649,7 +649,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                     </button>
                     <button 
                       type="button" 
-                      onClick={() => handleAddClienteSubmit('concluido')} 
+                      onClick={() => handleAddClienteSubmit('finalizado')} 
                       className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 pt-4 rounded-xl transition-colors text-sm"
                     >
                       Concluir
@@ -992,14 +992,14 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                 <span className="text-emerald-400 font-black text-xl">R$ {totalComissaoDia.toFixed(2)}</span>
               </h2>
               <p className="text-gray-400 text-sm mb-4">Abaixo estão os serviços concluídos de hoje e a sua comissão correspondente baseada nos percentuais.</p>
-              {concluidos.length === 0 ? (
+              {finalizados.length === 0 ? (
                 <div className="w-full bg-gray-900/50 p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center">
                   <CheckCircleIcon className="w-12 h-12 mb-3 text-gray-700" />
                   <p>Nenhum serviço concluído.</p>
                 </div>
               ) : (
                 <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                  {concluidos.map(a => {
+                  {finalizados.map(a => {
                     const dataObj = new Date(a.dataAgendada);
                     
                     const servicosDoAgendamento: any[] = [];
@@ -1113,7 +1113,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                   </div>
                   <h3 className="text-gray-300 font-bold text-lg mb-1">Comissão Mensal</h3>
                   <p className="text-purple-400 font-black text-3xl mb-2">R$ {totalComissaoMes.toFixed(2)}</p>
-                  <p className="text-gray-500 text-sm">Serviços concluídos: <span className="text-white font-medium">{concluidosMes.length}</span></p>
+                  <p className="text-gray-500 text-sm">Serviços concluídos: <span className="text-white font-medium">{finalizadosMes.length}</span></p>
                 </div>
               </div>
             )}

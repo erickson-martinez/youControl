@@ -1202,7 +1202,7 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
     loadConfig();
   };
 
-  const pendentes = agendamentos.filter(a => a.status === 'pendente').sort((a, b) => new Date(a.dataAgendada).getTime() - new Date(b.dataAgendada).getTime());
+  const pendentes = agendamentos.filter(a => a.status === 'finalizado').sort((a, b) => new Date(a.dataAgendada).getTime() - new Date(b.dataAgendada).getTime());
   
   const handleConcluir = (a: any) => {
     updateStatus(a.id, 'concluido');

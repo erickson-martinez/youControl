@@ -70,7 +70,7 @@ export interface Agendamento {
   quantidadePessoas?: number;
   nomesAcompanhantes?: string;
   valorTotalPrevisto?: number;
-  status: 'pendente' | 'atendendo' | 'concluido' | 'cancelado';
+  status: 'pendente' | 'atendendo' | 'finalizado' | 'concluido' | 'cancelado';
 }
 
 export const useBarbeariaAgendamentos = (empresaId?: string) => {
