@@ -5,6 +5,8 @@ import { useBarbeariaRegistros, useBarbeariaAgendamentos } from '../hooks/useBar
 import { UsersIcon, TrashIcon, PencilIcon, PlusIcon, TagIcon, CogIcon, CashIcon, DocumentTextIcon, ChartBarIcon, ClipboardListIcon, CheckCircleIcon, XCircleIcon, ChevronLeftIcon, ChevronRightIcon } from './icons';
 import { Empresa, User } from '../types';
 import { API_BASE_URL } from '../constants';
+import { CustomDatePicker } from './CustomDatePicker';
+import MonthNavigator from './MonthNavigator';
 
 const DIAS_SEMANA = [
   'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'
@@ -1414,12 +1416,11 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
                  </h2>
                  <p className="text-gray-400 text-sm mt-1">Valores agrupados por barbeiro referentes à data selecionada.</p>
               </div>
-              <div>
-                <input 
-                  type="date"
-                  value={dataFiltro}
-                  onChange={(e) => setDataFiltro(e.target.value)}
-                  className="bg-gray-900 border border-gray-700 text-white font-bold rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3"
+              <div className="w-full md:w-96">
+                <CustomDatePicker 
+                  selectedDate={dataFiltro} 
+                  onChange={(d) => setDataFiltro(d)} 
+                  allowPast={true} 
                 />
               </div>
             </div>
@@ -1475,12 +1476,14 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
                  </h2>
                  <p className="text-gray-400 text-sm mt-1">Valores acumulados para o mês selecionado ({dataFiltro.split('-').slice(0,2).reverse().join('/')}).</p>
               </div>
-              <div>
-                <input 
-                  type="month"
-                  value={dataFiltro.substring(0, 7)}
-                  onChange={(e) => setDataFiltro(`${e.target.value}-01`)}
-                  className="bg-gray-900 border border-gray-700 text-white font-bold rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3 w-full"
+              <div className="w-full md:w-96">
+                <MonthNavigator
+                  currentDate={new Date(parseInt(dataFiltro.split('-')[0]), parseInt(dataFiltro.split('-')[1]) - 1, 1)}
+                  setCurrentDate={(d) => {
+                    const yyyy = d.getFullYear();
+                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                    setDataFiltro(`${yyyy}-${mm}-01`);
+                  }}
                 />
               </div>
             </div>
