@@ -127,7 +127,7 @@ const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user, empresa }) => {
               activeTab === 'registros' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-800'
             }`}
           >
-            <ClipboardListIcon className="w-4 h-4" /> Registros & Agendamentos
+            <ClipboardListIcon className="w-4 h-4" /> Registros & Atendimentos
           </button>
         </div>
 
@@ -144,7 +144,7 @@ const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user, empresa }) => {
       {activeTab === 'servicos' && <TabServicos empresaId={empresa?.linkId || empresa?.id} />}
       {activeTab === 'custos' && <TabCustos empresaId={empresa?.linkId || empresa?.id} />}
       {activeTab === 'metas' && <TabMetas empresaId={empresa?.linkId || empresa?.id} />}
-      {activeTab === 'registros' && <TabRegistros empresaId={empresa?.linkId || empresa?.id} />}
+      {activeTab === 'registros' && <TabRegistros empresaId={empresa?.linkId} />}
       
     </div>
   );
@@ -999,13 +999,15 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        return parsed.valor ? String(parsed.valor) : saved; // handle legacy string format
+        return parsed.valor ? String(parsed.valor) : saved;
       } catch (e) {
         return saved;
       }
     }
     return '1000';
   });
+  
+  const [impostoAcima5k, setImpostoAcima5k] = useState('6'); // 6% padrao
 
   useEffect(() => {
     const metaObj = {
@@ -1021,26 +1023,70 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
   };
 
   const numMeta = Number(metaLucro) || 0;
+  const numImposto = Number(impostoAcima5k) || 0;
+
   const custoFixoTotal = custos.filter(c => c.tipo === 'fixo').reduce((acc, c) => acc + c.valor, 0);
   const custoVarTotal = custos.filter(c => c.tipo === 'variavel').reduce((acc, c) => acc + c.valor, 0);
   const custosTotais = custoFixoTotal + custoVarTotal;
-  const faturamentoNecessario = numMeta + custosTotais;
 
-  // Calculando o faturamento atual (neste caso, a soma de todos os registros)
+  // Calculo de Medias (Ticket e Comissao)
+  const ticketMedioServico = servicos.length > 0 ? servicos.reduce((acc, s) => acc + s.valor, 0) / servicos.length : 0;
+  const comissaoMediaPerc = barbeiros.length > 0 ? barbeiros.reduce((acc, b) => acc + b.corte, 0) / barbeiros.length : 0;
+  
+  const custoComissaoMedia = ticketMedioServico * (comissaoMediaPerc / 100);
+  const lucroBrutoMedioPorServico = ticketMedioServico - custoComissaoMedia;
+
+  // Meta de Servicos (ignora imposto inicialmente para o calculo base)
+  let qtdServicosMes = 0;
+  let faturamentoNecessario = 0;
+
+  if (lucroBrutoMedioPorServico > 0) {
+    qtdServicosMes = (numMeta + custosTotais) / lucroBrutoMedioPorServico;
+    faturamentoNecessario = qtdServicosMes * ticketMedioServico;
+
+    // Se o faturamento passar de 5000, precisamos compensar o imposto
+    if (faturamentoNecessario > 5000 && numImposto > 0) {
+        // lucro_liquido = Faturamento - Custos - Comissoes - Imposto
+        // Imposto = Faturamento * (numImposto/100)
+        // lucro_liquido = Qtd * TicketMedio - Custos - Qtd * CustoComissao - Qtd * TicketMedio * (Imposto/100)
+        // Qtd = (lucro_liquido + Custos) / (TicketMedio - CustoComissao - TicketMedio * (Imposto/100))
+        const lucroPorServicoPosImposto = ticketMedioServico - custoComissaoMedia - (ticketMedioServico * (numImposto/100));
+        if (lucroPorServicoPosImposto > 0) {
+           qtdServicosMes = (numMeta + custosTotais) / lucroPorServicoPosImposto;
+           faturamentoNecessario = qtdServicosMes * ticketMedioServico;
+        }
+    }
+  }
+
+  // Calculando o progresso atual com as regrinhas: subtrair comissões e impostos
   const faturamentoAtual = registros.reduce((acc, r) => acc + r.total, 0);
-  const lucroAtual = faturamentoAtual - custosTotais;
+  
+  // Calcular comissoes pagas nos registros para subtrair
+  let totalComissoesPagas = 0;
+  registros.forEach(r => {
+      const barbeiro = barbeiros.find(b => b.id === r.barbeiroId);
+      r.itens.forEach((item: any) => {
+         if (item.tipo === 'servico') {
+             const comissao = barbeiro ? barbeiro.corte : comissaoMediaPerc;
+             totalComissoesPagas += item.valor * (comissao / 100);
+         } else if (item.tipo === 'produto') {
+             let comissaoProd = barbeiro ? barbeiro.comissao : 0; // fallback pra geral
+             totalComissoesPagas += item.valor * (comissaoProd / 100);
+         }
+      });
+  });
+
+  let impostosAtuais = 0;
+  if (faturamentoAtual > 5000) {
+      impostosAtuais = faturamentoAtual * (numImposto / 100);
+  }
+
+  const lucroAtual = faturamentoAtual - custosTotais - totalComissoesPagas - impostosAtuais;
   
   // Quanto de faturamento da meta foi alcançado (%)
   const porcentagemFaturamento = faturamentoNecessario > 0 ? (faturamentoAtual / faturamentoNecessario) * 100 : 0;
   const porcentagemLucro = numMeta > 0 ? (Math.max(0, lucroAtual) / numMeta) * 100 : 0;
 
-  const ticketMedioServico = servicos.length > 0 ? servicos.reduce((acc, s) => acc + s.valor, 0) / servicos.length : 0;
-  const comissaoMedia = barbeiros.length > 0 ? barbeiros.reduce((acc, b) => acc + b.corte, 0) / barbeiros.length : 0;
-  
-  // Lucro bruto médio da barbearia por serviço = Valor do Serviço - (Valor do Serviço * Comissão)
-  const lucroBrutoMedioPorServico = ticketMedioServico * (1 - (comissaoMedia / 100));
-
-  const qtdServicosMes = lucroBrutoMedioPorServico > 0 ? faturamentoNecessario / lucroBrutoMedioPorServico : 0;
   const qtdServicosSemana = qtdServicosMes / 4.33; // Média de semanas num mês
   const qtdServicosDia = qtdServicosMes / 26; // Considerando 26 dias úteis
 
@@ -1062,7 +1108,7 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
           Descubra quantos serviços você precisa realizar para cobrir todos os seus custos e atingir a sua meta de lucro líquido desejado. Neste resumo, você confere o progresso atual.
         </p>
 
-        <div className="max-w-md space-y-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 max-w-2xl">
           <div>
             <label className="block text-sm text-gray-400 mb-1">Qual a sua Meta de Lucro Líquido mensal?</label>
             <div className="relative">
@@ -1070,10 +1116,22 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
               <input 
                 type="number" step="0.01" value={metaLucro} onChange={e => setMetaLucro(e.target.value)}
                 className="w-full bg-gray-700 text-white border border-gray-600 rounded pl-9 pr-3 py-2 text-lg font-bold focus:outline-none focus:border-blue-500"
-                placeholder="5000.00"
+                placeholder="1000.00"
               />
             </div>
             <p className="text-xs text-gray-500 mt-1">Este é o valor livre que você deseja que a barbearia lucre, já pagando todos os custos e comissões.</p>
+          </div>
+          <div>
+             <label className="block text-sm text-gray-400 mb-1">Taxa de Imposto (%)</label>
+            <div className="relative">
+              <input 
+                type="number" step="1" value={impostoAcima5k} onChange={e => setImpostoAcima5k(e.target.value)}
+                className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-lg font-bold focus:outline-none focus:border-blue-500"
+                placeholder="6"
+              />
+              <span className="absolute right-3 top-2 text-gray-500">%</span>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Aplicável somente quando o faturamento mensal exceder R$ 5.000,00.</p>
           </div>
         </div>
 
@@ -1154,7 +1212,7 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
             <div className="space-y-6 relative z-10">
               <div className="text-sm text-gray-300 bg-gray-900/50 p-5 rounded-xl border border-gray-800 leading-relaxed">
                 <div className="flex justify-between mb-2"><span>Ticket Médio de Serviço:</span> <strong className="text-white">R$ {ticketMedioServico.toFixed(2)}</strong></div>
-                <div className="flex justify-between mb-2"><span>Média de Comissão:</span> <strong className="text-white">{comissaoMedia.toFixed(1)}%</strong></div>
+                <div className="flex justify-between mb-2"><span>Média de Comissão:</span> <strong className="text-white">{comissaoMediaPerc.toFixed(1)}%</strong></div>
                 <div className="flex justify-between pt-2 border-t border-gray-800 mt-2"><span>Lucro Médio por Serviço:</span> <strong className="text-green-400">R$ {lucroBrutoMedioPorServico.toFixed(2)}</strong></div>
               </div>
 
@@ -1254,88 +1312,148 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
   };
 
   // Calculando comissões do dia selecionado
-  const registrosFiltrados = registros.filter(r => r.data.startsWith(dataFiltro));
-  const comissoesPorBarbeiro = barbeiros.map(barbeiro => {
-    const registrosBarbeiro = registrosFiltrados.filter(r => r.barbeiroId === barbeiro.id);
-    let totalServicos = 0;
-    let totalProdutos = 0;
-    let comissaoServicos = 0;
-    let comissaoProdutos = 0;
+  const registrosFiltradosDia = registros.filter(r => r.data.startsWith(dataFiltro));
+  const registrosFiltradosMes = registros.filter(r => r.data.startsWith(dataFiltro.substring(0, 7)));
 
-    registrosBarbeiro.forEach(r => {
-      r.itens.forEach((item: any) => {
-        if (item.tipo === 'servico') {
-          totalServicos += item.valor;
-          comissaoServicos += item.valor * (barbeiro.corte / 100);
-        } else if (item.tipo === 'produto') {
-          totalProdutos += item.valor;
-          const produtoObj = produtos.find(p => p.id === item.idItem);
-          const override = produtoObj && Number(produtoObj.comissao) > 0 ? Number(produtoObj.comissao) : Number(barbeiro.comissao);
-          comissaoProdutos += item.valor * ((override || 0) / 100);
-        }
+  const calcularComissoes = (registrosBase: any[]) => {
+    return barbeiros.map(barbeiro => {
+      const registrosBarbeiro = registrosBase.filter(r => r.barbeiroId === barbeiro.id);
+      let totalServicos = 0;
+      let totalProdutos = 0;
+      let faturamentoTotal = 0;
+      let comissaoServicos = 0;
+      let comissaoProdutos = 0;
+
+      registrosBarbeiro.forEach(r => {
+        r.itens.forEach((item: any) => {
+          faturamentoTotal += item.valor;
+          if (item.tipo === 'servico') {
+            totalServicos += item.valor;
+            comissaoServicos += item.valor * (barbeiro.corte / 100);
+          } else if (item.tipo === 'produto') {
+            totalProdutos += item.valor;
+            const produtoObj = produtos.find(p => p.id === item.idItem);
+            const override = produtoObj && Number(produtoObj.comissao) > 0 ? Number(produtoObj.comissao) : Number(barbeiro.comissao);
+            comissaoProdutos += item.valor * ((override || 0) / 100);
+          }
+        });
       });
-    });
 
-    return {
-      barbeiro,
-      totalServicos,
-      totalProdutos,
-      comissaoServicos,
-      comissaoProdutos,
-      totalComissao: comissaoServicos + comissaoProdutos
-    };
-  }).filter(c => c.totalServicos > 0 || c.totalProdutos > 0);
+      return {
+        barbeiro,
+        totalServicos,
+        totalProdutos,
+        faturamentoTotal,
+        comissaoServicos,
+        comissaoProdutos,
+        totalComissao: comissaoServicos + comissaoProdutos,
+        caixaBarbearia: faturamentoTotal - (comissaoServicos + comissaoProdutos)
+      };
+    }).filter(c => c.faturamentoTotal > 0);
+  };
+
+  const comissoesDia = calcularComissoes(registrosFiltradosDia);
+  const comissoesMes = calcularComissoes(registrosFiltradosMes);
 
   return (
     <div className="space-y-8">
-      {/* Comissões do Dia */}
+      {/* Resumo de Comissões */}
       <div className="bg-gray-800/80 p-6 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
-        <div className="flex flex-col md:flex-row justify-between md:items-center mb-6 gap-4">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            Comissões a Pagar
-            <span className="text-sm font-normal text-gray-400">({dataFiltro})</span>
-          </h2>
+        <div className="flex flex-col md:flex-row justify-between md:items-center mb-6 gap-4 border-b border-gray-700/50 pb-4">
+          <div>
+             <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+               Resumo de Comissões e Faturamento
+             </h2>
+             <p className="text-gray-400 text-sm mt-1">Valores agrupados por barbeiro.</p>
+          </div>
           <div>
             <input 
               type="date"
               value={dataFiltro}
               onChange={(e) => setDataFiltro(e.target.value)}
-              className="bg-gray-900 border border-gray-700 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
+              className="bg-gray-900 border border-gray-700 text-white font-bold rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3"
             />
           </div>
         </div>
         
-        {comissoesPorBarbeiro.length === 0 ? (
-          <div className="w-full bg-gray-900/50 p-6 rounded-2xl border border-gray-800 text-center text-gray-500">
-            <p>Nenhuma venda ou serviço registrado para esta data.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {comissoesPorBarbeiro.map((c, idx) => (
-              <div key={idx} className="bg-gray-900/60 p-5 rounded-2xl border border-gray-700 flex flex-col gap-2">
-                <h3 className="font-bold text-white text-lg">{c.barbeiro.nome}</h3>
-                <div className="flex justify-between items-center text-sm border-b border-gray-800 pb-2 mt-2">
-                  <span className="text-gray-400">Serviços ({c.barbeiro.corte}%)</span>
-                  <span className="text-green-400 font-medium">R$ {c.comissaoServicos.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
-                  <span className="text-gray-400">Produtos ({c.barbeiro.comissao}%)</span>
-                  <span className="text-blue-400 font-medium">R$ {c.comissaoProdutos.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between items-center mt-2">
-                  <span className="text-white font-bold text-sm">Total a Pagar</span>
-                  <span className="text-green-400 font-black text-xl">R$ {c.totalComissao.toFixed(2)}</span>
-                </div>
+        <div className="mb-8">
+            <h3 className="text-lg font-bold text-gray-300 mb-4 tracking-wide">Diário ({dataFiltro.split('-').reverse().join('/')})</h3>
+            {comissoesDia.length === 0 ? (
+              <div className="w-full bg-gray-900/50 p-6 rounded-2xl border border-gray-800 text-center text-gray-500">
+                <p>Nenhuma venda ou serviço registrado para esta data.</p>
               </div>
-            ))}
-          </div>
-        )}
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {comissoesDia.map((c, idx) => (
+                  <div key={idx} className="bg-gray-900/60 p-5 rounded-2xl border border-gray-700 flex flex-col gap-2 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-3 opacity-10">
+                        <svg className="w-16 h-16 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
+                    <h3 className="font-bold text-white text-lg z-10">{c.barbeiro.nome}</h3>
+                    <div className="text-xs text-gray-400 mb-2 border-b border-gray-800 pb-2">Fat. Bruto: <span className="font-bold text-white">R$ {c.faturamentoTotal.toFixed(2)}</span></div>
+                    
+                    <div className="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
+                      <span className="text-gray-400">Serviços ({c.barbeiro.corte}%)</span>
+                      <span className="text-green-400 font-medium">R$ {c.comissaoServicos.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
+                      <span className="text-gray-400">Produtos ({c.barbeiro.comissao}%)</span>
+                      <span className="text-blue-400 font-medium">R$ {c.comissaoProdutos.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center mt-2 pt-1 border-t border-gray-800">
+                      <span className="text-gray-300 font-bold text-sm">Comissão a Pagar</span>
+                      <span className="text-green-400 font-black text-xl">R$ {c.totalComissao.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center mt-1 bg-blue-900/10 p-2 rounded-lg border border-blue-500/20">
+                      <span className="text-blue-200 font-bold text-xs uppercase">Liquidez (Barbearia)</span>
+                      <span className="text-blue-400 font-black text-sm">R$ {c.caixaBarbearia.toFixed(2)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+        </div>
+
+        <div className="pt-6 border-t border-gray-700/50">
+            <h3 className="text-lg font-bold text-gray-300 mb-4 tracking-wide">Mensal ({dataFiltro.split('-').slice(0,2).reverse().join('/')})</h3>
+            {comissoesMes.length === 0 ? (
+              <div className="w-full bg-gray-900/50 p-6 rounded-2xl border border-gray-800 text-center text-gray-500">
+                <p>Nenhum registro encontrado para este mês.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {comissoesMes.map((c, idx) => (
+                  <div key={idx} className="bg-gray-900/40 p-5 rounded-2xl border border-gray-700 flex flex-col gap-2 relative overflow-hidden">
+                    <h3 className="font-bold text-white text-lg z-10">{c.barbeiro.nome}</h3>
+                    <div className="text-xs text-gray-400 mb-2 border-b border-gray-800 pb-2">Fat. Bruto Mensal: <span className="font-bold text-white">R$ {c.faturamentoTotal.toFixed(2)}</span></div>
+                    
+                    <div className="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
+                      <span className="text-gray-400">Serviços</span>
+                      <span className="text-green-400 font-medium">R$ {c.comissaoServicos.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
+                      <span className="text-gray-400">Produtos</span>
+                      <span className="text-blue-400 font-medium">R$ {c.comissaoProdutos.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center mt-2 pt-1 border-t border-gray-800">
+                      <span className="text-gray-300 font-bold text-sm">Comissão Mensal</span>
+                      <span className="text-emerald-400 font-black text-lg">R$ {c.totalComissao.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center mt-1 bg-blue-900/10 p-2 rounded-lg border border-blue-500/20">
+                      <span className="text-blue-200 font-bold text-xs uppercase">Liquidez (Barbearia)</span>
+                      <span className="text-blue-400 font-black text-sm">R$ {c.caixaBarbearia.toFixed(2)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+        </div>
       </div>
 
       {/* Agendamentos Pendentes */}
       <div className="bg-gray-800/80 p-6 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">Agendamentos Pendentes <span className="bg-gray-900 border border-gray-700 text-sm font-bold text-blue-400 py-0.5 px-2 rounded-lg">{pendentes.length}</span></h2>
+          <h2 className="text-xl font-bold text-white flex items-center gap-2">Aguardando Pagamento <span className="bg-gray-900 border border-gray-700 text-sm font-bold text-blue-400 py-0.5 px-2 rounded-lg">{pendentes.length}</span></h2>
           <button
             onClick={handleReload}
             className="px-3 py-1 bg-gray-700 text-xs text-gray-300 rounded hover:bg-gray-600 transition border border-gray-600 inline-flex items-center gap-1"
@@ -1348,7 +1466,7 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
         {pendentes.length === 0 ? (
           <div className="w-full bg-gray-900/50 p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center">
             <svg className="w-12 h-12 mb-3 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-            <p>Nenhum agendamento pendente.</p>
+            <p>Nenhum atendimento aguardando pagamento.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1412,7 +1530,7 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
                       onClick={() => handleConcluir(a)}
                       className="w-full flex items-center justify-center gap-2 bg-green-600/20 hover:bg-green-600 text-green-400 hover:text-white border border-green-500/30 font-medium text-sm py-2 rounded-xl transition-all"
                     >
-                      <CheckCircleIcon className="w-4 h-4" /> Finalizar Serviço
+                      <CheckCircleIcon className="w-4 h-4" /> Marcar como Pago
                     </button>
                     {a.produtosIds && a.produtosIds.length > 0 && (
                       <div className="absolute top-4 right-12 text-[10px] bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-md font-bold uppercase">

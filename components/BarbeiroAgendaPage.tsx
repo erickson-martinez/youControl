@@ -55,6 +55,18 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
   const userPhoneNumbers = user?.phone?.replace(/\D/g, '');
   const barbeiroLogado = barbeiros.find(b => b.telefone && b.telefone.replace(/\D/g, '') === userPhoneNumbers);
 
+  const [metaBarbeiro, setMetaBarbeiro] = useState(() => {
+    return localStorage.getItem('minha_meta_barbeiro') || '';
+  });
+
+  React.useEffect(() => {
+    if (metaBarbeiro) {
+      localStorage.setItem('minha_meta_barbeiro', metaBarbeiro);
+    } else {
+      localStorage.removeItem('minha_meta_barbeiro');
+    }
+  }, [metaBarbeiro]);
+
   React.useEffect(() => {
     if (user && user.phone && barbeiros.length > 0 && !selectedBarbeiroId) {
       if (isAdmin || (empresa?.phone && user.phone.replace(/\D/g, '') === empresa.phone.replace(/\D/g, ''))) {
@@ -445,7 +457,19 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
               </div>
               <h2 className="text-2xl font-bold text-white">Agenda de {barbeiro?.nome}</h2>
             </div>
-            <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap">
+              <button 
+                onClick={() => {
+                  const agendamentoLink = `${window.location.origin}/agendamento?empresaId=${resolvedCompanyId}` + (selectedBarbeiroId && selectedBarbeiroId !== 'todos' ? `&barbeiroId=${selectedBarbeiroId}` : '');
+                  navigator.clipboard.writeText(agendamentoLink)
+                    .then(() => alert('Link de agendamento copiado para a área de transferência!'))
+                    .catch(() => alert('Não foi possível copiar o link.'));
+                }}
+                className="flex-1 sm:flex-none text-sm font-bold text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 px-4 py-2.5 rounded-xl transition-all border border-blue-500/20 whitespace-nowrap flex items-center justify-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+                Compartilhar Link
+              </button>
               {barbeiro?.id !== 'todos' && (
                 <button onClick={() => setIsAddClienteModalOpen(true)} className="flex-1 sm:flex-none text-sm font-bold text-green-400 hover:text-green-300 bg-green-500/10 hover:bg-green-500/20 px-4 py-2.5 rounded-xl transition-all border border-green-500/20 whitespace-nowrap">
                   + Adicionar Cliente
@@ -1099,21 +1123,67 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
             )}
 
             {activeTab === 'resumoMensal' && (
-              <div className="bg-[#1a1a1d] p-6 md:p-8 rounded-3xl border border-gray-800/60 shadow-2xl h-fit animate-in fade-in slide-in-from-bottom-4 duration-300">
-                <h2 className="text-xl font-bold text-gray-300 mb-6 border-b border-gray-800/80 pb-4 flex justify-between items-center tracking-tight">
-                  <span>Resumo Mensal ({currentMonth.split('-').reverse().join('/')})</span>
-                  <span className="text-purple-400 font-black text-xl">R$ {totalComissaoMes.toFixed(2)}</span>
-                </h2>
-                <p className="text-gray-400 text-sm mb-4">Total de comissões acumuladas considerando todos os serviços concluídos no mês selecionado.</p>
-                <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 flex flex-col items-center justify-center text-center">
-                  <div className="w-16 h-16 bg-purple-900/20 flex items-center justify-center rounded-full mb-4">
-                    <svg className="w-8 h-8 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+              <div className="space-y-6">
+                <div className="bg-[#1a1a1d] p-6 md:p-8 rounded-3xl border border-gray-800/60 shadow-2xl h-fit animate-in fade-in slide-in-from-bottom-4 duration-300">
+                  <h2 className="text-xl font-bold text-gray-300 mb-6 border-b border-gray-800/80 pb-4 flex justify-between items-center tracking-tight">
+                    <span>Resumo Mensal ({currentMonth.split('-').reverse().join('/')})</span>
+                    <span className="text-purple-400 font-black text-xl">R$ {totalComissaoMes.toFixed(2)}</span>
+                  </h2>
+                  <p className="text-gray-400 text-sm mb-4">Total de comissões acumuladas considerando todos os serviços concluídos no mês selecionado.</p>
+                  
+                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 flex flex-col items-center justify-center text-center">
+                    <div className="w-16 h-16 bg-purple-900/20 flex items-center justify-center rounded-full mb-4">
+                      <svg className="w-8 h-8 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <h3 className="text-gray-300 font-bold text-lg mb-1">Comissão Mensal</h3>
+                    <p className="text-purple-400 font-black text-3xl mb-2">R$ {totalComissaoMes.toFixed(2)}</p>
+                    <p className="text-gray-500 text-sm">Serviços concluídos: <span className="text-white font-medium">{finalizadosMes.length}</span></p>
                   </div>
-                  <h3 className="text-gray-300 font-bold text-lg mb-1">Comissão Mensal</h3>
-                  <p className="text-purple-400 font-black text-3xl mb-2">R$ {totalComissaoMes.toFixed(2)}</p>
-                  <p className="text-gray-500 text-sm">Serviços concluídos: <span className="text-white font-medium">{finalizadosMes.length}</span></p>
+                </div>
+
+                <div className="bg-[#1a1a1d] p-6 md:p-8 rounded-3xl border border-gray-800/60 shadow-2xl animate-in fade-in slide-in-from-bottom-5 duration-300">
+                  <h2 className="text-xl font-bold text-gray-300 mb-4 border-b border-gray-800/80 pb-4 tracking-tight">
+                    Minha Meta de Ganhos Mensal
+                  </h2>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-2">Qual o seu objetivo de ganhos este mês?</label>
+                      <div className="relative max-w-sm">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">R$</span>
+                        <input
+                          type="number"
+                          value={metaBarbeiro}
+                          onChange={(e) => setMetaBarbeiro(e.target.value)}
+                          className="w-full bg-gray-900 border border-gray-700 rounded-xl py-3 pl-10 pr-4 text-white focus:outline-none focus:border-blue-500 placeholder-gray-600 transition-colors font-bold text-lg"
+                          placeholder="Ex: 3000"
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2 flex gap-1 items-start">
+                        <ClockIcon className="w-4 h-4 shrink-0 text-yellow-600/70" />
+                        Esta meta é salva localmente apenas neste dispositivo. Ao trocar de celular ou computador, será necessário configurá-la novamente.
+                      </p>
+                    </div>
+
+                    {Number(metaBarbeiro) > 0 && (
+                      <div className="mt-6 bg-gray-900/50 p-6 rounded-2xl border border-gray-800">
+                        <div className="flex justify-between items-end mb-3">
+                          <span className={`text-2xl font-black ${totalComissaoMes >= Number(metaBarbeiro) ? 'text-green-400' : 'text-blue-400'}`}>R$ {totalComissaoMes.toFixed(2)}</span>
+                          <span className="text-sm font-medium text-gray-500">de R$ {Number(metaBarbeiro).toFixed(2)}</span>
+                        </div>
+                        <div className="w-full bg-gray-800 rounded-full h-4 overflow-hidden shadow-inner">
+                          <div 
+                            className={`h-full transition-all duration-1000 ${totalComissaoMes >= Number(metaBarbeiro) ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-blue-500'}`} 
+                            style={{ width: `${Math.min(100, (totalComissaoMes / Number(metaBarbeiro)) * 100)}%` }}
+                          ></div>
+                        </div>
+                        <p className="text-right text-xs mt-2 font-bold text-gray-500">
+                          {((totalComissaoMes / Number(metaBarbeiro)) * 100).toFixed(1)}% alcançado
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
