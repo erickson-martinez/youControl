@@ -1416,17 +1416,16 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
                  </h2>
                  <p className="text-gray-400 text-sm mt-1">Valores agrupados por barbeiro referentes à data selecionada.</p>
               </div>
-              <div className="w-full md:w-96">
-                <CustomDatePicker 
-                  selectedDate={dataFiltro} 
-                  onChange={(d) => setDataFiltro(d)} 
-                  allowPast={true} 
-                />
-              </div>
             </div>
             
             <div>
-                <h3 className="text-lg font-bold text-gray-300 mb-4 tracking-wide">Hoje ({dataFiltro.split('-').reverse().join('/')})</h3>
+                <div className="w-full">
+                  <CustomDatePicker 
+                    selectedDate={dataFiltro} 
+                    onChange={(d) => setDataFiltro(d)} 
+                    allowPast={true} 
+                  />
+              </div>
                 {comissoesDia.length === 0 ? (
                   <div className="w-full bg-gray-900/50 p-6 rounded-2xl border border-gray-800 text-center text-gray-500">
                     <p>Nenhuma venda ou serviço registrado para esta data.</p>
@@ -1476,7 +1475,10 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
                  </h2>
                  <p className="text-gray-400 text-sm mt-1">Valores acumulados para o mês selecionado ({dataFiltro.split('-').slice(0,2).reverse().join('/')}).</p>
               </div>
-              <div className="w-full md:w-96">
+            </div>
+
+            <div>
+                <div className="w-full">
                 <MonthNavigator
                   currentDate={new Date(parseInt(dataFiltro.split('-')[0]), parseInt(dataFiltro.split('-')[1]) - 1, 1)}
                   setCurrentDate={(d) => {
@@ -1486,10 +1488,6 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
                   }}
                 />
               </div>
-            </div>
-
-            <div>
-                <h3 className="text-lg font-bold text-gray-300 mb-4 tracking-wide">Mês de {dataFiltro.split('-').slice(0,2).reverse().join('/')}</h3>
                 {comissoesMes.length === 0 ? (
                   <div className="w-full bg-gray-900/50 p-6 rounded-2xl border border-gray-800 text-center text-gray-500">
                     <p>Nenhum registro encontrado para este mês.</p>
