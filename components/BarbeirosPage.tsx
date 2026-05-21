@@ -71,17 +71,17 @@ const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user, empresa }) => {
       </div>
 
       {/* Tabs */}
-      <div className="relative group">
+      <div className="relative group mb-4">
         <button 
           onClick={() => scrollTabs('left')}
-          className="absolute -left-6 md:-left-8 top-1/2 -translate-y-1/2 bg-gray-800 text-white rounded-full p-2 z-10 shadow-lg border border-gray-700 hover:bg-gray-700 hover:text-blue-400 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 hidden md:block"
+          className="absolute -left-3 md:-left-4 top-1/2 -translate-y-1/2 bg-gray-800 text-white rounded-full p-2 z-10 shadow-lg border border-gray-700 hover:bg-gray-700 hover:text-blue-400 transition-all flex items-center justify-center"
         >
           <ChevronLeftIcon className="w-5 h-5" />
         </button>
 
         <div 
           ref={tabsRef}
-          className="flex overflow-x-auto gap-2 bg-gray-900 border border-gray-800 p-2 rounded-2xl scroll-smooth [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+          className="flex overflow-x-auto gap-2 bg-gray-900 border border-gray-800 p-2 rounded-2xl scroll-smooth [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] mx-4 md:mx-6"
         >
           <button
             onClick={() => setActiveTab('barbeiros')}
@@ -135,7 +135,7 @@ const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user, empresa }) => {
 
         <button 
           onClick={() => scrollTabs('right')}
-          className="absolute -right-6 md:-right-8 top-1/2 -translate-y-1/2 bg-gray-800 text-white rounded-full p-2 z-10 shadow-lg border border-gray-700 hover:bg-gray-700 hover:text-blue-400 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 hidden md:block"
+          className="absolute -right-3 md:-right-4 top-1/2 -translate-y-1/2 bg-gray-800 text-white rounded-full p-2 z-10 shadow-lg border border-gray-700 hover:bg-gray-700 hover:text-blue-400 transition-all flex items-center justify-center"
         >
           <ChevronRightIcon className="w-5 h-5" />
         </button>
@@ -1449,12 +1449,8 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
                           <span className="text-blue-400 font-medium">R$ {c.comissaoProdutos.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between items-center mt-2 pt-1 border-t border-gray-800">
-                          <span className="text-gray-300 font-bold text-sm">Comissão a Pagar</span>
-                          <span className="text-green-400 font-black text-xl">R$ {c.totalComissao.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between items-center mt-1 bg-blue-900/10 p-2 rounded-lg border border-blue-500/20">
-                          <span className="text-blue-200 font-bold text-xs uppercase">Liquidez (Barbearia)</span>
-                          <span className="text-blue-400 font-black text-sm">R$ {c.caixaBarbearia.toFixed(2)}</span>
+                          <span className="text-gray-200 font-bold text-sm">Comissão a Pagar</span>
+                          <span className="text-green-400 font-black text-lg">R$ {c.totalComissao.toFixed(2)}</span>
                         </div>
                       </div>
                     ))}
@@ -1510,10 +1506,6 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
                         <div className="flex justify-between items-center mt-2 pt-1 border-t border-gray-800">
                           <span className="text-gray-300 font-bold text-sm">Comissão Mensal</span>
                           <span className="text-emerald-400 font-black text-lg">R$ {c.totalComissao.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between items-center mt-1 bg-blue-900/10 p-2 rounded-lg border border-blue-500/20">
-                          <span className="text-blue-200 font-bold text-xs uppercase">Liquidez (Barbearia)</span>
-                          <span className="text-blue-400 font-black text-sm">R$ {c.caixaBarbearia.toFixed(2)}</span>
                         </div>
                       </div>
                     ))}
