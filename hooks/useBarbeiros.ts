@@ -11,6 +11,8 @@ export interface Barbeiro {
   linkId?: string;
 }
 
+const promiseCache = new Map<string, Promise<any>>();
+
 export const useBarbeiros = (empresaId?: string) => {
   const [barbeiros, setBarbeiros] = useState<Barbeiro[]>([]);
 
@@ -19,11 +21,18 @@ export const useBarbeiros = (empresaId?: string) => {
       setBarbeiros([]);
       return;
     }
+    const url = `${API_BASE_URL}/api/barbers?linkId=${empresaId}`;
     try {
-      const url = `${API_BASE_URL}/api/barbers?linkId=${empresaId}`;
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('Erro ao buscar barbeiros');
-      const data = await response.json();
+      if (!promiseCache.has(url)) {
+        promiseCache.set(url, fetch(url).then(r => {
+          if (!r.ok) throw new Error('Erro ao buscar barbeiros');
+          return r.json();
+        }).finally(() => {
+          setTimeout(() => promiseCache.delete(url), 100);
+        }));
+      }
+      
+      const data = await promiseCache.get(url);
       // Ensure local 'id' property is populated for backward compatibility
       const mapped = data.map((b: any) => ({
         ...b,

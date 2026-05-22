@@ -31,6 +31,8 @@ export interface Custo {
   linkId?: string;
 }
 
+const promiseCache = new Map<string, Promise<any>>();
+
 export const useBarbeariaConfig = (empresaId?: string) => {
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [servicos, setServicos] = useState<Servico[]>([]);
@@ -45,14 +47,19 @@ export const useBarbeariaConfig = (empresaId?: string) => {
       setProdutos([]);
       return;
     }
+    const url = `${API_BASE_URL}/api/barber-products?linkId=${empresaId}`;
     try {
-      const url = `${API_BASE_URL}/api/barber-products?linkId=${empresaId}`;
-      const response = await fetch(url);
-      if (response.ok) {
-        const data = await response.json();
-        const mapped = data.map((p: any) => ({ ...p, id: p.id || p._id }));
-        setProdutos(mapped);
+      if (!promiseCache.has(url)) {
+        promiseCache.set(url, fetch(url).then(async (r) => {
+          if (!r.ok) throw new Error('Erro ao buscar produtos');
+          return r.json();
+        }).finally(() => {
+          setTimeout(() => promiseCache.delete(url), 100);
+        }));
       }
+      const data = await promiseCache.get(url);
+      const mapped = data.map((p: any) => ({ ...p, id: p.id || p._id }));
+      setProdutos(mapped);
     } catch (e) {
       console.error('Erro ao buscar produtos', e);
     }
@@ -63,14 +70,19 @@ export const useBarbeariaConfig = (empresaId?: string) => {
       setServicos([]);
       return;
     }
+    const url = `${API_BASE_URL}/api/barber-services?linkId=${empresaId}`;
     try {
-      const url = `${API_BASE_URL}/api/barber-services?linkId=${empresaId}`;
-      const response = await fetch(url);
-      if (response.ok) {
-        const data = await response.json();
-        const mapped = data.map((s: any) => ({ ...s, id: s.id || s._id }));
-        setServicos(mapped);
+      if (!promiseCache.has(url)) {
+        promiseCache.set(url, fetch(url).then(async (r) => {
+          if (!r.ok) throw new Error('Erro ao buscar servicos');
+          return r.json();
+        }).finally(() => {
+          setTimeout(() => promiseCache.delete(url), 100);
+        }));
       }
+      const data = await promiseCache.get(url);
+      const mapped = data.map((s: any) => ({ ...s, id: s.id || s._id }));
+      setServicos(mapped);
     } catch (e) {
       console.error('Erro ao buscar servicos', e);
     }

@@ -38,6 +38,8 @@ export interface Agendamento {
   status: 'pendente' | 'atendendo' | 'finalizado' | 'pago' | 'cancelado';
 }
 
+const promiseCache = new Map<string, Promise<any>>();
+
 export const useBarbeariaAgendamentos = (empresaId?: string) => {
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const key = empresaId ? `barbearia_agendamentos_${empresaId}` : 'barbearia_agendamentos';
@@ -47,19 +49,24 @@ export const useBarbeariaAgendamentos = (empresaId?: string) => {
       setAgendamentos([]);
       return;
     }
+    const url = `${API_BASE_URL}/api/appointment-barbers?linkId=${empresaId}`;
     try {
-      const url = `${API_BASE_URL}/api/appointment-barbers?linkId=${empresaId}`;
-      const response = await fetch(url);
-      if (response.ok) {
-        const data = await response.json();
-        const mapped = data.map((a: any) => ({ 
-          ...a, 
-          id: a.id || a._id,
-          cliente: a.clienteNome || a.cliente,
-          telefone: a.clienteTelefone || a.telefone,
+      if (!promiseCache.has(url)) {
+        promiseCache.set(url, fetch(url).then(async (r) => {
+          if (!r.ok) throw new Error('Erro ao buscar agendamentos');
+          return r.json();
+        }).finally(() => {
+          setTimeout(() => promiseCache.delete(url), 100);
         }));
-        setAgendamentos(mapped);
       }
+      const data = await promiseCache.get(url);
+      const mapped = data.map((a: any) => ({ 
+        ...a, 
+        id: a.id || a._id,
+        cliente: a.clienteNome || a.cliente,
+        telefone: a.clienteTelefone || a.telefone,
+      }));
+      setAgendamentos(mapped);
     } catch (e) {
       console.error('Erro ao carregar agendamentos:', e);
     }

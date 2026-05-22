@@ -6,17 +6,20 @@ const ptBRMonths = [
 ];
 
 const ptBRWeekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const fullWeekdays = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
 export const CustomDatePicker = ({ 
   selectedDate, 
   onChange,
   onMonthChange,
-  allowPast = false
+  allowPast = false,
+  allowedDaysOfWeek
 }: { 
   selectedDate: string; 
   onChange: (d: string) => void;
   onMonthChange?: () => void;
   allowPast?: boolean;
+  allowedDaysOfWeek?: string[];
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [baseDate, setBaseDate] = useState(() => {
@@ -139,15 +142,20 @@ export const CustomDatePicker = ({
               const dd = String(d.getDate()).padStart(2, '0');
               const dateStr = `${yyyy}-${mm}-${dd}`;
               const isSelected = selectedDate === dateStr;
+              const fullDayName = fullWeekdays[d.getDay()];
+              const isDisabled = Boolean(allowedDaysOfWeek && allowedDaysOfWeek.length > 0 && !allowedDaysOfWeek.includes(fullDayName));
 
               return (
                 <button
                   key={i}
                   type="button"
                   data-selected={isSelected}
-                  onClick={() => handleSelectDay(d)}
+                  onClick={() => !isDisabled && handleSelectDay(d)}
+                  disabled={isDisabled}
                   className={`flex-shrink-0 w-14 h-16 rounded-xl border flex flex-col items-center justify-center transition-all snap-center focus:outline-none focus:ring-2 focus:ring-blue-500/50 ${
-                    isSelected 
+                    isDisabled
+                      ? 'bg-gray-800/50 border-gray-700/30 text-gray-600 cursor-not-allowed opacity-50'
+                      : isSelected 
                       ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-500/20 scale-105 relative z-0' 
                       : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700 hover:text-white hover:border-gray-500'
                   }`}

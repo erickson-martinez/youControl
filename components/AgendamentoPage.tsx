@@ -220,6 +220,17 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
     if (!data) return HORARIOS;
     if (data < todayDate) return [];
 
+    const DIAS_SEMANA_MAP = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+    const selectedDayOfWeekName = DIAS_SEMANA_MAP[new Date(data + "T12:00:00Z").getDay()];
+
+    const hasBarberForDay = barbeiros.some(b => {
+      if (barbeiroId && b.id !== barbeiroId) return false;
+      if (!b.diasTrabalhados || b.diasTrabalhados.length === 0) return true; 
+      return b.diasTrabalhados.includes(selectedDayOfWeekName);
+    });
+
+    if (!hasBarberForDay && barbeiros.length > 0) return [];
+
     let validHorarios = HORARIOS;
 
     if (data === todayDate) {
@@ -250,7 +261,7 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
       });
       return currentCount + quantidadePessoas <= capacityPerSlot;
     });
-  }, [data, todayDate, agendamentos, barbeiros.length, barbeiroId, quantidadePessoas]);
+  }, [data, todayDate, agendamentos, barbeiros, barbeiroId, quantidadePessoas]);
 
   const toggleHorario = (h: string) => {
     setHorariosSelecionados((prev) => {
@@ -266,22 +277,22 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
 
   if (!selectedEmpresaId && empresas.length > 1) {
     return (
-      <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8 pb-20">
+      <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8 pb-20">
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-white mb-2">
+          <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
             Boas vindas!
           </h1>
           <p className="text-gray-400 mb-8">
             Para iniciar o agendamento, por favor escolha uma de nossas unidades:
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6 max-w-2xl mx-auto">
             {empresas.map((e) => (
               <button
                 key={e.id}
                 onClick={() => setSelectedEmpresaId(e.linkId || e.id)}
                 className="bg-gray-800 hover:bg-gray-700 hover:border-blue-500/50 transition-all border border-gray-700 p-6 rounded-2xl shadow-lg flex flex-col items-center justify-center gap-3 group"
               >
-                <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center group-hover:bg-blue-500/20 group-hover:scale-110 transition-all">
+                <div className="w-12 md:w-16 h-12 md:h-16 bg-blue-500/10 rounded-full flex items-center justify-center group-hover:bg-blue-500/20 group-hover:scale-110 transition-all">
                   <svg className="w-8 h-8 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1v1H9V7zm5 0h1v1h-1V7zm-5 4h1v1H9v-1zm5 0h1v1h-1v-1zm-3 4H2v-1h7v1z" />
                   </svg>
@@ -299,8 +310,8 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
 
   if (agendado) {
     return (
-      <div className="p-8 max-w-lg mx-auto text-center space-y-6">
-        <div className="bg-green-600/20 text-green-400 p-8 rounded-xl border border-green-500/30">
+      <div className="p-5 md:p-8 max-w-lg mx-auto text-center space-y-6">
+        <div className="bg-green-600/20 text-green-400 p-5 md:p-8 rounded-xl border border-green-500/30">
           <h2 className="text-2xl font-bold mb-4">Agendamento Confirmado!</h2>
           <p>Seu horário foi reservado com sucesso.</p>
           <button
@@ -326,7 +337,7 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
   }
 
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8 pb-20">
+    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8 pb-20">
       <div className="text-center relative">
         {empresas.length > 1 && (
           <button
@@ -339,7 +350,7 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
             </svg>
           </button>
         )}
-        <h1 className="text-3xl font-bold text-white mb-2 pt-10 sm:pt-0">
+        <h1 className="text-2xl md:text-3xl font-bold text-white mb-2 pt-10 sm:pt-0">
           Barbearia VIP - Agendamento
         </h1>
         <p className="text-gray-400">
@@ -366,7 +377,7 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5 md:p-8">
         {/* Formulário de Agendamento */}
         <div className="lg:col-span-2 bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg relative h-fit">
           <h2 className="text-xl font-bold text-white mb-6 border-b border-gray-700 pb-2">
@@ -374,7 +385,7 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm text-gray-400 mb-1">
                   Telefone (Obrigatório) *
@@ -410,7 +421,7 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm text-gray-400 mb-1">
                   Barbeiro (Opcional)
@@ -430,7 +441,7 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm text-gray-400 mb-1">
                   Pessoas p/ Atendimento
@@ -536,7 +547,7 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="col-span-1 md:col-span-2">
                 <label className="block text-sm text-gray-400 mb-2">
                   Selecione a Data *
@@ -553,7 +564,7 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
                 />
                 {data && availableHorarios.length === 0 && (
                   <p className="text-red-400 text-xs mt-2">
-                    Nenhum horário disponível para esta data hoje.
+                    Nenhum horário ou barbeiro disponível nesta data.
                   </p>
                 )}
               </div>

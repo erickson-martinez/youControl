@@ -28,14 +28,14 @@ const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user, empresa }) => {
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8 pb-20">
+    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8 pb-20">
       <div className="flex flex-col md:flex-row md:items-end justify-between border-b border-gray-800 pb-6 gap-4">
         <div className="flex items-center gap-4">
           <div className="bg-blue-600/20 p-3 rounded-2xl border border-blue-500/30">
             <UsersIcon className="w-8 h-8 text-blue-400" />
           </div>
           <div>
-            <h1 className="text-3xl font-extrabold text-white tracking-tight">Barbearia Admin</h1>
+            <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">Barbearia Admin</h1>
             <p className="text-gray-400 mt-1 text-sm font-medium">Gestão completa {empresa?.name ? `da ${empresa.name}` : ''}</p>
             {empresa?.linkId && (
               <p className="mt-2 text-sm font-bold bg-blue-500/10 text-blue-400 px-2 py-1 rounded inline-flex border border-blue-500/20">
@@ -45,28 +45,16 @@ const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user, empresa }) => {
           </div>
         </div>
         {empresa && (
-          <div className="bg-gray-800 border border-gray-700 p-3 rounded-xl flex flex-col gap-2 mt-4">
-            <span className="text-sm font-medium text-gray-300">Link de Agendamento:</span>
-            <div className="flex items-center gap-3">
-              <input 
-                type="text" 
-                readOnly 
-                value={`${window.location.origin}/agendamento?empresaId=${empresa.linkId || empresa.id}`} 
-                className="bg-gray-900 border border-gray-600 rounded px-2 py-1 text-xs text-gray-400 w-64 focus:outline-none"
-                onClick={(e) => (e.target as HTMLInputElement).select()}
-              />
-              <button 
-                onClick={() => {
-                  navigator.clipboard.writeText(`${window.location.origin}/agendamento?empresaId=${empresa.linkId || empresa.id}`);
-                  alert("Link copiado!");
-                }}
-                className="text-white hover:text-blue-300 transition-colors bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded-lg text-sm font-medium"
-                title="Copiar Link"
-              >
-                Copiar 
-              </button>
-            </div>
-          </div>
+          <button 
+            onClick={() => {
+              navigator.clipboard.writeText(`${window.location.origin}/agendamento?empresaId=${empresa.linkId || empresa.id}`);
+              alert("Link de agendamento copiado para a área de transferência!");
+            }}
+            className="flex-1 sm:flex-none text-sm font-bold text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 px-4 py-2.5 rounded-xl transition-all border border-gray-700 flex items-center justify-center gap-2 shadow-md w-full sm:w-auto h-fit mt-2 sm:mt-0"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+            Compartilhar
+          </button>
         )}
       </div>
 
@@ -279,9 +267,9 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 md:p-8">
       {/* Formulário de Cadastro */}
-      <div className="bg-gray-800/80 p-6 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
+      <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
         <h2 className="text-xl font-bold text-white mb-6 border-b border-gray-700/50 pb-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             {editingId ? <PencilIcon className="w-5 h-5 text-yellow-500" /> : <PlusIcon className="w-5 h-5 text-blue-500" />}
@@ -315,7 +303,7 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm text-gray-400 mb-1">Comissão Produtos (%)</label>
               <input 
@@ -423,7 +411,7 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
         )}
 
         {barbeiros.length === 0 ? (
-          <div className="w-full bg-gray-900/50 p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center mt-4">
+          <div className="w-full bg-gray-900/50 p-5 md:p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center mt-4">
             <UsersIcon className="w-12 h-12 mb-3 text-gray-700" />
             <p>Nenhum barbeiro cadastrado ainda.</p>
           </div>
@@ -453,16 +441,13 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
                 
                 <div>
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <div className={`w-8 h-8 rounded-full ${isOwner ? 'bg-purple-600/20 text-purple-400 border border-purple-500/20' : 'bg-blue-600/20 text-blue-400 border border-blue-500/20'} flex items-center justify-center text-sm font-bold`}>
-                      {barbeiro.nome.substring(0, 2).toUpperCase()}
-                    </div>
                     {barbeiro.nome}
                     {isOwner && <span className="text-xs bg-purple-900/30 text-purple-400 px-2 py-0.5 rounded-full border border-purple-500/20">Proprietário</span>}
                   </h3>
-                  {barbeiro.telefone && <p className="text-sm text-gray-400 ml-10">{barbeiro.telefone}</p>}
+                  {barbeiro.telefone && <p className="text-sm text-gray-400">{barbeiro.telefone}</p>}
                 </div>
                 
-                <div className="flex gap-4 p-3 bg-gray-900/50 rounded-xl border border-gray-800/50 ml-10">
+                <div className="flex gap-4 p-3 bg-gray-900/50 rounded-xl border border-gray-800/50">
                   <div className="flex-1">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 block mb-1">Comissão Prod.</span>
                     <span className="text-blue-400 font-medium">{barbeiro.comissao}%</span>
@@ -474,7 +459,7 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
                 </div>
                 
                 {barbeiro.diasTrabalhados.length > 0 && (
-                  <div className="flex gap-1 ml-10 mt-1">
+                  <div className="flex gap-1 mt-1">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mr-2 flex items-center">Dias:</span>
                     <div className="flex flex-wrap gap-1">
                       {barbeiro.diasTrabalhados.map(dia => (
@@ -486,30 +471,7 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
                   </div>
                 )}
                 
-                {empresaId && (
-                  <div className="flex flex-col gap-1 ml-10 mt-2">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 block">Link de Agendamento (Barbeiro):</span>
-                    <div className="flex items-center gap-2">
-                      <input 
-                        type="text" 
-                        readOnly 
-                        value={`${window.location.origin}/agendamento?empresaId=${empresaId}&barbeiroId=${barbeiro.id}`} 
-                        className="bg-gray-900 border border-gray-600 rounded px-2 py-1 text-xs text-gray-400 w-full focus:outline-none"
-                        onClick={(e) => (e.target as HTMLInputElement).select()}
-                      />
-                      <button 
-                        onClick={() => {
-                          navigator.clipboard.writeText(`${window.location.origin}/agendamento?empresaId=${empresaId}&barbeiroId=${barbeiro.id}`);
-                          alert("Link do barbeiro copiado!");
-                        }}
-                        className="text-blue-400 hover:text-blue-300 transition-colors bg-blue-500/10 hover:bg-blue-500/20 px-2 py-1 flex items-center justify-center rounded border border-blue-500/20"
-                        title="Copiar Link"
-                      >
-                       <ClipboardListIcon className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                )}
+
               </div>
               );
             })}
@@ -588,8 +550,8 @@ const TabProdutos = ({ empresaId }: { empresaId?: string }) => {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-      <div className="bg-gray-800/80 p-6 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
+    <div className="grid grid-cols-1 lg:grid-cols-1 sm:grid-cols-2 gap-5 md:p-8">
+      <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
         <h2 className="text-xl font-bold text-white mb-6 border-b border-gray-700/50 pb-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             {editingId ? <PencilIcon className="w-5 h-5 text-yellow-500" /> : <PlusIcon className="w-5 h-5 text-blue-500" />}
@@ -620,7 +582,7 @@ const TabProdutos = ({ empresaId }: { empresaId?: string }) => {
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm text-gray-400 mb-1">Custo (R$)</label>
               <input 
@@ -650,7 +612,7 @@ const TabProdutos = ({ empresaId }: { empresaId?: string }) => {
             <p className="text-blue-300">Preço Ideal Calculado: <strong className="text-white text-lg">R$ {precoIdeal.toFixed(2)}</strong></p>
             <p className="text-blue-200/60 text-xs mt-1">Cobre o custo de compra + {numMargem}% de margem. (A comissão do barbeiro é calculada na venda)</p>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm text-gray-400 mb-1">Preço de Venda (R$)</label>
               <input 
@@ -682,12 +644,12 @@ const TabProdutos = ({ empresaId }: { empresaId?: string }) => {
       <div className="space-y-4">
         <h2 className="text-xl font-bold text-white mb-4">Produtos Cadastrados</h2>
         {produtos.length === 0 ? (
-          <div className="w-full bg-gray-900/50 p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center mt-4">
+          <div className="w-full bg-gray-900/50 p-5 md:p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center mt-4">
             <TagIcon className="w-12 h-12 mb-3 text-gray-700" />
             <p>Nenhum produto cadastrado.</p>
           </div>
         ) : (
-          <div className="grid gap-6 max-h-[650px] overflow-y-auto pr-2 custom-scrollbar" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
+          <div className="grid gap-4 md:gap-6 max-h-[650px] overflow-y-auto pr-2 custom-scrollbar" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
             {produtos.map(p => {
               const semComissao = p.custo + (p.custo * (p.margemLucro / 100));
               const ideal = p.comissao && p.comissao > 0 && p.comissao < 100 ? semComissao / (1 - p.comissao / 100) : semComissao;
@@ -715,7 +677,7 @@ const TabProdutos = ({ empresaId }: { empresaId?: string }) => {
                   </h3>
                   {p.categoria && <span className="text-xs text-blue-400 font-medium tracking-wide uppercase bg-blue-500/10 w-fit px-2 py-0.5 rounded-md border border-blue-500/20">{p.categoria}</span>}
                   
-                  <div className="grid grid-cols-3 gap-2 text-sm mt-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-sm mt-3">
                     <div className="bg-gray-900/50 p-2 rounded-xl border border-gray-800/50 flex flex-col items-center justify-center text-center">
                       <span className="text-[10px] uppercase tracking-wider text-gray-500 block">Custo</span>
                       <span className="font-medium text-gray-300">R$ {p.custo.toFixed(2)}</span>
@@ -789,8 +751,8 @@ const TabServicos = ({ empresaId }: { empresaId?: string }) => {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-      <div className="bg-gray-800/80 p-6 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
+    <div className="grid grid-cols-1 lg:grid-cols-1 sm:grid-cols-2 gap-5 md:p-8">
+      <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
         <h2 className="text-xl font-bold text-white mb-6 border-b border-gray-700/50 pb-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             {editingId ? <PencilIcon className="w-5 h-5 text-yellow-500" /> : <PlusIcon className="w-5 h-5 text-blue-500" />}
@@ -842,12 +804,12 @@ const TabServicos = ({ empresaId }: { empresaId?: string }) => {
       <div className="space-y-4">
         <h2 className="text-xl font-bold text-white mb-4">Serviços Cadastrados</h2>
         {servicos.length === 0 ? (
-          <div className="w-full bg-gray-900/50 p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center mt-4">
+          <div className="w-full bg-gray-900/50 p-5 md:p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center mt-4">
             <DocumentTextIcon className="w-12 h-12 mb-3 text-gray-700" />
             <p>Nenhum serviço cadastrado.</p>
           </div>
         ) : (
-          <div className="grid gap-6 max-h-[650px] overflow-y-auto pr-2 custom-scrollbar" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
+          <div className="grid gap-4 md:gap-6 max-h-[650px] overflow-y-auto pr-2 custom-scrollbar" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
             {servicos.map(s => (
               <div key={s.id} className="bg-gray-800/90 p-5 rounded-2xl border border-gray-700/50 flex flex-col gap-2 group hover:border-blue-500/30 transition-all shadow-md relative">
                 <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
@@ -902,8 +864,8 @@ const TabCustos = ({ empresaId }: { empresaId?: string }) => {
   const variaveis = custos.filter(c => c.tipo === 'variavel');
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-      <div className="bg-gray-800/80 p-6 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
+    <div className="grid grid-cols-1 lg:grid-cols-1 sm:grid-cols-2 gap-5 md:p-8">
+      <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
         <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
           <PlusIcon className="w-5 h-5 text-blue-500" /> Cadastrar Custo Diário
         </h2>
@@ -1095,7 +1057,7 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
   return (
     <div className="space-y-8">
       {/* Settings da Meta */}
-      <div className="bg-gray-800/80 p-6 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
+      <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
         <div className="flex justify-between items-start mb-4">
           <h2 className="text-2xl font-bold text-white flex items-center gap-2">Simulador de Metas e Ponto de Equilíbrio</h2>
           <button
@@ -1110,7 +1072,7 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
           Descubra quantos serviços você precisa realizar para cobrir todos os seus custos e atingir a sua meta de lucro líquido desejado. Neste resumo, você confere o progresso atual.
         </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 max-w-2xl">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 max-w-2xl">
           <div>
             <label className="block text-sm text-gray-400 mb-1">Qual a sua Meta de Lucro Líquido mensal?</label>
             <div className="relative">
@@ -1138,12 +1100,12 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
         </div>
 
         {/* Progresso das Metas */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-gray-700/50 pt-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6 border-t border-gray-700/50 pt-8">
           {/* Progresso de Faturamento */}
           <div className="bg-gray-900/50 p-6 rounded-2xl border border-gray-800">
             <h3 className="text-xs text-gray-400 mb-3 font-bold uppercase tracking-widest">Faturamento (Ponto de Equilíbrio)</h3>
             <div className="flex justify-between items-end mb-4">
-              <span className="text-3xl font-black text-white">R$ {faturamentoAtual.toFixed(2)}</span>
+              <span className="text-2xl md:text-3xl font-black text-white">R$ {faturamentoAtual.toFixed(2)}</span>
               <span className="text-sm font-medium text-gray-500">/ R$ {faturamentoNecessario.toFixed(2)}</span>
             </div>
             <div className="w-full bg-gray-800 rounded-full h-3 overflow-hidden">
@@ -1159,7 +1121,7 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
           <div className="bg-gray-900/50 p-6 rounded-2xl border border-gray-800">
             <h3 className="text-xs text-gray-400 mb-3 font-bold uppercase tracking-widest">Lucro Líquido</h3>
             <div className="flex justify-between items-end mb-4">
-              <span className={`text-3xl font-black ${lucroAtual >= 0 ? 'text-green-400' : 'text-red-400'}`}>R$ {lucroAtual.toFixed(2)}</span>
+              <span className={`text-2xl md:text-3xl font-black ${lucroAtual >= 0 ? 'text-green-400' : 'text-red-400'}`}>R$ {lucroAtual.toFixed(2)}</span>
               <span className="text-sm font-medium text-gray-500">/ R$ {numMeta.toFixed(2)}</span>
             </div>
             <div className="w-full bg-gray-800 rounded-full h-3 overflow-hidden">
@@ -1173,9 +1135,9 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 md:p-8">
         {/* Resumo Financeiro */}
-        <div className="bg-gray-800/80 p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
+        <div className="bg-gray-800/80 p-5 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
           <h3 className="text-xl font-bold text-white mb-6">Resumo Financeiro Mensal</h3>
           
           <div className="space-y-3">
@@ -1199,7 +1161,7 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
         </div>
 
         {/* Projeção de Serviços */}
-        <div className="bg-gray-800/80 p-8 rounded-2xl border border-gray-700/50 shadow-xl relative overflow-hidden h-fit">
+        <div className="bg-gray-800/80 p-5 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl relative overflow-hidden h-fit">
           <div className="absolute -top-10 -right-10 p-4 opacity-[0.03] pointer-events-none">
             <ChartBarIcon className="w-64 h-64" />
           </div>
@@ -1220,17 +1182,17 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
 
               <div>
                 <p className="text-gray-400 text-sm mb-4 font-medium">Meta de serviços para atingir o Ponto de Equilíbrio e Lucro Livre:</p>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                   <div className="bg-gray-900/80 p-4 rounded-xl text-center border-b-2 border-blue-500 shadow-inner">
-                    <div className="text-3xl font-black text-white">{Math.ceil(qtdServicosMes)}</div>
+                    <div className="text-2xl md:text-3xl font-black text-white">{Math.ceil(qtdServicosMes)}</div>
                     <div className="text-[10px] text-gray-500 mt-2 font-bold uppercase tracking-widest">Mês</div>
                   </div>
                   <div className="bg-gray-900/80 p-4 rounded-xl text-center border-b-2 border-green-500 shadow-inner">
-                    <div className="text-3xl font-black text-white">{Math.ceil(qtdServicosSemana)}</div>
+                    <div className="text-2xl md:text-3xl font-black text-white">{Math.ceil(qtdServicosSemana)}</div>
                     <div className="text-[10px] text-gray-500 mt-2 font-bold uppercase tracking-widest">Semana</div>
                   </div>
                   <div className="bg-gray-900/80 p-4 rounded-xl text-center border-b-2 border-purple-500 shadow-inner">
-                    <div className="text-3xl font-black text-white">{Math.ceil(qtdServicosDia)}</div>
+                    <div className="text-2xl md:text-3xl font-black text-white">{Math.ceil(qtdServicosDia)}</div>
                     <div className="text-[10px] text-gray-500 mt-2 font-bold uppercase tracking-widest">Dia</div>
                   </div>
                 </div>
@@ -1407,8 +1369,8 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
       </div>
 
       {activeSubTab === 'diario' && (
-        <div className="grid grid-cols-1 gap-6">
-          <div className="bg-gray-800/80 p-6 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
+        <div className="grid grid-cols-1 gap-4 md:gap-6">
+          <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
             <div className="flex flex-col md:flex-row justify-between md:items-center mb-6 gap-4 border-b border-gray-700/50 pb-4">
               <div>
                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -1431,11 +1393,11 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
                     <p>Nenhuma venda ou serviço registrado para esta data.</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                     {comissoesDia.map((c, idx) => (
                       <div key={idx} className="bg-gray-900/60 p-5 rounded-2xl border border-gray-700 flex flex-col gap-2 relative overflow-hidden">
                         <div className="absolute top-0 right-0 p-3 opacity-10">
-                            <svg className="w-16 h-16 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            <svg className="w-12 md:w-16 h-12 md:h-16 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         </div>
                         <h3 className="font-bold text-white text-lg z-10">{c.barbeiro.nome}</h3>
                         <div className="text-xs text-gray-400 mb-2 border-b border-gray-800 pb-2">Fat. Bruto: <span className="font-bold text-white">R$ {c.faturamentoTotal.toFixed(2)}</span></div>
@@ -1462,8 +1424,8 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
       )}
 
       {activeSubTab === 'mensal' && (
-        <div className="grid grid-cols-1 gap-6">
-          <div className="bg-gray-800/80 p-6 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
+        <div className="grid grid-cols-1 gap-4 md:gap-6">
+          <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
             <div className="flex flex-col md:flex-row justify-between md:items-center mb-6 gap-4 border-b border-gray-700/50 pb-4">
               <div>
                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -1489,7 +1451,7 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
                     <p>Nenhum registro encontrado para este mês.</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                     {comissoesMes.map((c, idx) => (
                       <div key={idx} className="bg-gray-900/40 p-5 rounded-2xl border border-gray-700 flex flex-col gap-2 relative overflow-hidden">
                         <h3 className="font-bold text-white text-lg z-10">{c.barbeiro.nome}</h3>
@@ -1517,7 +1479,7 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
       )}
 
       {activeSubTab === 'aguardando' && (
-        <div className="bg-gray-800/80 p-6 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
+        <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">Aguardando Pagamento <span className="bg-gray-900 border border-gray-700 text-sm font-bold text-blue-400 py-0.5 px-2 rounded-lg">{pendentes.length}</span></h2>
           <button
@@ -1530,12 +1492,12 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
         </div>
         
         {pendentes.length === 0 ? (
-          <div className="w-full bg-gray-900/50 p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center">
+          <div className="w-full bg-gray-900/50 p-5 md:p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center">
             <svg className="w-12 h-12 mb-3 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
             <p>Nenhum atendimento aguardando pagamento.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {pendentes.map(a => {
               const dataAgendada = new Date(a.dataAgendada);
               const dataStr = dataAgendada.toLocaleDateString();
@@ -1613,10 +1575,10 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
       )}
 
       {activeSubTab === 'historico' && (
-      <div className="bg-gray-800/80 p-6 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
+      <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
         <h2 className="text-xl font-bold text-white mb-6">Histórico de Registros <span className="text-gray-500 text-sm font-normal ml-2">(Vendas/Cortes)</span></h2>
         {registros.length === 0 ? (
-          <div className="w-full bg-gray-900/50 p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center">
+          <div className="w-full bg-gray-900/50 p-5 md:p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center">
             <ClipboardListIcon className="w-12 h-12 mb-3 text-gray-700" />
             <p>Nenhum registro encontrado no histórico.</p>
           </div>

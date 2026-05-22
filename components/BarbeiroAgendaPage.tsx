@@ -5,6 +5,8 @@ import { useBarbeariaConfig } from '../hooks/useBarbeariaConfig';
 import { CheckCircleIcon, XCircleIcon, ClockIcon, ScissorsIcon } from './icons';
 import { User, Empresa } from '../types';
 import { CustomDatePicker } from './CustomDatePicker';
+import ConfirmationModal from './ConfirmationModal';
+import { API_BASE_URL } from '../constants';
 
 interface BarbeiroAgendaPageProps {
   user: User;
@@ -51,6 +53,8 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
   const [agendamentoToAtender, setAgendamentoToAtender] = useState<any>(null);
   const [barbeiroToAtender, setBarbeiroToAtender] = useState<string>('');
   const [errorAlert, setErrorAlert] = useState<string>('');
+  const [isFinalizarCaixaOpen, setIsFinalizarCaixaOpen] = useState(false);
+  const [isFinalizando, setIsFinalizando] = useState(false);
 
   const userPhoneNumbers = user?.phone?.replace(/\D/g, '');
   const barbeiroLogado = barbeiros.find(b => b.telefone && b.telefone.replace(/\D/g, '') === userPhoneNumbers);
@@ -132,6 +136,65 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
     return finalizadosMes.reduce((acc, a) => acc + computeComissao(a, a.barbeiroId || selectedBarbeiroId), 0);
   }, [finalizadosMes, selectedBarbeiroId, servicos, produtos, barbeiros]);
 
+  const restanteParaMeta = React.useMemo(() => {
+    const metaNum = Number(metaBarbeiro) || 0;
+    if (metaNum <= 0 || totalComissaoMes >= metaNum) return 0;
+    
+    let fallbackMedia = 30;
+    if (servicos.length > 0) {
+      const bb = barbeiros.find(b => b.id === selectedBarbeiroId);
+      const comissaoPerc = bb ? bb.corte : 50;
+      const soma = servicos.reduce((acc, s) => acc + s.valor, 0);
+      fallbackMedia = (soma / servicos.length) * (comissaoPerc / 100);
+    }
+    
+    const mediaAtual = finalizadosMes.length > 0 ? (totalComissaoMes / finalizadosMes.length) : fallbackMedia;
+    const faltam = metaNum - totalComissaoMes;
+    
+    return mediaAtual > 0 ? Math.ceil(faltam / mediaAtual) : 0;
+  }, [metaBarbeiro, totalComissaoMes, finalizadosMes.length, servicos, barbeiros, selectedBarbeiroId]);
+
+  const restanteParaMetaDiaria = React.useMemo(() => {
+    const metaNum = Number(metaBarbeiro) || 0;
+    if (metaNum <= 0 || totalComissaoMes >= metaNum) return 0;
+    
+    let fallbackMedia = 30;
+    if (servicos.length > 0) {
+      const bb = barbeiros.find(b => b.id === selectedBarbeiroId);
+      const comissaoPerc = bb ? bb.corte : 50;
+      const soma = servicos.reduce((acc, s) => acc + s.valor, 0);
+      fallbackMedia = (soma / servicos.length) * (comissaoPerc / 100);
+    }
+    
+    const mediaAtual = finalizadosMes.length > 0 ? (totalComissaoMes / finalizadosMes.length) : fallbackMedia;
+    const faltam = metaNum - totalComissaoMes;
+
+    const currentDateObj = new Date();
+    const currentMonth = currentDateObj.getMonth();
+    const currentYear = currentDateObj.getFullYear();
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+    const bb = barbeiros.find(b => b.id === selectedBarbeiroId);
+    let workingDaysLeft = 0;
+    const validDaysNames = bb?.diasTrabalhados || [];
+    const hasRestrictedDays = validDaysNames.length > 0;
+    const ptBRWeekdaysNames = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+
+    for (let i = currentDateObj.getDate(); i <= daysInMonth; i++) {
+        const dateToCheck = new Date(currentYear, currentMonth, i);
+        const dayName = ptBRWeekdaysNames[dateToCheck.getDay()];
+        if (!hasRestrictedDays || validDaysNames.includes(dayName)) {
+            workingDaysLeft++;
+        }
+    }
+    
+    const daysLeft = Math.max(1, workingDaysLeft);
+
+    const metaRestanteDia = faltam / daysLeft;
+    
+    return mediaAtual > 0 ? Math.ceil(metaRestanteDia / mediaAtual) : 0;
+  }, [metaBarbeiro, totalComissaoMes, finalizadosMes.length, servicos, barbeiros, selectedBarbeiroId]);
+
   const handleAtender = async (a: any) => {
     const isUnassigned = !a.barbeiroId || a.barbeiroId === 'Qualquer um';
 
@@ -169,6 +232,45 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
     }
   };
 
+  const handleFinalizarCaixa = async () => {
+    if (totalComissaoDia <= 0) {
+      setErrorAlert("Não há comissões para finalizar hoje.");
+      setIsFinalizarCaixaOpen(false);
+      return;
+    }
+    
+    setIsFinalizando(true);
+    try {
+      const barbeiroNome = barbeiros.find(b => b.id === selectedBarbeiroId)?.nome || "Barbeiro";
+      const payload = {
+        ownerPhone: user.phone,
+        type: 'revenue',
+        name: `Comissões Barbeiro (${barbeiroNome}) - ${selectedDate.split('-').reverse().join('/')}`,
+        amount: totalComissaoDia,
+        date: selectedDate,
+        status: 'pago'
+      };
+
+      const res = await fetch(`${API_BASE_URL}/transactions/simple`, {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+         setIsFinalizarCaixaOpen(false);
+      } else {
+         setErrorAlert("Erro ao finalizar caixa.");
+         setIsFinalizarCaixaOpen(false);
+      }
+    } catch (e) {
+      console.error(e);
+      setErrorAlert("Erro ao finalizar caixa.");
+      setIsFinalizarCaixaOpen(false);
+    } finally {
+      setIsFinalizando(false);
+    }
+  };
+
   const confirmAtender = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!barbeiroToAtender || !agendamentoToAtender) return;
@@ -201,8 +303,8 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
     }
 
     const decidedBarbeiroId = finalBarbeiroId !== 'Qualquer um' ? finalBarbeiroId : undefined;
-    await updateAgendamento(a.id, { status: 'finalizado', barbeiroId: decidedBarbeiroId });
-    await updateStatus(a.id, 'finalizado', decidedBarbeiroId);
+    await updateAgendamento(a.id, { status: 'pago', barbeiroId: decidedBarbeiroId });
+    await updateStatus(a.id, 'pago', decidedBarbeiroId);
 
     const agendamentoProdutos: any[] = [];
     if (a.produtosIds && a.produtosIds.length > 0) {
@@ -292,7 +394,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
     return () => clearInterval(interval);
   }, [loadAgendamentos]);
 
-  const handleAddClienteSubmit = async (statusFinal: 'atendendo' | 'finalizado') => {
+  const handleAddClienteSubmit = async (statusFinal: 'atendendo' | 'pago') => {
     if (!addClienteTelefone || !addClienteHora || !addClienteData) {
       alert("Preencha telefone, data e hora.");
       return;
@@ -317,7 +419,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
       produtosIds: addClienteProdutos,
       dataAgendada: `${addClienteData}T${addClienteHora}:00`,
       horarios: [addClienteHora],
-      status: statusFinal,
+      status: 'pendente', // Must be created as pendente
       quantidadePessoas: 1,
       nomesAcompanhantes: "",
       descricao: addClienteDescricao,
@@ -326,27 +428,26 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
 
     const added = await addAgendamento(agendamentoData);
     
-    // Se foi 'finalizado', precisamos gravar no fluxo de caixa:
-    if (statusFinal === 'finalizado') {
-      const itens: any[] = [];
-      let total = 0;
+    if (added && statusFinal !== 'pendente') {
+      const decidedBarbeiroId = selectedBarbeiroId === 'todos' ? undefined : selectedBarbeiroId;
+      await updateAgendamento(added.id, { status: statusFinal, barbeiroId: decidedBarbeiroId });
+      await updateStatus(added.id, statusFinal, decidedBarbeiroId);
       
-      addClienteServicos.forEach(sId => {
-        const s = servicos.find(x => x.id === sId);
-        if (s) {
-          itens.push({ idItem: s.id, nome: s.nome, tipo: 'servico', valor: s.valor });
-          total += s.valor;
+      // Update inventory if products are finalized and pago
+      if (statusFinal === 'pago') {
+        const agendamentoProdutos: any[] = [];
+        if (addClienteProdutos.length > 0) {
+          addClienteProdutos.forEach((pId: string) => {
+            const prod = produtos.find(p => p.id === pId);
+            if (prod) {
+              agendamentoProdutos.push(prod);
+              if (prod.estoque > 0) {
+                updateProduto(prod.id, { estoque: prod.estoque - 1 });
+              }
+            }
+          });
         }
-      });
-      
-      addClienteProdutos.forEach(pId => {
-        const p = produtos.find(x => x.id === pId);
-        if (p) {
-          itens.push({ idItem: p.id, nome: p.nome, tipo: 'produto', valor: p.precoVenda });
-          total += p.precoVenda;
-        }
-      });
-      
+      }
     }
 
     // Limpar estados
@@ -383,15 +484,18 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
     setSelectedProdutosIds([]);
   };
 
+  const barbeiroParaAgenda = barbeiros.find(b => b.id === selectedBarbeiroId);
+  const allowedDays = barbeiroParaAgenda?.diasTrabalhados?.length > 0 ? barbeiroParaAgenda.diasTrabalhados : undefined;
+
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8 pb-20">
+    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8 pb-20">
       <div className="flex flex-col md:flex-row md:items-end justify-between border-b border-gray-800 pb-6 gap-4">
         <div className="flex items-center gap-4">
           <div className="bg-blue-600/20 p-3 rounded-2xl border border-blue-500/30">
             <ClockIcon className="w-8 h-8 text-blue-400" />
           </div>
           <div>
-            <h1 className="text-3xl font-extrabold text-white tracking-tight">Minha Agenda</h1>
+            <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">Minha Agenda</h1>
             <p className="text-gray-400 mt-1 text-sm font-medium">Acompanhe seus clientes e tarefas com facilidade</p>
           </div>
         </div>
@@ -404,9 +508,9 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
       </div>
 
       {!selectedBarbeiroId ? (
-        <div className="bg-gray-800/80 p-8 rounded-2xl border border-gray-700/50 shadow-xl max-w-3xl mx-auto text-center">
+        <div className="bg-gray-800/80 p-5 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl max-w-3xl mx-auto text-center">
           <h2 className="text-2xl font-bold text-white mb-8">Quem é você?</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
             {isAdmin && (
               <button
                 onClick={() => setSelectedBarbeiroId('todos')}
@@ -452,24 +556,22 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                 className="flex-1 sm:flex-none text-sm font-bold text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 px-4 py-2.5 rounded-xl transition-all border border-blue-500/20 whitespace-nowrap flex items-center justify-center gap-2"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
-                Compartilhar Link
+                Compartilhar
               </button>
-              {barbeiro?.id !== 'todos' && (
-                <button onClick={() => setIsAddClienteModalOpen(true)} className="flex-1 sm:flex-none text-sm font-bold text-green-400 hover:text-green-300 bg-green-500/10 hover:bg-green-500/20 px-4 py-2.5 rounded-xl transition-all border border-green-500/20 whitespace-nowrap">
-                  + Adicionar Cliente
-                </button>
-              )}
+              <button onClick={() => setIsAddClienteModalOpen(true)} className="flex-1 sm:flex-none text-sm font-bold text-green-400 hover:text-green-300 bg-green-500/10 hover:bg-green-500/20 px-4 py-2.5 rounded-xl transition-all border border-green-500/20 whitespace-nowrap">
+                + Adicionar
+              </button>
             </div>
           </div>
           
           <div className="mb-8">
-            <CustomDatePicker allowPast={true} selectedDate={selectedDate} onChange={(d) => setSelectedDate(d)} />
+            <CustomDatePicker allowPast={true} selectedDate={selectedDate} onChange={(d) => setSelectedDate(d)} allowedDaysOfWeek={allowedDays} />
           </div>
 
           {errorAlert && (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-[#121214] border border-red-900/50 rounded-2xl p-6 md:p-8 w-full max-w-sm shadow-2xl text-center">
-                <div className="w-16 h-16 bg-red-900/20 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/20">
+              <div className="bg-[#121214] border border-red-900/50 rounded-2xl p-6 sm:p-8 w-full max-w-lg mx-auto shadow-2xl text-center">
+                <div className="w-12 md:w-16 h-12 md:h-16 bg-red-900/20 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/20">
                   <XCircleIcon className="w-8 h-8" />
                 </div>
                 <h3 className="text-xl font-bold text-white mb-2">Atenção</h3>
@@ -486,7 +588,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
 
           {isSelectBarbeiroModalOpen && (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-[#121214] border border-gray-800 rounded-2xl p-6 md:p-8 w-full max-w-md shadow-2xl">
+              <div className="bg-[#121214] border border-gray-800 rounded-2xl p-6 sm:p-8 w-full max-w-lg mx-auto shadow-2xl">
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="text-xl font-bold text-white">Selecionar Barbeiro</h3>
                   <button onClick={() => { setIsSelectBarbeiroModalOpen(false); setAgendamentoToAtender(null); }} className="text-gray-500 hover:text-gray-300">
@@ -516,7 +618,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
 
           {isAddClienteModalOpen && (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 md:p-8 w-full max-w-md shadow-2xl overflow-y-auto max-h-[90vh] custom-scrollbar">
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 sm:p-8 w-full max-w-lg mx-auto shadow-2xl overflow-y-auto max-h-[90vh] custom-scrollbar">
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="text-xl font-bold text-white">Adicionar Cliente</h3>
                   <button onClick={() => setIsAddClienteModalOpen(false)} className="text-gray-500 hover:text-gray-300">
@@ -547,7 +649,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                     />
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm text-gray-400 mb-1">Produtos (Opcionais)</label>
                       <div className="bg-gray-700 border border-gray-600 rounded p-3 max-h-40 overflow-y-auto w-full custom-scrollbar">
@@ -606,6 +708,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                       onMonthChange={() => {
                         setAddClienteHora('');
                       }}
+                      allowedDaysOfWeek={allowedDays}
                     />
                     {addClienteData && availableHorariosAddCliente.length === 0 && (
                       <p className="text-red-400 text-xs mt-2">Nenhum horário disponível para esta data hoje.</p>
@@ -657,7 +760,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                     </button>
                     <button 
                       type="button" 
-                      onClick={() => handleAddClienteSubmit('finalizado')} 
+                      onClick={() => handleAddClienteSubmit('pago')} 
                       className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 pt-4 rounded-xl transition-colors text-sm"
                     >
                       Concluir
@@ -670,7 +773,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
 
           {isAddItemModalOpen && (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-              <div className="bg-[#121214] border border-gray-800 rounded-2xl p-6 md:p-8 w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
+              <div className="bg-[#121214] border border-gray-800 rounded-2xl p-6 sm:p-8 w-full max-w-lg mx-auto shadow-2xl flex flex-col max-h-[90vh]">
                 <div className="flex justify-between items-center mb-6 shrink-0">
                   <h3 className="text-xl font-bold text-white">Adicionar Itens</h3>
                   <button onClick={() => setIsAddItemModalOpen(false)} className="text-gray-500 hover:text-gray-300">
@@ -761,15 +864,15 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
             </button>
           </div>
 
-          <div className="grid grid-cols-1 gap-8">
+          <div className="grid grid-cols-1 gap-5 md:p-8">
             {activeTab === 'proximos' && (
-            <div className="bg-[#1a1a1d] p-6 md:p-8 rounded-3xl border border-gray-800/60 shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <div className="bg-[#1a1a1d] p-6 sm:p-8 rounded-3xl border border-gray-800/60 shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300">
               <h2 className="text-2xl font-black text-gray-100 mb-6 border-b border-gray-800/80 pb-4 flex justify-between items-center tracking-tight">
                 <span>Próximos Agendamentos</span>
                 <span className="bg-blue-600 shadow-lg shadow-blue-500/20 font-black text-white text-sm px-3 py-1 rounded-xl">{pendentes.length}</span>
               </h2>
               {pendentes.length === 0 ? (
-                <div className="w-full bg-gray-900/50 p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center">
+                <div className="w-full bg-gray-900/50 p-5 md:p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center">
                   <svg className="w-12 h-12 mb-3 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                   <p>Bom trabalho! Nenhum agendamento pendente.</p>
                 </div>
@@ -994,14 +1097,40 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
             )}
 
             {activeTab === 'historico' && (
-            <div className="bg-[#1a1a1d] p-6 md:p-8 rounded-3xl border border-gray-800/60 shadow-2xl h-fit animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <div className="bg-[#1a1a1d] p-6 sm:p-8 rounded-3xl border border-gray-800/60 shadow-2xl h-fit animate-in fade-in slide-in-from-bottom-4 duration-300">
               <h2 className="text-xl font-bold text-gray-300 mb-6 border-b border-gray-800/80 pb-4 flex justify-between items-center tracking-tight">
                 <span>Resumo Diário</span>
                 <span className="text-emerald-400 font-black text-xl">R$ {totalComissaoDia.toFixed(2)}</span>
               </h2>
-              <p className="text-gray-400 text-sm mb-4">Abaixo estão os serviços concluídos de hoje e a sua comissão correspondente baseada nos percentuais.</p>
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center bg-gray-900 border border-gray-800 rounded-xl p-4 mb-4 gap-4">
+                <div className="flex justify-between items-center w-full">
+                  <div>
+                    <p className="text-gray-400 text-sm">Serviços concluídos</p>
+                    <p className="text-white font-bold text-lg">{finalizados.length}</p>
+                  </div>
+                  {Number(metaBarbeiro) > 0 && restanteParaMetaDiaria > 0 && (
+                    <div className="text-right">
+                      <p className="text-gray-400 text-sm">Meta diária restante</p>
+                      <p className="text-blue-400 font-bold text-lg">{restanteParaMetaDiaria} <span className="text-sm font-normal text-gray-500">serviços</span></p>
+                    </div>
+                  )}
+                  {Number(metaBarbeiro) > 0 && restanteParaMetaDiaria === 0 && (
+                    <div className="text-right">
+                      <p className="text-emerald-400 text-sm font-bold flex items-center justify-end gap-1"><CheckCircleIcon className="w-4 h-4" /> Meta batida!</p>
+                    </div>
+                  )}
+                </div>
+                {isAdmin && selectedDate === todayStr && totalComissaoDia > 0 && (
+                  <button 
+                    onClick={() => setIsFinalizarCaixaOpen(true)}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-xl text-sm transition-all shadow-md shrink-0 whitespace-nowrap"
+                  >
+                    Finalizar Caixa Hoje
+                  </button>
+                )}
+              </div>
               {finalizados.length === 0 ? (
-                <div className="w-full bg-gray-900/50 p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center">
+                <div className="w-full bg-gray-900/50 p-5 md:p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center">
                   <CheckCircleIcon className="w-12 h-12 mb-3 text-gray-700" />
                   <p>Nenhum serviço concluído.</p>
                 </div>
@@ -1115,26 +1244,32 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
 
             {activeTab === 'resumoMensal' && (
               <div className="space-y-6">
-                <div className="bg-[#1a1a1d] p-6 md:p-8 rounded-3xl border border-gray-800/60 shadow-2xl h-fit animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <div className="bg-[#1a1a1d] p-6 sm:p-8 rounded-3xl border border-gray-800/60 shadow-2xl h-fit animate-in fade-in slide-in-from-bottom-4 duration-300">
                   <h2 className="text-xl font-bold text-gray-300 mb-6 border-b border-gray-800/80 pb-4 flex justify-between items-center tracking-tight">
                     <span>Resumo Mensal ({currentMonth.split('-').reverse().join('/')})</span>
                     <span className="text-purple-400 font-black text-xl">R$ {totalComissaoMes.toFixed(2)}</span>
                   </h2>
-                  <p className="text-gray-400 text-sm mb-4">Total de comissões acumuladas considerando todos os serviços concluídos no mês selecionado.</p>
                   
-                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 flex flex-col items-center justify-center text-center">
-                    <div className="w-16 h-16 bg-purple-900/20 flex items-center justify-center rounded-full mb-4">
-                      <svg className="w-8 h-8 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
+                  <div className="flex justify-between items-center bg-gray-900 border border-gray-800 rounded-xl p-4 mb-4">
+                    <div>
+                      <p className="text-gray-400 text-sm">Serviços concluídos</p>
+                      <p className="text-white font-bold text-lg">{finalizadosMes.length}</p>
                     </div>
-                    <h3 className="text-gray-300 font-bold text-lg mb-1">Comissão Mensal</h3>
-                    <p className="text-purple-400 font-black text-3xl mb-2">R$ {totalComissaoMes.toFixed(2)}</p>
-                    <p className="text-gray-500 text-sm">Serviços concluídos: <span className="text-white font-medium">{finalizadosMes.length}</span></p>
+                    {Number(metaBarbeiro) > 0 && restanteParaMeta > 0 && (
+                      <div className="text-right">
+                        <p className="text-gray-400 text-sm">Meta mensal restante</p>
+                        <p className="text-blue-400 font-bold text-lg">{restanteParaMeta} <span className="text-sm font-normal text-gray-500">serviços</span></p>
+                      </div>
+                    )}
+                    {Number(metaBarbeiro) > 0 && restanteParaMeta === 0 && (
+                      <div className="text-right mt-2">
+                        <p className="text-emerald-400 text-sm font-bold flex items-center justify-end gap-1"><CheckCircleIcon className="w-4 h-4" /> Meta mensal batida!</p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <div className="bg-[#1a1a1d] p-6 md:p-8 rounded-3xl border border-gray-800/60 shadow-2xl animate-in fade-in slide-in-from-bottom-5 duration-300">
+                <div className="bg-[#1a1a1d] p-6 sm:p-8 rounded-3xl border border-gray-800/60 shadow-2xl animate-in fade-in slide-in-from-bottom-5 duration-300">
                   <h2 className="text-xl font-bold text-gray-300 mb-4 border-b border-gray-800/80 pb-4 tracking-tight">
                     Minha Meta de Ganhos Mensal
                   </h2>
@@ -1160,8 +1295,8 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                     {Number(metaBarbeiro) > 0 && (
                       <div className="mt-6 bg-gray-900/50 p-6 rounded-2xl border border-gray-800">
                         <div className="flex justify-between items-end mb-3">
-                          <span className={`text-2xl font-black ${totalComissaoMes >= Number(metaBarbeiro) ? 'text-green-400' : 'text-blue-400'}`}>R$ {totalComissaoMes.toFixed(2)}</span>
-                          <span className="text-sm font-medium text-gray-500">de R$ {Number(metaBarbeiro).toFixed(2)}</span>
+                          <span className="text-white font-bold">Progresso da Meta</span>
+                          <span className="text-sm font-medium text-gray-400">Meta: R$ {Number(metaBarbeiro).toFixed(2)}</span>
                         </div>
                         <div className="w-full bg-gray-800 rounded-full h-4 overflow-hidden shadow-inner">
                           <div 
@@ -1169,9 +1304,11 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                             style={{ width: `${Math.min(100, (totalComissaoMes / Number(metaBarbeiro)) * 100)}%` }}
                           ></div>
                         </div>
-                        <p className="text-right text-xs mt-2 font-bold text-gray-500">
-                          {((totalComissaoMes / Number(metaBarbeiro)) * 100).toFixed(1)}% alcançado
-                        </p>
+                        <div className="flex justify-end items-center mt-2">
+                          <p className="text-xs font-bold text-gray-500">
+                            {((totalComissaoMes / Number(metaBarbeiro)) * 100).toFixed(1)}% alcançado
+                          </p>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1181,6 +1318,14 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
           </div>
         </div>
       )}
+
+      <ConfirmationModal
+        isOpen={isFinalizarCaixaOpen}
+        onClose={() => setIsFinalizarCaixaOpen(false)}
+        onConfirm={handleFinalizarCaixa}
+        title="Finalizar Caixa Diário"
+        message={`Tem certeza que deseja enviar o valor total de R$ ${totalComissaoDia.toFixed(2)} das comissões de hoje para o fluxo de caixa? Isso criará uma transação de Receita.`}
+      />
     </div>
   );
 };
