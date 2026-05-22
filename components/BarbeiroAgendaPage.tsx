@@ -303,8 +303,8 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
     }
 
     const decidedBarbeiroId = finalBarbeiroId !== 'Qualquer um' ? finalBarbeiroId : undefined;
-    await updateAgendamento(a.id, { status: 'pago', barbeiroId: decidedBarbeiroId });
-    await updateStatus(a.id, 'pago', decidedBarbeiroId);
+    await updateAgendamento(a.id, { status: 'finalizado', barbeiroId: decidedBarbeiroId });
+    await updateStatus(a.id, 'finalizado', decidedBarbeiroId);
 
     const agendamentoProdutos: any[] = [];
     if (a.produtosIds && a.produtosIds.length > 0) {
@@ -394,7 +394,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
     return () => clearInterval(interval);
   }, [loadAgendamentos]);
 
-  const handleAddClienteSubmit = async (statusFinal: 'atendendo' | 'pago') => {
+  const handleAddClienteSubmit = async (statusFinal: 'atendendo' | 'finalizado') => {
     if (!addClienteTelefone || !addClienteHora || !addClienteData) {
       alert("Preencha telefone, data e hora.");
       return;
@@ -434,7 +434,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
       await updateStatus(added.id, statusFinal, decidedBarbeiroId);
       
       // Update inventory if products are finalized and pago
-      if (statusFinal === 'pago') {
+      if (statusFinal === 'finalizado') {
         const agendamentoProdutos: any[] = [];
         if (addClienteProdutos.length > 0) {
           addClienteProdutos.forEach((pId: string) => {
@@ -760,7 +760,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                     </button>
                     <button 
                       type="button" 
-                      onClick={() => handleAddClienteSubmit('pago')} 
+                      onClick={() => handleAddClienteSubmit('finalizado')} 
                       className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 pt-4 rounded-xl transition-colors text-sm"
                     >
                       Concluir

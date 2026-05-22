@@ -7,6 +7,7 @@ import { Empresa, User } from '../types';
 import { API_BASE_URL } from '../constants';
 import { CustomDatePicker } from './CustomDatePicker';
 import MonthNavigator from './MonthNavigator';
+import ConfirmationModal from './ConfirmationModal';
 
 const DIAS_SEMANA = [
   'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'
@@ -134,7 +135,7 @@ const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user, empresa }) => {
       {activeTab === 'servicos' && <TabServicos empresaId={empresa?.linkId || empresa?.id} />}
       {activeTab === 'custos' && <TabCustos empresaId={empresa?.linkId || empresa?.id} />}
       {activeTab === 'metas' && <TabMetas empresaId={empresa?.linkId || empresa?.id} />}
-      {activeTab === 'registros' && <TabRegistros empresaId={empresa?.linkId} />}
+      {activeTab === 'registros' && <TabRegistros empresaId={empresa?.linkId} user={user} />}
       
     </div>
   );
@@ -1206,7 +1207,7 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
   );
 };
 
-const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
+const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) => {
   const { registros, addRegistro, removeRegistro, loadRegistros } = useBarbeariaRegistros(empresaId);
   const { agendamentos, updateStatus, loadAgendamentos } = useBarbeariaAgendamentos(empresaId);
   const { barbeiros, reloadBarbeiros } = useBarbeiros(empresaId);
@@ -1218,6 +1219,46 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
   });
 
   const [activeSubTab, setActiveSubTab] = useState<'aguardando' | 'diario' | 'mensal' | 'historico'>('aguardando');
+
+  const [isFinalizarCaixaOpen, setIsFinalizarCaixaOpen] = useState(false);
+  const [isFinalizando, setIsFinalizando] = useState(false);
+  const [receitaData, setReceitaData] = useState<any>(null);
+
+  const handleFinalizarCaixa = async () => {
+    if (!receitaData || !user) {
+      alert("Erro: Dados incompletos.");
+      setIsFinalizarCaixaOpen(false);
+      return;
+    }
+    
+    setIsFinalizando(true);
+    try {
+      const payload = {
+        ownerPhone: user.phone,
+        type: 'revenue',
+        name: `Comissões Barbeiro (${receitaData.nome}) - ${dataFiltro.split('-').reverse().join('/')}`,
+        amount: receitaData.totalComissao,
+        date: dataFiltro,
+        status: 'pago'
+      };
+
+      const res = await fetch(`${API_BASE_URL}/transactions/simple`, {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        alert("Receita criada com sucesso!");
+      } else {
+        alert("Erro ao criar transação.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao criar transação.");
+    }
+    setIsFinalizando(false);
+    setIsFinalizarCaixaOpen(false);
+  };
 
   const handleReload = () => {
     loadRegistros();
@@ -1396,9 +1437,16 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                     {comissoesDia.map((c, idx) => (
                       <div key={idx} className="bg-gray-900/60 p-5 rounded-2xl border border-gray-700 flex flex-col gap-2 relative overflow-hidden">
-                        <div className="absolute top-0 right-0 p-3 opacity-10">
-                            <svg className="w-12 md:w-16 h-12 md:h-16 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        </div>
+                        <button 
+                          onClick={() => {
+                            setReceitaData({ ...c, nome: c.barbeiro.nome });
+                            setIsFinalizarCaixaOpen(true);
+                          }}
+                          className="absolute top-4 right-4 p-2 bg-gray-800 border border-gray-700 rounded-xl hover:bg-gray-700 hover:text-green-400 hover:border-green-500/50 transition-all shadow-md group z-20"
+                          title="Finalizar Caixa (Criar Receita)"
+                        >
+                          <svg className="w-8 h-8 text-gray-400 group-hover:text-green-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        </button>
                         <h3 className="font-bold text-white text-lg z-10">{c.barbeiro.nome}</h3>
                         <div className="text-xs text-gray-400 mb-2 border-b border-gray-800 pb-2">Fat. Bruto: <span className="font-bold text-white">R$ {c.faturamentoTotal.toFixed(2)}</span></div>
                         
@@ -1454,6 +1502,16 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                     {comissoesMes.map((c, idx) => (
                       <div key={idx} className="bg-gray-900/40 p-5 rounded-2xl border border-gray-700 flex flex-col gap-2 relative overflow-hidden">
+                        <button 
+                          onClick={() => {
+                            setReceitaData({ ...c, nome: c.barbeiro.nome });
+                            setIsFinalizarCaixaOpen(true);
+                          }}
+                          className="absolute top-4 right-4 p-2 bg-gray-800 border border-gray-700 rounded-xl hover:bg-gray-700 hover:text-green-400 hover:border-green-500/50 transition-all shadow-md group z-20"
+                          title="Finalizar Caixa (Criar Receita)"
+                        >
+                          <svg className="w-8 h-8 text-gray-400 group-hover:text-green-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        </button>
                         <h3 className="font-bold text-white text-lg z-10">{c.barbeiro.nome}</h3>
                         <div className="text-xs text-gray-400 mb-2 border-b border-gray-800 pb-2">Fat. Bruto Mensal: <span className="font-bold text-white">R$ {c.faturamentoTotal.toFixed(2)}</span></div>
                         
@@ -1622,6 +1680,13 @@ const TabRegistros = ({ empresaId }: { empresaId?: string }) => {
         )}
       </div>
       )}
+      <ConfirmationModal
+        isOpen={isFinalizarCaixaOpen}
+        onClose={() => setIsFinalizarCaixaOpen(false)}
+        onConfirm={handleFinalizarCaixa}
+        title="Finalizar Caixa (Criar Receita)"
+        message={`Tem certeza que deseja enviar o valor total de R$ ${receitaData?.totalComissao?.toFixed(2)} das comissões de ${receitaData?.nome} para o fluxo de caixa? Isso criará uma transação de Receita e marcará este valor como pago.`}
+      />
     </div>
   );
 };
