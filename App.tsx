@@ -496,12 +496,17 @@ const App: React.FC = () => {
   }
   
   let userCompany = empresas.find(e => e.id === linkedCompanyId);
-  if (!userCompany && linkedCompanyId) {
+  if (userCompany) {
+    if (!userCompany.linkId && linkedId) {
+       userCompany = { ...userCompany, linkId: linkedId };
+    }
+  } else if (!userCompany && linkedCompanyId) {
     userCompany = {
       id: linkedCompanyId,
       name: 'Empresa Vinculada',
       status: 'ativo',
       owner: 'desconhecido',
+      linkId: linkedId || undefined
     };
   }
 
