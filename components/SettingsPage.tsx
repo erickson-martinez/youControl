@@ -16,7 +16,7 @@ const apiToFrontendPermissions = (apiPerms: string[] | null | undefined): MenuPe
         listPurcharse: false, settings: false, exemplo: false, financialManual: false,
         burgerProducts: false, burgerPOS: false, burgerWaiter: false, 
         burgerDelivery: false, burgerDashboard: false, burgerClient: false, burgerCompany: false,
-        treino: false, jogoDaVida: false, jornada: false, barbearia: false, agendamento: false, barbeiroAgenda: false
+        treino: false, jogoDaVida: false, jornada: false, barbearia: false, caixaBarbearia: false, agendamento: false, barbeiroAgenda: false
     };
     if (Array.isArray(apiPerms)) {
         for (const key of apiPerms) {

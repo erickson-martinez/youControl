@@ -73,6 +73,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, isOpen, onClose, perm
               <li className="px-4 pt-4 pb-2 text-xs font-semibold text-gray-500 uppercase">Geral</li>
               {permissions.barbearia && <li><NavLink page="barbearia" onNavigate={onNavigate} icon={<UsersIcon className="w-6 h-6" />} label="Barbearia Admin" active={activePage === 'barbearia'} /></li>}
               {permissions.barbeiroAgenda && <li><NavLink page="barbeiroAgenda" onNavigate={onNavigate} icon={<ClipboardListIcon className="w-6 h-6" />} label="Minha Agenda (Barbeiro)" active={activePage === 'barbeiroAgenda'} /></li>}
+              {permissions.caixaBarbearia && <li><NavLink page="caixaBarbearia" onNavigate={onNavigate} icon={<CashIcon className="w-6 h-6" />} label="Caixa Barbearia" active={activePage === 'caixaBarbearia'} /></li>}
               {permissions.jornada && <li><NavLink page="jornada" onNavigate={onNavigate} icon={<SparklesIcon className="w-6 h-6" />} label="Minha Jornada" active={activePage === 'jornada'} /></li>}
               {permissions.jogoDaVida && <li><NavLink page="jogoDaVida" onNavigate={onNavigate} icon={<BookOpenIcon className="w-6 h-6" />} label="Jogo da Vida" active={activePage === 'jogoDaVida'} /></li>}
               {permissions.treino && <li><NavLink page="treino" onNavigate={onNavigate} icon={<ClipboardListIcon className="w-6 h-6" />} label="Treino" active={activePage === 'treino'} /></li>}

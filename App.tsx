@@ -44,7 +44,7 @@ const apiToFrontendPermissions = (apiPerms: string[] | null | undefined, userPho
         exemplo: false, financialManual: false,
         burgerProducts: false, burgerPOS: false, burgerWaiter: false, burgerDelivery: false, 
         burgerDashboard: false, burgerClient: false, burgerCompany: false,
-        treino: false, jogoDaVida: false, jornada: false, barbearia: false, barbeiroAgenda: false, agendamento: false
+        treino: false, jogoDaVida: false, jornada: false, barbearia: false, caixaBarbearia: false, barbeiroAgenda: false, agendamento: false
     };
     if (Array.isArray(apiPerms)) {
         for (const key of apiPerms) {
@@ -543,6 +543,7 @@ const App: React.FC = () => {
               {activePage === 'jogoDaVida' && userPermissions.jogoDaVida && <JogoDaVidaPage />}
               {activePage === 'jornada' && userPermissions.jornada && <JornadaPage user={user} />}
               {activePage === 'barbearia' && userPermissions.barbearia && <BarbeirosPage user={user} empresa={userCompany || companiesForManagement[0]} />}
+              {activePage === 'caixaBarbearia' && userPermissions.caixaBarbearia && <Dashboard user={user} onNavigate={handleNavigate}/>}
               {activePage === 'barbeiroAgenda' && userPermissions.barbeiroAgenda && <BarbeiroAgendaPage user={user} linkId={linkedId} empresa={userCompany || companiesForManagement[0]} isAdmin={userPermissions.barbearia} />}
               {activePage === 'agendamento' && <AgendamentoPage empresa={userCompany || companiesForManagement[0]} empresas={empresas} />}
               

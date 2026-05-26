@@ -1211,14 +1211,14 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
   const { registros, addRegistro, removeRegistro, loadRegistros } = useBarbeariaRegistros(empresaId);
   const { agendamentos, updateStatus, loadAgendamentos } = useBarbeariaAgendamentos(empresaId);
   const { barbeiros, reloadBarbeiros } = useBarbeiros(empresaId);
-  const { servicos, loadConfig, produtos, updateProduto } = useBarbeariaConfig(empresaId);
+  const { servicos, loadConfig, produtos, updateProduto, custos } = useBarbeariaConfig(empresaId);
   
   const [dataFiltro, setDataFiltro] = useState(() => {
     const hoje = new Date();
     return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
   });
 
-  const [activeSubTab, setActiveSubTab] = useState<'aguardando' | 'diario' | 'mensal' | 'historico'>('aguardando');
+  const [activeSubTab, setActiveSubTab] = useState<'aguardando' | 'diario' | 'mensal' | 'historico' | 'lucro'>('aguardando');
 
   const [isFinalizarCaixaOpen, setIsFinalizarCaixaOpen] = useState(false);
   const [isFinalizando, setIsFinalizando] = useState(false);
@@ -1233,11 +1233,21 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
     
     setIsFinalizando(true);
     try {
+      const isBarbearia = receitaData.isBarbearia;
+      
+      let ownerPhone = user.phone;
+      if (!isBarbearia) {
+         ownerPhone = (receitaData.barbeiro?.telefone || '').replace(/\D/g, "");
+         if (!ownerPhone || ownerPhone.length < 10) {
+             ownerPhone = user.phone;
+         }
+      }
+
       const payload = {
-        ownerPhone: user.phone,
+        ownerPhone: ownerPhone,
         type: 'revenue',
-        name: `Comissões Barbeiro (${receitaData.nome}) - ${dataFiltro.split('-').reverse().join('/')}`,
-        amount: receitaData.totalComissao,
+        name: isBarbearia ? `Fechamento Barbearia - ${dataFiltro.split('-').reverse().join('/')}` : `Comissões Barbeiro (${receitaData.nome}) - ${dataFiltro.split('-').reverse().join('/')}`,
+        amount: isBarbearia ? receitaData.caixaBarbearia : receitaData.totalComissao,
         date: dataFiltro,
         status: 'pago'
       };
@@ -1406,6 +1416,15 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
             Comissões Mês
           </button>
+          <button
+            onClick={() => setActiveSubTab('lucro')}
+            className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 ${
+              activeSubTab === 'lucro' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-700'
+            }`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            Lucro Líquido
+          </button>
         </nav>
       </div>
 
@@ -1430,11 +1449,42 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                   />
               </div>
                 {comissoesDia.length === 0 ? (
-                  <div className="w-full bg-gray-900/50 p-6 rounded-2xl border border-gray-800 text-center text-gray-500">
+                  <div className="w-full bg-gray-900/50 p-6 rounded-2xl border border-gray-800 text-center text-gray-500 mt-4">
                     <p>Nenhuma venda ou serviço registrado para esta data.</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+                    {/* Barbearia Card */}
+                    <div className="bg-blue-900/30 p-5 rounded-2xl border border-blue-800/50 flex flex-col gap-2 relative overflow-hidden">
+                       <button 
+                          onClick={() => {
+                            const faturamentoBrutoTotal = comissoesDia.reduce((sum, c) => sum + c.faturamentoTotal, 0);
+                            const caixaTotal = comissoesDia.reduce((sum, c) => sum + c.caixaBarbearia, 0);
+                            setReceitaData({ isBarbearia: true, faturamentoBrutoTotal, caixaBarbearia: caixaTotal });
+                            setIsFinalizarCaixaOpen(true);
+                          }}
+                          className="absolute top-4 right-4 p-2 bg-blue-800/50 border border-blue-700/50 rounded-xl hover:bg-blue-700 hover:text-white transition-all shadow-md group z-20"
+                          title="Fechar Barbearia (Criar Receita)"
+                        >
+                          <svg className="w-8 h-8 text-blue-300 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                        </button>
+                        <h3 className="font-bold text-blue-100 text-lg z-10 flex items-center gap-2 pt-1">
+                           <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                           Caixa Barbearia
+                        </h3>
+                        <div className="text-xs text-blue-300/70 mb-2 border-b border-blue-800/50 pb-2">
+                          Fat. Bruto Geral: <span className="font-bold text-white">R$ {comissoesDia.reduce((sum, c) => sum + c.faturamentoTotal, 0).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm border-b border-blue-800/50 pb-2">
+                          <span className="text-blue-200">Comissões Pagas</span>
+                          <span className="text-red-400 font-medium">- R$ {comissoesDia.reduce((sum, c) => sum + c.totalComissao, 0).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center mt-2 pt-1 border-t border-blue-800/50">
+                          <span className="text-blue-100 font-bold text-sm">Lucro Barbearia</span>
+                          <span className="text-blue-400 font-black text-lg">R$ {comissoesDia.reduce((sum, c) => sum + c.caixaBarbearia, 0).toFixed(2)}</span>
+                        </div>
+                    </div>
+                    {/* Fim Barbearia Card */}
                     {comissoesDia.map((c, idx) => (
                       <div key={idx} className="bg-gray-900/60 p-5 rounded-2xl border border-gray-700 flex flex-col gap-2 relative overflow-hidden">
                         <button 
@@ -1563,14 +1613,32 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
               const barbeiro = barbeiros.find(b => b.id === a.barbeiroId)?.nome || 'Qualquer um';
               
               const servicosDoAgendamento: any[] = [];
+              let valorTotal = 0;
               if (a.servicosIds && a.servicosIds.length > 0) {
                 a.servicosIds.forEach((sId: string) => {
                   const s = servicos.find(x => x.id === sId);
-                  if (s) servicosDoAgendamento.push(s);
+                  if (s) {
+                    servicosDoAgendamento.push(s);
+                    valorTotal += s.valor;
+                  }
                 });
               } else if (a.servicoId) {
                 const s = servicos.find(x => x.id === a.servicoId);
-                if (s) servicosDoAgendamento.push(s);
+                if (s) {
+                  servicosDoAgendamento.push(s);
+                  valorTotal += s.valor;
+                }
+              }
+
+              const produtosDoAgendamento: any[] = [];
+              if (a.produtosIds && a.produtosIds.length > 0) {
+                a.produtosIds.forEach((pId: string) => {
+                  const p = produtos.find(x => x.id === pId);
+                  if (p) {
+                    produtosDoAgendamento.push(p);
+                    valorTotal += p.precoVenda;
+                  }
+                });
               }
               
               return (
@@ -1603,26 +1671,37 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                   {servicosDoAgendamento.length > 0 && (
                     <div className="flex flex-col gap-2 mt-1">
                       {servicosDoAgendamento.map((s, idx) => (
-                        <div key={idx} className="text-sm text-gray-300 bg-gray-800 px-3 py-1.5 rounded-lg inline-flex justify-between w-full shadow-inner border border-gray-700/50">
+                        <div key={`s-${idx}`} className="text-sm text-gray-300 bg-gray-800 px-3 py-1.5 rounded-lg inline-flex justify-between w-full shadow-inner border border-gray-700/50">
                           <span className="font-medium">{s.nome}</span>
                           <span className="text-green-400 font-bold">R$ {s.valor.toFixed(2)}</span>
                         </div>
                       ))}
                     </div>
                   )}
+
+                  {produtosDoAgendamento.length > 0 && (
+                    <div className="flex flex-col gap-2 mt-1">
+                      {produtosDoAgendamento.map((p, idx) => (
+                        <div key={`p-${idx}`} className="text-sm text-gray-300 bg-gray-800 px-3 py-1.5 rounded-lg inline-flex justify-between w-full shadow-inner border border-gray-700/50">
+                          <span className="font-medium">{p.nome} (Produto)</span>
+                          <span className="text-blue-400 font-bold">R$ {p.precoVenda.toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   
-                  <div className="flex gap-2 mt-2 pt-3 border-t border-gray-700/50">
+                  <div className="flex justify-between items-center mt-2 mb-1 px-1">
+                     <span className="text-sm font-bold text-gray-400">Total a Pagar</span>
+                     <span className="text-lg font-black text-white">R$ {valorTotal.toFixed(2)}</span>
+                  </div>
+
+                  <div className="flex gap-2 pt-3 border-t border-gray-700/50">
                     <button 
                       onClick={() => handleConcluir(a)}
                       className="w-full flex items-center justify-center gap-2 bg-green-600/20 hover:bg-green-600 text-green-400 hover:text-white border border-green-500/30 font-medium text-sm py-2 rounded-xl transition-all"
                     >
                       <CheckCircleIcon className="w-4 h-4" /> Marcar como Pago
                     </button>
-                    {a.produtosIds && a.produtosIds.length > 0 && (
-                      <div className="absolute top-4 right-12 text-[10px] bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-md font-bold uppercase">
-                        + {a.produtosIds.length} Prod
-                      </div>
-                    )}
                   </div>
                 </div>
               );
@@ -1631,6 +1710,79 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
         )}
       </div>
       )}
+
+      {activeSubTab === 'lucro' && (() => {
+        const faturamentoMes = comissoesMes.reduce((sum, c) => sum + c.faturamentoTotal, 0);
+        const comissoesPagasMes = comissoesMes.reduce((sum, c) => sum + c.totalComissao, 0);
+        const custoFixoMes = custos.filter(c => c.tipo === 'fixo').reduce((sum, c) => sum + c.valor, 0);
+        const custoVariavelMes = custos.filter(c => c.tipo === 'variavel').reduce((sum, c) => sum + c.valor, 0);
+        const custosTotaisMes = custoFixoMes + custoVariavelMes;
+        const impostoTax = 6; 
+        const impostosMes = faturamentoMes > 5000 ? faturamentoMes * (impostoTax / 100) : 0;
+        const lucroLiquidoMes = faturamentoMes - comissoesPagasMes - custosTotaisMes - impostosMes;
+        
+        return (
+          <div className="grid grid-cols-1 gap-4 md:gap-6">
+            <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
+              <div className="flex flex-col md:flex-row justify-between md:items-center mb-6 gap-4 border-b border-gray-700/50 pb-4">
+                <div>
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                      Lucro Líquido Mensal
+                    </h2>
+                    <p className="text-gray-400 text-sm mt-1">Análise de rentabilidade contábil do mês selecionado, já deduzindo comissões aos barbeiros, custos da barbearia e impostos (acima de R$ 5.000 mensais).</p>
+                </div>
+              </div>
+              
+              <div>
+                 <MonthNavigator
+                    currentDate={new Date(parseInt(dataFiltro.split('-')[0]), parseInt(dataFiltro.split('-')[1]) - 1, 1)}
+                    setCurrentDate={(d) => {
+                      const yyyy = d.getFullYear();
+                      const mm = String(d.getMonth() + 1).padStart(2, '0');
+                      setDataFiltro(`${yyyy}-${mm}-01`);
+                    }}
+                  />
+      
+                  <div className="mt-8 flex flex-col gap-4">
+                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-gray-900/60 p-4 border border-gray-700/50 rounded-xl">
+                            <div className="text-xs text-gray-400 mb-1">Faturamento Bruto Geral</div>
+                            <div className="text-xl font-bold text-white">R$ {faturamentoMes.toFixed(2)}</div>
+                        </div>
+                        <div className="bg-gray-900/60 p-4 border border-gray-700/50 rounded-xl">
+                            <div className="text-xs text-gray-400 mb-1">Comissões Pagas</div>
+                            <div className="text-xl font-bold text-red-400/80">- R$ {comissoesPagasMes.toFixed(2)}</div>
+                        </div>
+                        <div className="bg-gray-900/60 p-4 border border-gray-700/50 rounded-xl flex items-center justify-between">
+                            <div>
+                                <div className="text-xs text-gray-400 mb-1">Custos Totais Mensais</div>
+                                <div className="text-xl font-bold text-orange-400/80">- R$ {custosTotaisMes.toFixed(2)}</div>
+                            </div>
+                        </div>
+                        <div className="bg-gray-900/60 p-4 border border-gray-700/50 rounded-xl">
+                            <div className="text-xs text-gray-400 mb-1">Impostos {faturamentoMes > 5000 ? `(${impostoTax}%)` : '(Isento ≤ 5k)'}</div>
+                            <div className="text-xl font-bold text-red-500/80">- R$ {impostosMes.toFixed(2)}</div>
+                        </div>
+                     </div>
+                     
+                     <div className="mt-4 bg-gray-900/80 p-8 rounded-2xl border border-gray-700 flex flex-col items-center justify-center gap-2 shadow-inner">
+                        <div className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-1 text-center">Lucro Líquido Consolidado da Barbearia</div>
+                        <div className={`text-4xl md:text-5xl font-black tracking-tight ${lucroLiquidoMes >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                           R$ {lucroLiquidoMes.toFixed(2)}
+                        </div>
+                        {lucroLiquidoMes < 0 && (
+                          <div className="text-xs text-red-400 mt-2">Atenção: A barbearia está operando com prejuízo neste mês.</div>
+                        )}
+                        {lucroLiquidoMes >= 0 && (
+                          <div className="text-xs text-green-400/80 mt-2">A barbearia está operando com lucro neste mês.</div>
+                        )}
+                     </div>
+                  </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {activeSubTab === 'historico' && (
       <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
@@ -1684,8 +1836,11 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
         isOpen={isFinalizarCaixaOpen}
         onClose={() => setIsFinalizarCaixaOpen(false)}
         onConfirm={handleFinalizarCaixa}
-        title="Finalizar Caixa (Criar Receita)"
-        message={`Tem certeza que deseja enviar o valor total de R$ ${receitaData?.totalComissao?.toFixed(2)} das comissões de ${receitaData?.nome} para o fluxo de caixa? Isso criará uma transação de Receita e marcará este valor como pago.`}
+        title={receitaData?.isBarbearia ? "Fechar Barbearia (Criar Receita)" : "Finalizar Caixa (Criar Receita)"}
+        message={receitaData?.isBarbearia 
+          ? `Tem certeza que deseja fechar o caixa da barbearia (R$ ${receitaData?.caixaBarbearia?.toFixed(2)}) e enviar para o fluxo de caixa? Isso criará uma transação de Receita para o administrador.`
+          : `Tem certeza que deseja enviar o valor total de R$ ${receitaData?.totalComissao?.toFixed(2)} das comissões de ${receitaData?.nome} para o fluxo de caixa? Isso criará uma transação de Receita.`
+        }
       />
     </div>
   );

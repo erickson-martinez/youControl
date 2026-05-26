@@ -24,6 +24,7 @@ export const ALL_PERMISSION_KEYS_WITH_LABELS: { key: keyof MenuPermissions, labe
     { key: 'jogoDaVida', label: 'Jogo da Vida' },
     { key: 'jornada', label: 'Jornada (Hábitos)' },
     { key: 'barbearia', label: 'Barbearia' },
+    { key: 'caixaBarbearia', label: 'Caixa Barbearia' },
     { key: 'barbeiroAgenda', label: 'Agenda do Barbeiro' },
     { key: 'agendamento', label: 'Agendamento (Público)' },
     { key: 'burgerProducts', label: 'Burguer: Produtos' },

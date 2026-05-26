@@ -30,6 +30,7 @@ export interface MenuPermissions {
   jogoDaVida: boolean;
   jornada: boolean;
   barbearia: boolean;
+  caixaBarbearia: boolean;
   barbeiroAgenda: boolean;
   agendamento: boolean;
 }
