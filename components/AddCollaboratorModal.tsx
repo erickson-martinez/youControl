@@ -7,7 +7,7 @@ import { API_BASE_URL } from '../constants';
 interface AddCollaboratorModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (phone: string, empresaId: string) => Promise<void>;
+    onSave: (phone: string, empresaId: string, role: string) => Promise<void>;
     empresas: Empresa[];
     linkedUserPhones: string[];
 }
@@ -15,6 +15,7 @@ interface AddCollaboratorModalProps {
 const AddCollaboratorModal: React.FC<AddCollaboratorModalProps> = ({ isOpen, onClose, onSave, empresas, linkedUserPhones }) => {
     const [selectedPhone, setSelectedPhone] = useState('');
     const [selectedEmpresa, setSelectedEmpresa] = useState<string>('');
+    const [selectedRole, setSelectedRole] = useState<string>('Barbeiro');
     const [allUsers, setAllUsers] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -54,14 +55,14 @@ const AddCollaboratorModal: React.FC<AddCollaboratorModalProps> = ({ isOpen, onC
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!selectedPhone || !selectedEmpresa) {
-            alert("Por favor, selecione um colaborador e uma empresa.");
+        if (!selectedPhone || !selectedEmpresa || !selectedRole) {
+            alert("Por favor, selecione um colaborador, uma empresa e uma função.");
             return;
         }
         
         setIsSaving(true);
         try {
-            await onSave(selectedPhone, selectedEmpresa);
+            await onSave(selectedPhone, selectedEmpresa, selectedRole);
         } catch (error) {
             alert(`Falha ao salvar: ${(error as Error).message}`);
         } finally {
@@ -108,6 +109,22 @@ const AddCollaboratorModal: React.FC<AddCollaboratorModalProps> = ({ isOpen, onC
                                 ) : (
                                     <option value="" disabled>Nenhuma empresa cadastrada</option>
                                 )}
+                            </select>
+                        </div>
+                        <div className="mb-6">
+                            <label htmlFor="role" className="block mb-2 text-sm font-medium text-gray-300">Função</label>
+                            <select
+                                id="role"
+                                value={selectedRole}
+                                onChange={(e) => setSelectedRole(e.target.value)}
+                                required
+                                className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500 disabled:opacity-50"
+                            >
+                                <option value="Caixa">Caixa</option>
+                                <option value="Vendedor">Vendedor</option>
+                                <option value="Gerente">Gerente</option>
+                                <option value="Proprietário">Proprietário</option>
+                                <option value="Barbeiro">Barbeiro</option>
                             </select>
                         </div>
                     </fieldset>

@@ -58,6 +58,7 @@ export interface UserCompanyLink {
   userPhone: string;
   empresaId: string;
   status: string;
+  role?: string;
 }
 
 export enum PontoStatus {

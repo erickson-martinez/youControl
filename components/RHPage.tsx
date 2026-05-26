@@ -81,6 +81,7 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
             userPhone: userPhone,
             empresaId: link.empresaId,
             status: link.status,
+            role: link.role,
           });
           
           if (!seenPhones.has(userPhone)) {
@@ -106,7 +107,7 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
   }, [fetchData]);
 
 
-  const handleLinkUser = useCallback(async (userPhone: string, empresaId: string) => {
+  const handleLinkUser = useCallback(async (userPhone: string, empresaId: string, role: string = 'funcionario') => {
     try {
       const existingLink = userCompanyLinks.find(link => link.userPhone === userPhone);
 
@@ -116,7 +117,7 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
       } else {
         await apiFetch(`${API_BASE_URL}/rh/link-user`, {
           method: 'POST',
-          body: JSON.stringify({ userPhone, empresaId, status: 'ativo' }),
+          body: JSON.stringify({ userPhone, empresaId, status: 'ativo', role }),
         });
       }
       
@@ -130,8 +131,8 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
     }
   }, [user.phone, apiFetch, userCompanyLinks, fetchData, onCurrentUserUpdate]);
 
-  const handleSaveCollaborator = async (phone: string, empresaId: string) => {
-    await handleLinkUser(phone, empresaId);
+  const handleSaveCollaborator = async (phone: string, empresaId: string, role: string) => {
+    await handleLinkUser(phone, empresaId, role);
     setIsModalOpen(false);
   };
   
@@ -165,6 +166,7 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
     return linkedUsers.map(u => {
       const userLink = userCompanyLinks.find(link => link.userPhone === u.phone);
       const selectedCompanyId = userLink ? userLink.empresaId : '';
+      const selectedRole = userLink?.role || 'funcionario';
       return (
         <tr key={u.phone} className="bg-gray-800 border-b border-gray-700">
           <td className="px-6 py-4 font-medium text-white">
@@ -174,7 +176,7 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
           <td className="px-6 py-4">
             <select
               value={selectedCompanyId}
-              onChange={(e) => handleLinkUser(u.phone, e.target.value)}
+              onChange={(e) => handleLinkUser(u.phone, e.target.value, selectedRole)}
               className="px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500"
             >
               <option value="">Nenhuma</option>
@@ -183,6 +185,21 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
                   {empresa.name}
                 </option>
               ))}
+            </select>
+          </td>
+          <td className="px-6 py-4">
+            <select
+              value={selectedRole}
+              onChange={(e) => handleLinkUser(u.phone, selectedCompanyId, e.target.value)}
+              disabled={!selectedCompanyId}
+              className="px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500 disabled:opacity-50"
+            >
+              <option value="funcionario">Funcionário (Padrão)</option>
+              <option value="Caixa">Caixa</option>
+              <option value="Vendedor">Vendedor</option>
+              <option value="Gerente">Gerente</option>
+              <option value="Proprietário">Proprietário</option>
+              <option value="Barbeiro">Barbeiro</option>
             </select>
           </td>
           <td className="px-6 py-4 text-right">
@@ -220,6 +237,7 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
             <tr>
               <th scope="col" className="px-6 py-3">Colaborador</th>
               <th scope="col" className="px-6 py-3">Empresa Vinculada</th>
+              <th scope="col" className="px-6 py-3">Função</th>
               <th scope="col" className="px-6 py-3 text-right">Ações</th>
             </tr>
           </thead>
