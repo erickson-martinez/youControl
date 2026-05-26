@@ -1453,7 +1453,7 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                     <p>Nenhuma venda ou serviço registrado para esta data.</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-4">
                     {/* Barbearia Card */}
                     <div className="bg-blue-900/30 p-5 rounded-2xl border border-blue-800/50 flex flex-col gap-2 relative overflow-hidden">
                        <button 
@@ -1549,7 +1549,7 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                     <p>Nenhum registro encontrado para este mês.</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     {comissoesMes.map((c, idx) => (
                       <div key={idx} className="bg-gray-900/40 p-5 rounded-2xl border border-gray-700 flex flex-col gap-2 relative overflow-hidden">
                         <button 
@@ -1605,7 +1605,7 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
             <p>Nenhum atendimento aguardando pagamento.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {pendentes.map(a => {
               const dataAgendada = new Date(a.dataAgendada);
               const dataStr = dataAgendada.toLocaleDateString();

@@ -20,6 +20,7 @@ import TreinoPage from './components/TreinoPage';
 import JogoDaVidaPage from './components/JogoDaVidaPage';
 import JornadaPage from './components/JornadaPage';
 import BarbeirosPage from './components/BarbeirosPage';
+import CaixaBarbeariaPage from './components/CaixaBarbeariaPage';
 import BarbeiroAgendaPage from './components/BarbeiroAgendaPage';
 import AgendamentoPage from './components/AgendamentoPage';
 // Burger Imports
@@ -543,7 +544,7 @@ const App: React.FC = () => {
               {activePage === 'jogoDaVida' && userPermissions.jogoDaVida && <JogoDaVidaPage />}
               {activePage === 'jornada' && userPermissions.jornada && <JornadaPage user={user} />}
               {activePage === 'barbearia' && userPermissions.barbearia && <BarbeirosPage user={user} empresa={userCompany || companiesForManagement[0]} />}
-              {activePage === 'caixaBarbearia' && userPermissions.caixaBarbearia && <Dashboard user={user} onNavigate={handleNavigate}/>}
+              {activePage === 'caixaBarbearia' && userPermissions.caixaBarbearia && <CaixaBarbeariaPage user={user} empresa={userCompany || companiesForManagement[0]}/>}
               {activePage === 'barbeiroAgenda' && userPermissions.barbeiroAgenda && <BarbeiroAgendaPage user={user} linkId={linkedId} empresa={userCompany || companiesForManagement[0]} isAdmin={userPermissions.barbearia} />}
               {activePage === 'agendamento' && <AgendamentoPage empresa={userCompany || companiesForManagement[0]} empresas={empresas} />}
               
