@@ -233,12 +233,13 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
         });
 
         // Vincula também no RH automático como Barbeiro
-        if (empresaId) {
+        const realCompanyId = empresa?.id || empresaId;
+        if (realCompanyId) {
             try {
                 await fetch(`${API_BASE_URL}/rh/link-user`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userPhone: cleanPhone, empresaId, status: 'ativo', role: 'Barbeiro' }),
+                    body: JSON.stringify({ userPhone: cleanPhone, empresaId: realCompanyId, status: 'ativo', role: 'Barbeiro' }),
                 });
             } catch (rhErr) {
                 console.warn("Erro ao vincular barbeiro no RH:", rhErr);
