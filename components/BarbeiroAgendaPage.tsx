@@ -29,10 +29,10 @@ const HORARIOS = [
   "19:00",
 ];
 
-const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, linkId, isAdmin }) => {
+const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, isAdmin }) => {
 
 
-  const resolvedCompanyId = (linkId && linkId !== 'undefined' ? linkId : undefined) || empresa?.id;
+  const resolvedCompanyId = empresa?.id;
   const { barbeiros } = useBarbeiros(resolvedCompanyId);
   const { agendamentos, addAgendamento, updateStatus, updateAgendamento, loadAgendamentos } = useBarbeariaAgendamentos(resolvedCompanyId);
   const { registros, addRegistro } = useBarbeariaRegistros(resolvedCompanyId);

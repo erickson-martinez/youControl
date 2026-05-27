@@ -64,11 +64,14 @@ export const useBarbeiros = (empresaId?: string) => {
       });
       if (response.ok) {
         setBarbeiros(prev => prev.filter(b => b.id !== id));
+        return true;
       } else {
         console.error('Erro ao deletar barbeiro');
+        return false;
       }
     } catch (e) {
       console.error('Erro ao deletar barbeiro', e);
+      return false;
     }
   };
 

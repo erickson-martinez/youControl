@@ -22,8 +22,8 @@ import { CustomDatePicker } from "./CustomDatePicker";
 
 export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: Empresa, empresas?: Empresa[] }) {
   const [selectedEmpresaId, setSelectedEmpresaId] = useState<string | undefined>(() => {
-    if (empresas?.length === 1) return empresas[0].linkId || empresas[0].id;
-    if (empresa) return empresa.linkId || empresa.id;
+    if (empresas?.length === 1) return empresas[0].id;
+    if (empresa) return empresa.id;
     return undefined;
   });
   const [hasInitialized, setHasInitialized] = useState(false);
@@ -62,10 +62,10 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
   useEffect(() => {
     if (!hasInitialized) {
       if (empresas.length === 1) {
-          setSelectedEmpresaId(empresas[0].linkId || empresas[0].id);
+          setSelectedEmpresaId(empresas[0].id);
           setHasInitialized(true);
       } else if (empresa && empresas.length > 1) {
-          setSelectedEmpresaId(empresa.linkId || empresa.id);
+          setSelectedEmpresaId(empresa.id);
           setHasInitialized(true);
       } else if (empresas.length > 0) {
           setHasInitialized(true);
@@ -289,7 +289,7 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
             {empresas.map((e) => (
               <button
                 key={e.id}
-                onClick={() => setSelectedEmpresaId(e.linkId || e.id)}
+                onClick={() => setSelectedEmpresaId(e.id)}
                 className="bg-gray-800 hover:bg-gray-700 hover:border-blue-500/50 transition-all border border-gray-700 p-6 rounded-2xl shadow-lg flex flex-col items-center justify-center gap-3 group"
               >
                 <div className="w-12 md:w-16 h-12 md:h-16 bg-blue-500/10 rounded-full flex items-center justify-center group-hover:bg-blue-500/20 group-hover:scale-110 transition-all">
@@ -344,7 +344,7 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
             onClick={() => setSelectedEmpresaId(undefined)}
             className="absolute left-0 top-0 mt-2 px-3 py-1.5 flex items-center gap-2 text-sm bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 rounded-lg transition-colors"
           >
-            Voc&ecirc; est&aacute; em: <span className="font-bold text-blue-400">{empresas.find(e => e.linkId === selectedEmpresaId || e.id === selectedEmpresaId)?.name || 'Outra Unidade'}</span>
+            Voc&ecirc; est&aacute; em: <span className="font-bold text-blue-400">{empresas.find(e => e.id === selectedEmpresaId)?.name || 'Outra Unidade'}</span>
             <svg className="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>

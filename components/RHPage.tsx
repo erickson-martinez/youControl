@@ -114,11 +114,91 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
       if (empresaId === '') {
         if (!existingLink || !existingLink._id) throw new Error('Vínculo não encontrado.');
         await apiFetch(`${API_BASE_URL}/rh/unlink/${existingLink._id}`, { method: 'DELETE' });
+        
+        if (existingLink.empresaId) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/barbers?linkId=${existingLink.empresaId}`);
+                if (response.ok) {
+                   const barbers = await response.json();
+                   const barber = barbers.find((b: any) => {
+                       if (!b.telefone) return false;
+                       const digits = Array.from(b.telefone).filter((c: any) => c >= '0' && c <= '9').join('');
+                       return digits === userPhone;
+                   });
+                   if (barber) {
+                       await fetch(`${API_BASE_URL}/api/barbers/${barber.id || barber._id}`, { method: 'DELETE' });
+                   }
+                }
+            } catch (err) {
+                console.warn("Erro ao remover barbeiro ao desvincular do RH", err);
+            }
+        }
       } else {
         await apiFetch(`${API_BASE_URL}/rh/link-user`, {
           method: 'POST',
           body: JSON.stringify({ userPhone, empresaId, status: 'ativo', role }),
         });
+        
+        try {
+            const cleanPhone = userPhone.replace(/\D/g, '');
+            const response = await fetch(`${API_BASE_URL}/api/barbers?linkId=${empresaId}`);
+            if (response.ok) {
+                const barbers = await response.json();
+                const barber = barbers.find((b: any) => {
+                    if (!b.telefone) return false;
+                    const digits = Array.from(b.telefone).filter((c: any) => c >= '0' && c <= '9').join('');
+                    return digits === cleanPhone;
+                });
+                
+                if (role === 'Barbeiro') {
+                    if (!barber) {
+                        let userName = "Barbeiro";
+                        try {
+                            const resUsers = await apiFetch(`${API_BASE_URL}/users`);
+                            if (resUsers.ok) {
+                                const allUsers = await resUsers.json();
+                                const found = allUsers.find((u: any) => (u.phone || '').replace(/\D/g, '') === cleanPhone);
+                                if (found && found.name) userName = found.name;
+                            }
+                        } catch(e) {}
+                        
+                        await fetch(`${API_BASE_URL}/api/barbers`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                nome: userName,
+                                telefone: userPhone,
+                                comissao: 10,
+                                corte: 50,
+                                diasTrabalhados: ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'],
+                                linkId: empresaId
+                            })
+                        });
+                        
+                        try {
+                            // Atribui a permissão "minha agenda" (barbeiroAgenda)
+                            await fetch(`${API_BASE_URL}/permissions?userPhone=${cleanPhone}&add=true`, {
+                                method: 'PATCH',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    permissions: ['barbeiroAgenda']
+                                })
+                            });
+                        } catch (pErr) {
+                            console.warn("Erro ao atribuir permissão barbeiroAgenda via RH:", pErr);
+                        }
+                    }
+                } else {
+                    if (barber) {
+                        await fetch(`${API_BASE_URL}/api/barbers/${barber.id || barber._id}`, { method: 'DELETE' });
+                    }
+                }
+            }
+        } catch (err) {
+            console.warn("Erro ao sincronizar barbeiro no RH", err);
+        }
       }
       
       await fetchData();
@@ -129,7 +209,7 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
     } catch (err) {
       alert(`Falha ao vincular/desvincular: ${(err as Error).message}`);
     }
-  }, [user.phone, apiFetch, userCompanyLinks, fetchData, onCurrentUserUpdate]);
+  }, [user.phone, apiFetch, userCompanyLinks, fetchData, onCurrentUserUpdate, empresas]);
 
   const handleSaveCollaborator = async (phone: string, empresaId: string, role: string) => {
     await handleLinkUser(phone, empresaId, role);

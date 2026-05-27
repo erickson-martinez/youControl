@@ -48,7 +48,7 @@ const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user, empresa }) => {
         {empresa && (
           <button 
             onClick={() => {
-              navigator.clipboard.writeText(`${window.location.origin}/agendamento?empresaId=${empresa.linkId || empresa.id}`);
+              navigator.clipboard.writeText(`${window.location.origin}/agendamento?empresaId=${empresa.id}`);
               alert("Link de agendamento copiado para a área de transferência!");
             }}
             className="flex-1 sm:flex-none text-sm font-bold text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 px-4 py-2.5 rounded-xl transition-all border border-gray-700 flex items-center justify-center gap-2 shadow-md w-full sm:w-auto h-fit mt-2 sm:mt-0"
@@ -130,12 +130,12 @@ const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user, empresa }) => {
         </button>
       </div>
 
-      {activeTab === 'barbeiros' && <TabBarbeiros empresa={empresa} user={user} empresaId={empresa?.linkId || empresa?.id} />}
-      {activeTab === 'produtos' && <TabProdutos empresaId={empresa?.linkId || empresa?.id} />}
-      {activeTab === 'servicos' && <TabServicos empresaId={empresa?.linkId || empresa?.id} />}
-      {activeTab === 'custos' && <TabCustos empresaId={empresa?.linkId || empresa?.id} />}
-      {activeTab === 'metas' && <TabMetas empresaId={empresa?.linkId || empresa?.id} />}
-      {activeTab === 'registros' && <TabRegistros empresaId={empresa?.linkId} user={user} />}
+      {activeTab === 'barbeiros' && <TabBarbeiros empresa={empresa} user={user} empresaId={empresa?.id} />}
+      {activeTab === 'produtos' && <TabProdutos empresaId={empresa?.id} />}
+      {activeTab === 'servicos' && <TabServicos empresaId={empresa?.id} />}
+      {activeTab === 'custos' && <TabCustos empresaId={empresa?.id} />}
+      {activeTab === 'metas' && <TabMetas empresaId={empresa?.id} />}
+      {activeTab === 'registros' && <TabRegistros empresaId={empresa?.id} user={user} />}
       
     </div>
   );
@@ -179,214 +179,136 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
     setDias([]);
   };
 
+  const handleExcluirBarbeiro = async (barbeiro: any) => {
+    alert("A exclusão de barbeiros deve ser feita diretamente na tela de Recursos Humanos (RH).");
+  };
+
   const [loading, setLoading] = useState(false);
 
   const handleCadastrar = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nome.trim()) return alert("Nome é obrigatório");
+    if (!editingId) return alert("Criação de novos barbeiros deve ser feita no RH.");
     
     setLoading(true);
 
     const payload = {
         nome,
-        telefone,
+        telefone, // already populated, input is disabled
         comissao: Number(comissao) || 0,
         corte: Number(corte) || 0,
         diasTrabalhados: dias,
         linkId: empresaId
     };
 
-    if (editingId) {
-      // Editar
-      if (updateBarbeiro) {
+    if (updateBarbeiro) {
         await updateBarbeiro(editingId, payload);
-      }
-      cancelEdit();
-      setLoading(false);
-      return;
     }
-
-    if (telefone.trim()) {
-      const cleanPhone = telefone.replace(/\D/g, '');
-      try {
-        await fetch(`${API_BASE_URL}/users`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            name: nome.trim(),
-            phone: cleanPhone,
-            pass: 'Teste@1212@1212'
-          })
-        });
-        
-        // Atribui a permissão "minha agenda" (barbeiroAgenda) independentemente de ter criado agora ou já existir
-        await fetch(`${API_BASE_URL}/permissions?userPhone=${cleanPhone}&add=true`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            permissions: ['barbeiroAgenda']
-          })
-        });
-
-        // Vincula também no RH automático como Barbeiro
-        const realCompanyId = empresa?.id || empresaId;
-        if (realCompanyId) {
-            try {
-                await fetch(`${API_BASE_URL}/rh/link-user`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userPhone: cleanPhone, empresaId: realCompanyId, status: 'ativo', role: 'Barbeiro' }),
-                });
-            } catch (rhErr) {
-                console.warn("Erro ao vincular barbeiro no RH:", rhErr);
-            }
-        }
-
-      } catch (err) {
-        console.warn("Erro ao tentar cadastrar/vincular barbeiro na base de usuários:", err);
-      }
-    }
-
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/barbers`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        if (response.ok) {
-            await reloadBarbeiros();
-        } else {
-            console.error("Erro ao salvar barbeiro via API", await response.text());
-        }
-    } catch (e) {
-        console.error("Erro ao comunicar com /api/barbers", e);
-    }
-
-    const numCusto = Number(custoDiario) || 0;
-    if (numCusto > 0 && dias.length > 0) {
-      // Cálculo aproximado do custo variável mensal desse barbeiro (custo diário * n dias na semana * 4.33 semanas no mês)
-      const custoMensal = numCusto * dias.length * 4.33; 
-      addCusto({
-        nome: `Diária/Variável - ${nome}`,
-        tipo: 'variavel',
-        valor: custoMensal
-      });
-    }
-
+    
+    alert("Configurações do barbeiro atualizadas com sucesso!");
     cancelEdit();
     setLoading(false);
   };
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 md:p-8">
-      {/* Formulário de Cadastro */}
-      <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
-        <h2 className="text-xl font-bold text-white mb-6 border-b border-gray-700/50 pb-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {editingId ? <PencilIcon className="w-5 h-5 text-yellow-500" /> : <PlusIcon className="w-5 h-5 text-blue-500" />}
-            {editingId ? 'Editar Barbeiro' : 'Cadastrar Barbeiro'}
-          </div>
-          {editingId && (
+      {editingId ? (
+        <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
+          <h2 className="text-xl font-bold text-white mb-6 border-b border-gray-700/50 pb-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <PencilIcon className="w-5 h-5 text-yellow-500" />
+              Editar Barbeiro
+            </div>
             <button onClick={cancelEdit} className="text-sm text-gray-400 hover:text-white underline">
               Cancelar
             </button>
-          )}
-        </h2>
-        
-        <form onSubmit={handleCadastrar} className="space-y-4">
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Nome *</label>
-            <input 
-              type="text" required
-              value={nome} onChange={e => setNome(e.target.value)}
-              className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-              placeholder="Ex: João Silva"
-            />
-          </div>
+          </h2>
           
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Telefone</label>
-            <input 
-              type="text" 
-              value={telefone} onChange={e => setTelefone(e.target.value)}
-              className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-              placeholder="Ex: 67999999999"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <form onSubmit={handleCadastrar} className="space-y-4">
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Comissão Produtos (%)</label>
+              <label className="block text-sm text-gray-400 mb-1">Nome *</label>
               <input 
-                type="number" step="0.1" min="0" max="100"
-                value={comissao} onChange={e => setComissao(e.target.value)}
+                type="text" required
+                value={nome} onChange={e => setNome(e.target.value)}
                 className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                placeholder="Ex: 10"
+                placeholder="Ex: João Silva"
               />
             </div>
+            
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Comissão Serviços (%)</label>
+              <label className="block text-sm text-gray-400 mb-1">Telefone</label>
               <input 
-                type="number" step="0.1" min="0" max="100"
-                value={corte} onChange={e => setCorte(e.target.value)}
-                className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                placeholder="Ex: 50"
+                type="text" 
+                value={telefone} onChange={e => setTelefone(e.target.value)}
+                className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 disabled:opacity-50"
+                placeholder="Ex: 67999999999"
+                disabled
               />
             </div>
-          </div>
 
-          {!editingId && (
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">Custo Variável por Dia de Trabalho</label>
-              <div className="relative">
-                <span className="absolute left-3 top-2 text-gray-500">R$</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Comissão Produtos (%)</label>
                 <input 
-                  type="number" step="0.01" min="0"
-                  value={custoDiario} onChange={e => setCustoDiario(e.target.value)}
-                  className="w-full bg-gray-700 text-white border border-gray-600 rounded pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                  placeholder="Ex: 20.00"
+                  type="number" step="0.1" min="0" max="100"
+                  value={comissao} onChange={e => setComissao(e.target.value)}
+                  className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                  placeholder="Ex: 10"
                 />
               </div>
-              <p className="text-xs text-gray-500 mt-1">Será adicionado aos Custos Variáveis nas datas de trabalho.</p>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Comissão Serviços (%)</label>
+                <input 
+                  type="number" step="0.1" min="0" max="100"
+                  value={corte} onChange={e => setCorte(e.target.value)}
+                  className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                  placeholder="Ex: 50"
+                />
+              </div>
             </div>
-          )}
 
-          <div>
-            <label className="block text-sm text-gray-400 mb-2">Dias Trabalhados</label>
-            <div className="flex flex-wrap gap-2">
-              {DIAS_SEMANA.map(dia => (
-                <button
-                  key={dia}
-                  type="button"
-                  onClick={() => toggleDia(dia)}
-                  className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                    dias.includes(dia) 
-                      ? 'bg-blue-600 border-blue-500 text-white' 
-                      : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'
-                  }`}
-                >
-                  {dia}
-                </button>
-              ))}
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Dias Trabalhados</label>
+              <div className="flex flex-wrap gap-2">
+                {DIAS_SEMANA.map(dia => (
+                  <button
+                    key={dia}
+                    type="button"
+                    onClick={() => toggleDia(dia)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                      dias.includes(dia) 
+                        ? 'bg-blue-600 border-blue-500 text-white' 
+                        : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    {dia}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
 
-          <div className="pt-4 border-t border-gray-700">
-            <button 
-              type="submit"
-              disabled={loading}
-              className={`w-full flex items-center justify-center gap-2 font-semibold py-2 px-4 rounded-lg transition-colors ${loading ? 'bg-blue-400 cursor-not-allowed' : (editingId ? 'bg-yellow-600 hover:bg-yellow-500 text-white' : 'bg-blue-600 hover:bg-blue-500 text-white')}`}
-            >
-              {editingId ? <PencilIcon className="w-5 h-5" /> : <PlusIcon className="w-5 h-5" />}
-              {loading ? 'Salvando...' : (editingId ? 'Salvar Alterações' : 'Salvar Barbeiro')}
-            </button>
-          </div>
-        </form>
-      </div>
+            <div className="pt-4 border-t border-gray-700">
+              <button 
+                type="submit"
+                disabled={loading}
+                className={`w-full flex items-center justify-center gap-2 font-semibold py-2 px-4 rounded-lg transition-colors ${loading ? 'bg-blue-400 cursor-not-allowed' : 'bg-yellow-600 hover:bg-yellow-500 text-white'}`}
+              >
+                <PencilIcon className="w-5 h-5" />
+                {loading ? 'Salvando...' : 'Salvar Alterações'}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : (
+        <div className="bg-gray-800/80 p-8 rounded-2xl border border-gray-700/50 shadow-xl flex flex-col items-center justify-center text-center h-full min-h-[350px]">
+            <UsersIcon className="w-16 h-16 text-blue-500/80 mb-6" />
+            <h3 className="text-xl font-bold text-white mb-3">Gerenciamento de Equipe</h3>
+            <p className="text-gray-400 text-sm max-w-sm leading-relaxed">
+               A criação e exclusão de novos barbeiros deve ser feita pela aba de <strong>RH</strong> da plataforma, bem como atribuição da função. 
+               <br/><br/>Neste local, você pode <strong>editar</strong> as configurações internas (como comissões e dias de trabalho) dos barbeiros ativos na empresa.
+            </p>
+        </div>
+      )}
 
       <div className="space-y-4">
         <h2 className="text-xl font-bold text-white mb-2">Barbeiros Cadastrados</h2>
@@ -446,7 +368,7 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
                     <PencilIcon className="w-4 h-4" />
                   </button>
                   <button 
-                    onClick={() => removeBarbeiro(barbeiro.id)}
+                    onClick={() => handleExcluirBarbeiro(barbeiro)}
                     className="text-gray-500 hover:text-red-400 bg-gray-900 p-2 rounded-lg"
                     title="Excluir Barbeiro"
                   >

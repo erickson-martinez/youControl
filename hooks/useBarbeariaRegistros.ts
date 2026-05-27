@@ -143,7 +143,7 @@ export const useBarbeariaAgendamentos = (empresaId?: string) => {
   return { agendamentos, addAgendamento, updateStatus, updateAgendamento, loadAgendamentos };
 };
 export const useBarbeariaRegistros = (empresaId?: string) => {
-  const { agendamentos, loadAgendamentos, updateAgendamento } = useBarbeariaAgendamentos(empresaId);
+  const { agendamentos, loadAgendamentos } = useBarbeariaAgendamentos(empresaId);
   const { servicos, produtos } = useBarbeariaConfig(empresaId);
   const { barbeiros } = useBarbeiros(empresaId);
 
