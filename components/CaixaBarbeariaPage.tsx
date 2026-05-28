@@ -8,20 +8,26 @@ import MonthNavigator from './MonthNavigator';
 import { CustomDatePicker } from './CustomDatePicker';
 
 export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empresa; user?: User }) {
-  const empresaId = empresa?.linkId || empresa?.id;
-  const { agendamentos, updateStatus, loadAgendamentos } = useBarbeariaAgendamentos(empresaId);
+  const empresaId = empresa?.id || empresa?.linkId;
+  const { agendamentos, updateAgendamento, loadAgendamentos } = useBarbeariaAgendamentos(empresaId);
   const { registros, addRegistro } = useBarbeariaRegistros(empresaId);
   const { barbeiros, reloadBarbeiros } = useBarbeiros(empresaId);
   const { servicos, loadConfig, produtos, updateProduto } = useBarbeariaConfig(empresaId);
 
-  const pendentes = agendamentos.filter(a => a.status === 'finalizado').sort((a, b) => new Date(a.dataAgendada).getTime() - new Date(b.dataAgendada).getTime());
+  const pendentes = agendamentos
+    .filter(a => a.status === 'finalizado')
+    .sort((a, b) => new Date(a.dataAgendada).getTime() - new Date(b.dataAgendada).getTime());
 
-  const [dataFiltro, setDataFiltro] = useState(() => {
-    const hoje = new Date();
-    return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
-  });
+  const [activeSubTab, setActiveSubTab] = useState<'aguardando' | 'historico'>('aguardando');
 
-  const [activeSubTab, setActiveSubTab] = useState<'aguardando' | 'diario' | 'mensal' | 'historico'>('aguardando');
+  const [pagamentoAgendamento, setPagamentoAgendamento] = useState<any>(null);
+  const [pagamentoModalOpen, setPagamentoModalOpen] = useState(false);
+  const [pagamentosParciais, setPagamentosParciais] = useState<{ tipo: string, valor: number }[]>([
+    { tipo: 'Dinheiro', valor: 0 },
+    { tipo: 'Pix', valor: 0 },
+    { tipo: 'Crédito', valor: 0 },
+    { tipo: 'Débito', valor: 0 }
+  ]);
 
   const handleReload = () => {
     loadAgendamentos();
@@ -29,97 +35,60 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
     loadConfig();
   };
 
-  const handleConcluir = async (a: any) => {
-    await updateStatus(a.id, 'pago');
-    
-    let total = 0;
-    const itens = [];
-    
-    // Suporte para múltiplos serviços
-    if (a.servicosIds && a.servicosIds.length > 0) {
+  const calcularValorTotal = (a: any) => {
+    let valorTotal = 0;
+    if (a.servicosIds && Array.isArray(a.servicosIds)) {
       a.servicosIds.forEach((sId: string) => {
-        const servico = servicos.find(s => s.id === sId);
-        if (servico) {
-          itens.push({ idItem: servico.id, nome: servico.nome, tipo: 'servico', valor: servico.valor });
-          total += servico.valor;
-        }
+        const serv = servicos.find(s => s.id === sId);
+        if (serv) valorTotal += serv.valor;
       });
     } else if (a.servicoId) {
-      // Fallback retrocompatibilidade
-      const servico = servicos.find(s => s.id === a.servicoId);
-      if (servico) {
-        itens.push({ idItem: servico.id, nome: servico.nome, tipo: 'servico', valor: servico.valor });
-        total += servico.valor;
-      }
+      const serv = servicos.find(s => s.id === a.servicoId);
+      if (serv) valorTotal += serv.valor;
     }
+    if (a.produtosIds && Array.isArray(a.produtosIds)) {
+      a.produtosIds.forEach((pId: string) => {
+        const prod = produtos.find(p => p.id === pId);
+        if (prod) valorTotal += prod.precoVenda;
+      });
+    }
+    return valorTotal;
+  };
+
+  const handleOpenPagamento = (a: any) => {
+    const total = calcularValorTotal(a);
+    setPagamentosParciais([
+      { tipo: 'Dinheiro', valor: total },
+      { tipo: 'Pix', valor: 0 },
+      { tipo: 'Crédito', valor: 0 },
+      { tipo: 'Débito', valor: 0 }
+    ]);
+    setPagamentoAgendamento(a);
+    setPagamentoModalOpen(true);
+  };
+
+  const handlePagamentoChange = (index: number, val: string) => {
+    const newVal = Number(val) || 0;
+    const newPagamentos = [...pagamentosParciais];
+    newPagamentos[index].valor = newVal;
+    setPagamentosParciais(newPagamentos);
+  };
+
+  const handleConcluir = async (a: any, pagamentosFinalizados: {tipo:string, valor:number}[]) => {
+    // Save types inside the agendamento update as stringified JSON format
+    const tipos = pagamentosFinalizados.filter(p => p.valor > 0).map(p => JSON.stringify(p));
+    await updateAgendamento(a.id, { ...a, status: 'pago', tipoPagamento: tipos });
     
+    // Atualiza o estoque do produto se houver
     if (a.produtosIds && a.produtosIds.length > 0) {
       a.produtosIds.forEach((pId: string) => {
         const prod = produtos.find(p => p.id === pId);
-        if (prod) {
-          itens.push({ idItem: prod.id, nome: prod.nome, tipo: 'produto', valor: prod.precoVenda });
-          total += prod.precoVenda;
-          if (prod.estoque !== undefined) {
-            updateProduto(prod.id, { estoque: Math.max(0, prod.estoque - 1) });
-          }
+        if (prod && prod.estoque !== undefined) {
+          updateProduto(prod.id, { estoque: Math.max(0, prod.estoque - 1) });
         }
       });
     }
-
-    if (itens.length > 0) {
-      await addRegistro({
-        cliente: a.cliente,
-        telefone: a.telefone,
-        barbeiroId: a.barbeiroId,
-        barbeiroNome: barbeiros.find(b => b.id === a.barbeiroId)?.nome || 'Qualquer um',
-        itens,
-        total
-      });
-    }
   };
-
-  const registrosFiltradosDia = registros.filter(r => r.data.startsWith(dataFiltro));
-  const registrosFiltradosMes = registros.filter(r => r.data.startsWith(dataFiltro.substring(0, 7)));
-
-  const calcularComissoes = (registrosBase: any[]) => {
-    return barbeiros.map(barbeiro => {
-      const registrosBarbeiro = registrosBase.filter(r => r.barbeiroId === barbeiro.id);
-      let totalServicos = 0;
-      let totalProdutos = 0;
-      let faturamentoTotal = 0;
-      let comissaoServicos = 0;
-      let comissaoProdutos = 0;
-
-      registrosBarbeiro.forEach(r => {
-        r.itens.forEach((item: any) => {
-          faturamentoTotal += item.valor;
-          if (item.tipo === 'servico') {
-            totalServicos += item.valor;
-            comissaoServicos += item.valor * (barbeiro.corte / 100);
-          } else if (item.tipo === 'produto') {
-            totalProdutos += item.valor;
-            const produtoObj = produtos.find(p => p.id === item.idItem);
-            const override = produtoObj && Number(produtoObj.comissao) > 0 ? Number(produtoObj.comissao) : Number(barbeiro.comissao);
-            comissaoProdutos += item.valor * ((override || 0) / 100);
-          }
-        });
-      });
-
-      return {
-        barbeiro,
-        totalServicos,
-        totalProdutos,
-        faturamentoTotal,
-        comissaoServicos,
-        comissaoProdutos,
-        totalComissao: comissaoServicos + comissaoProdutos,
-        caixaBarbearia: faturamentoTotal - (comissaoServicos + comissaoProdutos)
-      };
-    }).filter(c => c.faturamentoTotal > 0);
-  };
-
-  const comissoesDia = calcularComissoes(registrosFiltradosDia);
-  const comissoesMes = calcularComissoes(registrosFiltradosMes);
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
@@ -131,8 +100,8 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
         <nav className="flex flex-col sm:flex-row gap-2">
           <button
             onClick={() => setActiveSubTab('aguardando')}
-            className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 ${
-              activeSubTab === 'aguardando' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-700'
+            className={`px-6 py-2.5 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 ${
+              activeSubTab === 'aguardando' ? 'bg-blue-600 text-white shadow-md w-full sm:w-auto' : 'text-gray-400 hover:text-white hover:bg-gray-700 w-full sm:w-auto'
             }`}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -141,40 +110,20 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
           
           <button
             onClick={() => setActiveSubTab('historico')}
-            className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 ${
-              activeSubTab === 'historico' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-700'
+            className={`px-6 py-2.5 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 ${
+              activeSubTab === 'historico' ? 'bg-blue-600 text-white shadow-md w-full sm:w-auto' : 'text-gray-400 hover:text-white hover:bg-gray-700 w-full sm:w-auto'
             }`}
           >
             <ClipboardListIcon className="w-4 h-4" />
             Histórico (Fechados)
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab('diario')}
-            className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 ${
-              activeSubTab === 'diario' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-700'
-            }`}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-            Comissões Hoje
-          </button>
-          
-          <button
-            onClick={() => setActiveSubTab('mensal')}
-            className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 ${
-              activeSubTab === 'mensal' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-700'
-            }`}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
-            Comissões Mês
           </button>
         </nav>
       </div>
 
       {activeSubTab === 'aguardando' && (
       <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+          <h2 className="text-xl font-bold text-white flex items-center gap-2 w-full sm:w-auto">
             Aguardando Pagamento
             <span className="bg-gray-900 border border-gray-700 text-sm font-bold text-blue-400 py-0.5 px-2 rounded-lg">
               {pendentes.length}
@@ -182,20 +131,20 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
           </h2>
           <button
             onClick={handleReload}
-            className="px-3 py-1 bg-gray-700 text-xs text-gray-300 rounded hover:bg-gray-600 transition border border-gray-600 inline-flex items-center gap-1"
+            className="w-full sm:w-auto px-4 py-2 bg-gray-700 text-sm font-medium text-gray-200 rounded-xl hover:bg-gray-600 transition border border-gray-600 inline-flex items-center justify-center gap-2"
           >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
             Recarregar
           </button>
         </div>
         
         {pendentes.length === 0 ? (
-          <div className="w-full bg-gray-900/50 p-5 md:p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center">
-            <svg className="w-12 h-12 mb-3 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-            <p>Nenhum atendimento aguardando pagamento.</p>
+          <div className="w-full bg-gray-900/50 p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center">
+            <svg className="w-16 h-16 mb-4 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+            <p className="text-lg">Nenhum atendimento aguardando pagamento.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="flex flex-col gap-4 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar">
             {pendentes.map(a => {
               const dataAgendada = new Date(a.dataAgendada);
               const dataStr = dataAgendada.toLocaleDateString();
@@ -232,66 +181,60 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
               }
               
               return (
-                <div key={a.id} className="bg-gray-800/90 p-5 rounded-2xl border border-gray-700 flex flex-col gap-3 shadow-md hover:border-blue-500/30 transition-all group relative">
-                  <button 
-                    onClick={() => updateStatus(a.id, 'cancelado')}
-                    className="absolute top-4 right-4 text-gray-500 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 bg-gray-900 p-1.5 rounded-lg"
-                    title="Cancelar agendamento"
-                  >
-                    <XCircleIcon className="w-4 h-4" />
-                  </button>
-                  <div className="flex justify-between items-start pr-8">
-                    <div>
-                      <h3 className="font-bold text-white text-lg leading-tight">{a.cliente}</h3>
-                      <p className="text-sm text-gray-400 mt-1">{a.telefone}</p>
-                    </div>
-                  </div>
+                <div key={a.id} className="bg-gray-800/90 p-5 lg:p-6 rounded-2xl border border-gray-700 flex flex-col gap-5 lg:gap-6 shadow-sm hover:border-blue-500/50 transition-all group overflow-hidden">
                   
-                  <div className="bg-gray-900/50 p-3 rounded-xl border border-gray-800 flex justify-between items-center mt-2">
-                    <div>
-                      <p className="text-blue-400 font-bold text-sm">{dataStr}</p>
-                      <p className="text-gray-300 text-xs font-bold">{horaStr}</p>
+                  {/* Topo: Info do Cliente e Data */}
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-700/50 pb-4 lg:pb-5">
+                    <div className="flex flex-col">
+                      <h3 className="font-bold text-white text-xl lg:text-2xl leading-tight truncate">{a.cliente}</h3>
+                      <p className="text-sm font-medium text-gray-400 mt-1">{a.telefone}</p>
                     </div>
-                    <div className="text-right">
-                       <span className="text-[10px] uppercase font-bold text-gray-500 block">Barbeiro</span>
-                       <p className="text-xs text-gray-300 font-medium">{barbeiro}</p>
+                    
+                    <div className="bg-gray-900/60 p-3 rounded-xl border border-gray-800 flex items-center gap-4 shrink-0 sm:self-auto self-stretch">
+                      <div className="flex flex-col sm:items-end w-full">
+                        <div className="flex items-center justify-between sm:justify-end gap-3 w-full">
+                          <span className="text-blue-400 font-bold text-sm bg-blue-500/10 px-2.5 py-0.5 rounded border border-blue-500/20">{dataStr}</span>
+                          <span className="text-gray-300 text-sm font-bold">{horaStr}</span>
+                        </div>
+                        <div className="flex items-center justify-between sm:justify-end gap-2 mt-2 w-full">
+                           <span className="text-[10px] uppercase font-bold text-gray-500">Barbeiro:</span>
+                           <span className="text-sm text-gray-200 font-bold max-w-[150px] truncate" title={barbeiro}>{barbeiro}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  {servicosDoAgendamento.length > 0 && (
-                    <div className="flex flex-col gap-2 mt-1">
-                      {servicosDoAgendamento.map((s, idx) => (
-                        <div key={`s-${idx}`} className="text-sm text-gray-300 bg-gray-800 px-3 py-1.5 rounded-lg inline-flex justify-between w-full shadow-inner border border-gray-700/50">
-                          <span className="font-medium">{s.nome}</span>
-                          <span className="text-green-400 font-bold">R$ {s.valor.toFixed(2)}</span>
+                  {/* Meio: Itens do Agendamento */}
+                  <div className="flex flex-wrap items-center gap-3">
+                     {servicosDoAgendamento.map((s, idx) => (
+                        <div key={`s-${idx}`} className="text-sm text-gray-200 bg-gray-900/40 px-4 py-2.5 rounded-xl flex items-center justify-between gap-4 shadow-inner border border-gray-700/50 shrink-0">
+                          <span className="font-semibold">{s.nome}</span>
+                          <span className="text-green-400 font-bold whitespace-nowrap">R$ {s.valor.toFixed(2)}</span>
                         </div>
                       ))}
-                    </div>
-                  )}
-
-                  {produtosDoAgendamento.length > 0 && (
-                    <div className="flex flex-col gap-2 mt-1">
                       {produtosDoAgendamento.map((p, idx) => (
-                        <div key={`p-${idx}`} className="text-sm text-gray-300 bg-gray-800 px-3 py-1.5 rounded-lg inline-flex justify-between w-full shadow-inner border border-gray-700/50">
-                          <span className="font-medium">{p.nome} (Produto)</span>
-                          <span className="text-blue-400 font-bold">R$ {p.precoVenda.toFixed(2)}</span>
+                        <div key={`p-${idx}`} className="text-sm text-gray-200 bg-gray-900/40 px-4 py-2.5 rounded-xl flex items-center justify-between gap-4 shadow-inner border border-gray-700/50 shrink-0">
+                          <span className="font-semibold">{p.nome} <span className="text-gray-500 font-normal text-xs ml-1">(Prod)</span></span>
+                          <span className="text-blue-400 font-bold whitespace-nowrap">R$ {p.precoVenda.toFixed(2)}</span>
                         </div>
                       ))}
-                    </div>
-                  )}
-                  
-                  <div className="flex justify-between items-center mt-2 mb-1 px-1">
-                     <span className="text-sm font-bold text-gray-400">Total a Pagar</span>
-                     <span className="text-lg font-black text-white">R$ {valorTotal.toFixed(2)}</span>
                   </div>
 
-                  <div className="flex gap-2 pt-3 border-t border-gray-700/50">
-                    <button 
-                      onClick={() => handleConcluir(a)}
-                      className="w-full flex items-center justify-center gap-2 bg-green-600/20 hover:bg-green-600 text-green-400 hover:text-white border border-green-500/30 font-medium text-sm py-2 rounded-xl transition-all"
-                    >
-                      <CheckCircleIcon className="w-4 h-4" /> Marcar como Pago
-                    </button>
+                  {/* Rodapé: Total e Ações */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pt-5 lg:pt-6 border-t border-gray-700/50 bg-gray-800/30 -mx-5 -mb-5 px-5 pb-5 lg:-mx-6 lg:-mb-6 lg:px-6 lg:pb-6 rounded-b-2xl mt-1">
+                    <div className="flex flex-col items-center sm:items-start w-full sm:w-auto">
+                      <span className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Total a Pagar</span>
+                      <span className="text-3xl lg:text-4xl font-black text-white">R$ {valorTotal.toFixed(2)}</span>
+                    </div>
+
+                    <div className="flex items-center justify-center gap-3 w-full sm:w-auto">
+                      <button 
+                        onClick={() => handleOpenPagamento(a)}
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-green-500/10 hover:bg-green-500 text-green-400 hover:text-white border border-green-500/30 font-bold py-3.5 px-8 rounded-xl transition-all shadow-sm text-lg"
+                      >
+                        <CheckCircleIcon className="w-5 h-5 shrink-0" /> Receber Pago
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -305,40 +248,60 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
       <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
         <h2 className="text-xl font-bold text-white mb-6">Histórico de Registros <span className="text-gray-500 text-sm font-normal ml-2">(Vendas/Cortes)</span></h2>
         {registros.length === 0 ? (
-          <div className="w-full bg-gray-900/50 p-5 md:p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center">
-            <ClipboardListIcon className="w-12 h-12 mb-3 text-gray-700" />
-            <p>Nenhum registro encontrado no histórico.</p>
+          <div className="w-full bg-gray-900/50 p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center">
+            <ClipboardListIcon className="w-16 h-16 mb-4 text-gray-700" />
+            <p className="text-lg">Nenhum registro encontrado no histórico.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+          <div className="grid grid-cols-1 gap-4 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar">
             {[...registros].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()).map(r => {
               const dataObj = new Date(r.data);
               return (
-                <div key={r.id} className="bg-gray-900/40 p-4 rounded-xl border border-gray-800 flex flex-col md:flex-row md:items-center justify-between gap-4 group hover:border-gray-600 transition-all">
+                <div key={r.id} className="bg-gray-900/40 p-5 rounded-2xl border border-gray-800 flex flex-col md:flex-row md:items-center justify-between gap-5 group hover:border-gray-600 transition-all shadow-sm">
                   <div>
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <div className="w-fit bg-emerald-500/10 text-emerald-400 font-bold text-[10px] px-2 py-0.5 rounded-md border border-emerald-500/20 uppercase tracking-widest flex items-center gap-1 shadow-sm">
-                        <CheckCircleIcon className="w-3 h-3" />
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="bg-emerald-500/10 text-emerald-400 font-bold text-xs px-2.5 py-1 rounded-md border border-emerald-500/20 uppercase tracking-widest flex items-center gap-1.5 shadow-sm">
+                        <CheckCircleIcon className="w-3.5 h-3.5" />
                          PAGO
                       </div>
-                      <h3 className="font-bold text-white text-lg">{r.cliente}</h3>
+                      <h3 className="font-bold text-white text-xl">{r.cliente}</h3>
                     </div>
-                    <div className="text-sm text-gray-400 flex items-center gap-2 mt-1">
+                    <div className="text-sm font-medium text-gray-400 flex items-center gap-2 mt-2">
                       <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                       {dataObj.toLocaleDateString()} {dataObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                     </div>
                     {/* Lista de itens do registro */}
-                    <div className="mt-3 flex gap-2 flex-wrap">
-                      {r.itens && r.itens.map((i: any, index: number) => (
-                        <div key={index} className={`text-xs px-2 py-1 rounded-md border ${i.tipo === 'servico' ? 'bg-gray-800 border-gray-700 text-gray-300' : 'bg-blue-900/30 border-blue-800/50 text-blue-300'}`}>
-                          {i.nome}
+                    <div className="mt-4 flex flex-col gap-2">
+                      <div className="flex gap-2 flex-wrap">
+                        {r.itens && r.itens.map((i: any, index: number) => (
+                          <div key={index} className={`font-medium text-xs px-3 py-1.5 rounded-lg border ${i.tipo === 'servico' ? 'bg-gray-800 border-gray-700 text-gray-200' : 'bg-blue-900/30 border-blue-800/50 text-blue-300'}`}>
+                            {i.nome}
+                          </div>
+                        ))}
+                      </div>
+                      {r.tipoPagamento && r.tipoPagamento.length > 0 && (
+                        <div className="flex gap-2 flex-wrap items-center mt-1">
+                          <span className="text-[10px] uppercase font-bold text-gray-500 mr-1">Pagamento:</span>
+                          {r.tipoPagamento.map((pStr: string, index: number) => {
+                            try {
+                               const p = JSON.parse(pStr);
+                               return (
+                                 <div key={`p-${index}`} className="text-[10px] bg-green-500/10 text-green-400 px-2 py-0.5 rounded border border-green-500/20 shadow-sm flex gap-1.5">
+                                   <span>{p.tipo}</span>
+                                   <span className="font-bold">R$ {p.valor.toFixed(2)}</span>
+                                 </div>
+                               );
+                            } catch (e) {
+                               return null;
+                            }
+                          })}
                         </div>
-                      ))}
+                      )}
                     </div>
                   </div>
-                  <div className="text-left md:text-right flex flex-row md:flex-col justify-between items-center md:items-end mt-2 md:mt-0 pt-3 md:pt-0 border-t border-gray-800 md:border-t-0">
-                    <span className="text-[10px] uppercase font-bold text-gray-500 mr-2 md:mr-0 mb-1">Barbeiro: <span className="text-gray-300">{r.barbeiroNome}</span></span>
-                    <span className="font-black text-green-400 text-xl tracking-tight">R$ {r.total.toFixed(2)}</span>
+                  <div className="text-left md:text-right flex flex-row md:flex-col justify-between items-center md:items-end mt-2 md:mt-0 pt-4 md:pt-0 border-t border-gray-800 md:border-t-0 min-w-40">
+                    <span className="text-xs uppercase font-bold text-gray-500 mr-2 md:mr-0 mb-2">Barbeiro: <span className="text-gray-300 ml-1">{r.barbeiroNome}</span></span>
+                    <span className="font-black text-green-400 text-2xl tracking-tight">R$ {r.total.toFixed(2)}</span>
                   </div>
                 </div>
               );
@@ -348,153 +311,81 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
       </div>
       )}
 
-      {activeSubTab === 'diario' && (
-        <div className="grid grid-cols-1 gap-4 md:gap-6">
-          <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
-            <div className="flex flex-col md:flex-row justify-between md:items-center mb-6 gap-4 border-b border-gray-700/50 pb-4">
-              <div>
-                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                   Resumo Diário de Comissões
-                 </h2>
-                 <p className="text-gray-400 text-sm mt-1">Valores agrupados por barbeiro referentes à data selecionada.</p>
-              </div>
+      {pagamentoModalOpen && pagamentoAgendamento && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-900 border border-gray-700 rounded-3xl p-6 sm:p-8 w-full max-w-lg shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-white">Receber Pagamento</h2>
+              <button 
+                onClick={() => setPagamentoModalOpen(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <XCircleIcon className="w-6 h-6" />
+              </button>
             </div>
-            
-            <div>
-                <div className="w-full">
-                  <CustomDatePicker 
-                    selectedDate={dataFiltro} 
-                    onChange={(d) => setDataFiltro(d)} 
-                    allowPast={true} 
-                  />
+
+            <div className="space-y-4 mb-6">
+              <div className="bg-gray-800/80 p-4 rounded-xl flex justify-between items-center">
+                <span className="text-gray-400 font-medium tracking-wide text-sm uppercase">Total Cobrado</span>
+                <span className="text-white font-black text-2xl">R$ {calcularValorTotal(pagamentoAgendamento).toFixed(2)}</span>
               </div>
-                {comissoesDia.length === 0 ? (
-                  <div className="w-full bg-gray-900/50 p-6 rounded-2xl border border-gray-800 text-center text-gray-500">
-                    <p>Nenhuma venda ou serviço registrado para esta data.</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-4">
-                    {/* Barbearia Card */}
-                    <div className="col-span-1 md:col-span-2 lg:col-span-3 xl:col-span-4 bg-blue-900/30 p-5 rounded-2xl border border-blue-800/50 flex flex-col md:flex-row justify-between gap-4 items-center relative overflow-hidden">
-                        <div>
-                          <h3 className="font-bold text-blue-100 text-lg z-10 flex items-center gap-2 pt-1 mb-1">
-                             <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
-                             Resumo Diário Barbearia
-                          </h3>
-                          <div className="text-xs text-blue-300/70">
-                            Fat. Bruto Geral: <span className="font-bold text-white">R$ {comissoesDia.reduce((sum, c) => sum + c.faturamentoTotal, 0).toFixed(2)}</span>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap gap-4 sm:gap-6 bg-gray-900/50 p-3 rounded-xl border border-blue-800/50 w-full md:w-auto overflow-x-auto">
-                          <div>
-                            <div className="text-[10px] text-blue-300 uppercase font-bold">Comissões Pagas</div>
-                            <div className="text-red-400 font-bold">- R$ {comissoesDia.reduce((sum, c) => sum + c.totalComissao, 0).toFixed(2)}</div>
-                          </div>
-                          <div>
-                            <div className="text-[10px] text-blue-300 uppercase font-bold">Lucro Barbearia</div>
-                            <div className="text-blue-400 font-black text-xl tracking-tight">R$ {comissoesDia.reduce((sum, c) => sum + c.caixaBarbearia, 0).toFixed(2)}</div>
-                          </div>
-                        </div>
+
+              <div className="space-y-3 pt-2">
+                <p className="text-sm text-gray-500 font-medium mb-3">Distribuir parcelas do pagamento:</p>
+                {pagamentosParciais.map((p, idx) => (
+                  <div key={idx} className="flex items-center gap-4">
+                    <span className="text-gray-300 font-medium w-24 shrink-0">{p.tipo}</span>
+                    <div className="relative flex-1">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">R$</span>
+                      <input
+                        type="number" step="0.01" min="0" value={p.valor || ''} 
+                        onChange={(e) => handlePagamentoChange(idx, e.target.value)}
+                        className="w-full bg-gray-800 border-2 border-gray-700 text-white font-bold rounded-xl py-2.5 pl-10 pr-3 focus:outline-none focus:border-green-500/50 focus:bg-gray-800 transition-colors"
+                      />
                     </div>
-                    {/* Fim Barbearia Card */}
-                    {comissoesDia.map((c, idx) => (
-                      <div key={idx} className="bg-gray-900/60 p-5 rounded-2xl border border-gray-700 flex flex-col gap-2 relative overflow-hidden">
-                        <h3 className="font-bold text-white text-lg z-10">{c.barbeiro.nome}</h3>
-                        <div className="text-xs text-gray-400 mb-2 border-b border-gray-800 pb-2">Fat. Bruto: <span className="font-bold text-white">R$ {c.faturamentoTotal.toFixed(2)}</span></div>
-                        
-                        <div className="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
-                          <span className="text-gray-400">Serviços ({c.barbeiro.corte}%)</span>
-                          <span className="text-green-400 font-medium">R$ {c.comissaoServicos.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
-                          <span className="text-gray-400">Produtos ({c.barbeiro.comissao}%)</span>
-                          <span className="text-blue-400 font-medium">R$ {c.comissaoProdutos.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between items-center mt-2 pt-1 border-t border-gray-800">
-                          <span className="text-gray-200 font-bold text-sm">Comissão a Pagar</span>
-                          <span className="text-green-400 font-black text-lg">R$ {c.totalComissao.toFixed(2)}</span>
-                        </div>
-                      </div>
-                    ))}
                   </div>
-                )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeSubTab === 'mensal' && (
-        <div className="grid grid-cols-1 gap-4 md:gap-6">
-          <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
-            <div className="flex flex-col md:flex-row justify-between md:items-center mb-6 gap-4 border-b border-gray-700/50 pb-4">
-              <div>
-                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                   Resumo Mensal de Comissões
-                 </h2>
-                 <p className="text-gray-400 text-sm mt-1">Valores acumulados para o mês selecionado ({dataFiltro.split('-').slice(0,2).reverse().join('/')}).</p>
+                ))}
               </div>
             </div>
 
-            <div>
-                <div className="w-full">
-                <MonthNavigator
-                  currentDate={new Date(parseInt(dataFiltro.split('-')[0]), parseInt(dataFiltro.split('-')[1]) - 1, 1)}
-                  setCurrentDate={(d) => {
-                    const yyyy = d.getFullYear();
-                    const mm = String(d.getMonth() + 1).padStart(2, '0');
-                    setDataFiltro(`${yyyy}-${mm}-01`);
-                  }}
-                />
+            {(() => {
+              const pago = pagamentosParciais.reduce((acc, curr) => acc + curr.valor, 0);
+              const pendente = calcularValorTotal(pagamentoAgendamento) - pago;
+              const hasError = pendente !== 0;
+              return (
+                <div className="border-t border-gray-800 pt-5 mt-2">
+                  <div className="flex justify-between items-center mb-6">
+                    <span className="text-gray-400 text-sm">Falta Pagar</span>
+                    <span className={`font-bold text-lg ${pendente < 0 ? 'text-red-400' : pendente === 0 ? 'text-green-400' : 'text-orange-400'}`}>
+                      R$ {Math.abs(pendente).toFixed(2)}
+                    </span>
+                  </div>
+
+                  <div className="flex gap-4">
+                    <button 
+                      onClick={() => setPagamentoModalOpen(false)}
+                      className="flex-1 py-3.5 px-4 bg-gray-800 text-gray-300 font-bold rounded-xl hover:bg-gray-700 transition-all text-center"
+                    >
+                      Cancelar
+                    </button>
+                    <button 
+                      disabled={hasError}
+                      onClick={() => {
+                        handleConcluir(pagamentoAgendamento, pagamentosParciais);
+                        setPagamentoModalOpen(false);
+                      }}
+                      className={`flex-1 py-3.5 px-4 font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-center
+                        ${hasError 
+                          ? 'bg-gray-800 text-gray-500 cursor-not-allowed border border-gray-700/50' 
+                          : 'bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-900/50 border border-green-500/50'
+                        }`}
+                    >
+                      <CheckCircleIcon className="w-5 h-5 shrink-0" /> Confirmar
+                    </button>
+                  </div>
                 </div>
-                {comissoesMes.length === 0 ? (
-                  <div className="w-full bg-gray-900/50 p-6 rounded-2xl border border-gray-800 text-center text-gray-500 mt-4">
-                    <p>Nenhuma venda ou serviço registrado para este mês.</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-4">
-                    <div className="col-span-1 md:col-span-2 lg:col-span-3 xl:col-span-4 bg-blue-900/30 p-5 rounded-2xl border border-blue-800/50 flex flex-col md:flex-row justify-between gap-4 items-center relative overflow-hidden">
-                        <div>
-                          <h3 className="font-bold text-blue-100 text-lg z-10 flex items-center gap-2 pt-1 mb-1">
-                             <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
-                             Resumo Mensal Barbearia
-                          </h3>
-                          <div className="text-xs text-blue-300/70">
-                            Fat. Bruto Geral Mensal: <span className="font-bold text-white">R$ {comissoesMes.reduce((sum, c) => sum + c.faturamentoTotal, 0).toFixed(2)}</span>
-                          </div>
-                        </div>
-                        <div className="flex gap-4 sm:gap-6 bg-gray-900/50 p-3 rounded-xl border border-blue-800/50 w-full md:w-auto overflow-x-auto">
-                          <div>
-                            <div className="text-[10px] text-blue-300 uppercase font-bold">Comissões Pagas Mensal</div>
-                            <div className="text-red-400 font-bold">- R$ {comissoesMes.reduce((sum, c) => sum + c.totalComissao, 0).toFixed(2)}</div>
-                          </div>
-                          <div>
-                            <div className="text-[10px] text-blue-300 uppercase font-bold">Lucro Barbearia Mensal</div>
-                            <div className="text-blue-400 font-black text-xl tracking-tight">R$ {comissoesMes.reduce((sum, c) => sum + c.caixaBarbearia, 0).toFixed(2)}</div>
-                          </div>
-                        </div>
-                    </div>
-                    {comissoesMes.map((c, idx) => (
-                      <div key={idx} className="bg-gray-900/40 p-5 rounded-2xl border border-gray-700 flex flex-col gap-2 relative overflow-hidden">
-                        <h3 className="font-bold text-white text-lg z-10">{c.barbeiro.nome}</h3>
-                        <div className="text-xs text-gray-400 mb-2 border-b border-gray-800 pb-2">Fat. Bruto Mensal: <span className="font-bold text-white">R$ {c.faturamentoTotal.toFixed(2)}</span></div>
-                        
-                        <div className="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
-                          <span className="text-gray-400">Serviços Mensal ({c.barbeiro.corte}%)</span>
-                          <span className="text-green-400 font-medium">R$ {c.comissaoServicos.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
-                          <span className="text-gray-400">Produtos Mensal ({c.barbeiro.comissao}%)</span>
-                          <span className="text-blue-400 font-medium">R$ {c.comissaoProdutos.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between items-center mt-2 pt-1 border-t border-gray-800">
-                          <span className="text-gray-200 font-bold text-sm">Comissão Total no Mês</span>
-                          <span className="text-green-400 font-black text-xl tracking-tight">R$ {c.totalComissao.toFixed(2)}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-            </div>
+              );
+            })()}
           </div>
         </div>
       )}

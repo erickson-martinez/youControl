@@ -31,16 +31,25 @@ export interface Custo {
   linkId?: string;
 }
 
+export interface TaxasPagamento {
+  pix: number;
+  dinheiro: number;
+  credito: number;
+  debito: number;
+}
+
 const promiseCache = new Map<string, Promise<any>>();
 
 export const useBarbeariaConfig = (empresaId?: string) => {
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [servicos, setServicos] = useState<Servico[]>([]);
   const [custos, setCustos] = useState<Custo[]>([]);
+  const [taxas, setTaxas] = useState<Record<string, number>>({ pix: 0, dinheiro: 0, credito: 0, debito: 0 });
 
   const suffix = empresaId ? `_${empresaId}` : '';
   const keyS = `barbearia_servicos${suffix}`;
   const keyC = `barbearia_custos${suffix}`;
+  const keyT = `barbearia_taxas${suffix}`;
 
   const fetchProdutos = useCallback(async () => {
     if (!empresaId) {
@@ -90,12 +99,16 @@ export const useBarbeariaConfig = (empresaId?: string) => {
 
   const loadConfig = useCallback(() => {
     const dataC = localStorage.getItem(keyC);
+    const dataT = localStorage.getItem(keyT);
     
     setCustos(dataC ? JSON.parse(dataC) : []);
+    if (dataT) {
+      setTaxas(JSON.parse(dataT));
+    }
     
     fetchProdutos();
     fetchServicos();
-  }, [keyC, fetchProdutos, fetchServicos]);
+  }, [keyC, keyT, fetchProdutos, fetchServicos]);
 
   useEffect(() => {
     loadConfig();
@@ -108,6 +121,10 @@ export const useBarbeariaConfig = (empresaId?: string) => {
   useEffect(() => {
     localStorage.setItem(keyC, JSON.stringify(custos));
   }, [custos, keyC]);
+
+  useEffect(() => {
+    localStorage.setItem(keyT, JSON.stringify(taxas));
+  }, [taxas, keyT]);
 
   // Produtos (API API)
   const addProduto = async (produto: Omit<Produto, 'id'>) => {
@@ -215,10 +232,15 @@ export const useBarbeariaConfig = (empresaId?: string) => {
     setCustos(prev => prev.filter(c => c.id !== id));
   };
 
+  const updateTaxas = (novasTaxas: Record<string, number>) => {
+    setTaxas(novasTaxas);
+  };
+
   return {
     produtos, addProduto, removeProduto, updateProduto, fetchProdutos,
     servicos, addServico, removeServico, updateServico, fetchServicos,
     custos, addCusto, removeCusto,
+    taxas, updateTaxas,
     loadConfig
   };
 };

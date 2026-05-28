@@ -117,16 +117,17 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
         
         if (existingLink.empresaId) {
             try {
-                const response = await fetch(`${API_BASE_URL}/api/barbers?linkId=${existingLink.empresaId}`);
+                const response = await apiFetch(`${API_BASE_URL}/api/barbers?linkId=${existingLink.empresaId}`);
                 if (response.ok) {
                    const barbers = await response.json();
                    const barber = barbers.find((b: any) => {
                        if (!b.telefone) return false;
                        const digits = Array.from(b.telefone).filter((c: any) => c >= '0' && c <= '9').join('');
-                       return digits === userPhone;
+                       const cleanPhone = userPhone.replace(/\D/g, '');
+                       return digits === cleanPhone;
                    });
                    if (barber) {
-                       await fetch(`${API_BASE_URL}/api/barbers/${barber.id || barber._id}`, { method: 'DELETE' });
+                       await apiFetch(`${API_BASE_URL}/api/barbers/${barber.id || barber._id}`, { method: 'DELETE' });
                    }
                 }
             } catch (err) {
@@ -141,7 +142,7 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
         
         try {
             const cleanPhone = userPhone.replace(/\D/g, '');
-            const response = await fetch(`${API_BASE_URL}/api/barbers?linkId=${empresaId}`);
+            const response = await apiFetch(`${API_BASE_URL}/api/barbers?linkId=${empresaId}`);
             if (response.ok) {
                 const barbers = await response.json();
                 const barber = barbers.find((b: any) => {
@@ -162,22 +163,26 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
                             }
                         } catch(e) {}
                         
-                        await fetch(`${API_BASE_URL}/api/barbers`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                nome: userName,
-                                telefone: userPhone,
-                                comissao: 10,
-                                corte: 50,
-                                diasTrabalhados: ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'],
-                                linkId: empresaId
-                            })
-                        });
+                        try {
+                            await apiFetch(`${API_BASE_URL}/api/barbers`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    nome: userName,
+                                    telefone: cleanPhone,
+                                    comissao: 10,
+                                    corte: 50,
+                                    diasTrabalhados: ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'],
+                                    linkId: empresaId
+                                })
+                            });
+                        } catch(e) {
+                            console.warn("Erro ao POST barbeiro:", e);
+                        }
                         
                         try {
                             // Atribui a permissão "minha agenda" (barbeiroAgenda)
-                            await fetch(`${API_BASE_URL}/permissions?userPhone=${cleanPhone}&add=true`, {
+                            await apiFetch(`${API_BASE_URL}/permissions?userPhone=${cleanPhone}&add=true`, {
                                 method: 'PATCH',
                                 headers: {
                                     'Content-Type': 'application/json'
@@ -192,7 +197,11 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
                     }
                 } else {
                     if (barber) {
-                        await fetch(`${API_BASE_URL}/api/barbers/${barber.id || barber._id}`, { method: 'DELETE' });
+                        try {
+                            await apiFetch(`${API_BASE_URL}/api/barbers/${barber.id || barber._id}`, { method: 'DELETE' });
+                        } catch(e) {
+                            console.warn("Erro ao deletar barbeiro:", e);
+                        }
                     }
                 }
             }

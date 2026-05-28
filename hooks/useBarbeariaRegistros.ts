@@ -19,6 +19,7 @@ export interface RegistroBarbearia {
   barbeiroNome?: string;
   itens: RegistroItem[];
   total: number;
+  tipoPagamento?: string[];
 }
 
 export interface Agendamento {
@@ -36,6 +37,7 @@ export interface Agendamento {
   nomesAcompanhantes?: string;
   valorTotalPrevisto?: number;
   status: 'pendente' | 'atendendo' | 'finalizado' | 'pago' | 'cancelado';
+  tipoPagamento?: string[];
 }
 
 const promiseCache = new Map<string, Promise<any>>();
@@ -74,6 +76,9 @@ export const useBarbeariaAgendamentos = (empresaId?: string) => {
 
   useEffect(() => {
     loadAgendamentos();
+    const handleSync = () => loadAgendamentos();
+    window.addEventListener('agendamentos_sync', handleSync);
+    return () => window.removeEventListener('agendamentos_sync', handleSync);
   }, [loadAgendamentos]);
 
   const addAgendamento = async (agendamentoData: any) => {
@@ -86,6 +91,7 @@ export const useBarbeariaAgendamentos = (empresaId?: string) => {
       if (response.ok) {
         const data = await response.json();
         loadAgendamentos();
+        window.dispatchEvent(new Event('agendamentos_sync'));
         return data;
       } else {
         console.error('Erro ao adicionar agendamento via API');
@@ -114,6 +120,7 @@ export const useBarbeariaAgendamentos = (empresaId?: string) => {
       });
       if (response.ok) {
         loadAgendamentos();
+        window.dispatchEvent(new Event('agendamentos_sync'));
       } else {
         console.error('Erro ao atualizar status do agendamento via API');
       }
@@ -124,7 +131,6 @@ export const useBarbeariaAgendamentos = (empresaId?: string) => {
 
   const updateAgendamento = async (id: string, updates: Partial<Agendamento>) => {
     try {
-      // Tenta fazer o PUT completo
       const response = await fetch(`${API_BASE_URL}/api/appointment-barbers/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -132,6 +138,7 @@ export const useBarbeariaAgendamentos = (empresaId?: string) => {
       });
       if (response.ok) {
         loadAgendamentos();
+        window.dispatchEvent(new Event('agendamentos_sync'));
       } else {
         console.error('Erro ao atualizar agendamento via API');
       }
@@ -202,7 +209,8 @@ export const useBarbeariaRegistros = (empresaId?: string) => {
         barbeiroId: a.barbeiroId,
         barbeiroNome: barbeiro ? barbeiro.nome : 'Qualquer um',
         itens,
-        total
+        total,
+        tipoPagamento: a.tipoPagamento
       };
     });
 

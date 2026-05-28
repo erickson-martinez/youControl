@@ -785,10 +785,30 @@ const TabServicos = ({ empresaId }: { empresaId?: string }) => {
 };
 
 const TabCustos = ({ empresaId }: { empresaId?: string }) => {
-  const { custos, addCusto, removeCusto } = useBarbeariaConfig(empresaId);
+  const { custos, addCusto, removeCusto, taxas, updateTaxas } = useBarbeariaConfig(empresaId);
   const [nome, setNome] = useState('');
   const [valor, setValor] = useState('');
   const [tipo, setTipo] = useState<'fixo'|'variavel'>('fixo');
+
+  // Estado local para as taxas, atualizado ao salvar
+  const [taxasLocal, setTaxasLocal] = useState({ 
+    pix: taxas?.pix || 0, 
+    dinheiro: taxas?.dinheiro || 0, 
+    credito: taxas?.credito || 0, 
+    debito: taxas?.debito || 0 
+  });
+
+  // Atualiza local state quando taxas do bd/cache carrega
+  useEffect(() => {
+    if (taxas) {
+      setTaxasLocal({
+        pix: taxas.pix || 0,
+        dinheiro: taxas.dinheiro || 0,
+        credito: taxas.credito || 0,
+        debito: taxas.debito || 0
+      });
+    }
+  }, [taxas]);
 
   const handleCadastrar = (e: React.FormEvent) => {
     e.preventDefault();
@@ -797,53 +817,109 @@ const TabCustos = ({ empresaId }: { empresaId?: string }) => {
     setNome(''); setValor(''); setTipo('fixo');
   };
 
+  const handleSalvarTaxas = () => {
+    updateTaxas(taxasLocal);
+    alert('Taxas de pagamento atualizadas!');
+  };
+
   const fixos = custos.filter(c => c.tipo === 'fixo');
   const variaveis = custos.filter(c => c.tipo === 'variavel');
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-1 sm:grid-cols-2 gap-5 md:p-8">
-      <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
-        <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-          <PlusIcon className="w-5 h-5 text-blue-500" /> Cadastrar Custo Diário
-        </h2>
-        <p className="text-sm text-gray-400 mb-6 border-b border-gray-700/50 pb-4">
-          Custos fixos não variam (ex: Aluguel). Custos variáveis dependem do volume de vendas (ex: Produtos de bancada).
-        </p>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 md:p-8">
+      <div className="flex flex-col gap-5">
+        <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
+          <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+            <PlusIcon className="w-5 h-5 text-blue-500" /> Cadastrar Custo Diário
+          </h2>
+          <p className="text-sm text-gray-400 mb-6 border-b border-gray-700/50 pb-4">
+            Custos fixos não variam (ex: Aluguel). Custos variáveis dependem do volume de vendas (ex: Produtos de bancada).
+          </p>
 
-        <form onSubmit={handleCadastrar} className="space-y-4">
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Nome / Descrição</label>
-            <input 
-              type="text" required value={nome} onChange={e => setNome(e.target.value)}
-              className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-              placeholder="Ex: Aluguel"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Valor Mensal Estimado (R$)</label>
-            <input 
-              type="number" step="0.01" required value={valor} onChange={e => setValor(e.target.value)}
-              className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-              placeholder="0.00"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-2">Classificação (Tipo de Custo)</label>
-            <div className="flex gap-4">
-              <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
-                <input type="radio" checked={tipo === 'fixo'} onChange={() => setTipo('fixo')} className="text-blue-500 focus:ring-blue-500 bg-gray-700 border-gray-600" /> Custo Fixo
-              </label>
-              <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
-                <input type="radio" checked={tipo === 'variavel'} onChange={() => setTipo('variavel')} className="text-blue-500 focus:ring-blue-500 bg-gray-700 border-gray-600" /> Custo Variável
-              </label>
+          <form onSubmit={handleCadastrar} className="space-y-4">
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Nome / Descrição</label>
+              <input 
+                type="text" required value={nome} onChange={e => setNome(e.target.value)}
+                className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                placeholder="Ex: Aluguel"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Valor Mensal Estimado (R$)</label>
+              <input 
+                type="number" step="0.01" required value={valor} onChange={e => setValor(e.target.value)}
+                className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                placeholder="0.00"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Classificação (Tipo de Custo)</label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                  <input type="radio" checked={tipo === 'fixo'} onChange={() => setTipo('fixo')} className="text-blue-500 focus:ring-blue-500 bg-gray-700 border-gray-600" /> Custo Fixo
+                </label>
+                <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                  <input type="radio" checked={tipo === 'variavel'} onChange={() => setTipo('variavel')} className="text-blue-500 focus:ring-blue-500 bg-gray-700 border-gray-600" /> Custo Variável
+                </label>
+              </div>
+            </div>
+            <div className="pt-4 border-t border-gray-700/50">
+              <button type="submit" className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2.5 px-4 rounded-xl transition-all shadow-md hover:shadow-blue-500/20">
+                <PlusIcon className="w-5 h-5" /> Salvar Custo
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
+          <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+            <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            Taxas de Pagamento (%)
+          </h2>
+          <p className="text-sm text-gray-400 mb-6 border-b border-gray-700/50 pb-4">
+            Defina a porcentagem de taxa cobrada pela maquininha ou banco para cada forma de pagamento. Essa taxa será descontada do valor final da barbearia.
+          </p>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">PIX (%)</label>
+                <input 
+                  type="number" step="0.01" value={taxasLocal.pix} onChange={e => setTaxasLocal({...taxasLocal, pix: Number(e.target.value)})}
+                  className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Dinheiro (%)</label>
+                <input 
+                  type="number" step="0.01" value={taxasLocal.dinheiro} onChange={e => setTaxasLocal({...taxasLocal, dinheiro: Number(e.target.value)})}
+                  className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Cartão Crédito (%)</label>
+                <input 
+                  type="number" step="0.01" value={taxasLocal.credito} onChange={e => setTaxasLocal({...taxasLocal, credito: Number(e.target.value)})}
+                  className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Cartão Débito (%)</label>
+                <input 
+                  type="number" step="0.01" value={taxasLocal.debito} onChange={e => setTaxasLocal({...taxasLocal, debito: Number(e.target.value)})}
+                  className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-green-500"
+                />
+              </div>
+            </div>
+            
+            <div className="pt-4 border-t border-gray-700/50">
+              <button onClick={handleSalvarTaxas} className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 text-white font-semibold py-2.5 px-4 rounded-xl transition-all shadow-md hover:shadow-green-500/20">
+                <CheckCircleIcon className="w-5 h-5" /> Salvar Taxas
+              </button>
             </div>
           </div>
-          <div className="pt-4 border-t border-gray-700/50">
-            <button type="submit" className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2.5 px-4 rounded-xl transition-all shadow-md hover:shadow-blue-500/20">
-              <PlusIcon className="w-5 h-5" /> Salvar Custo
-            </button>
-          </div>
-        </form>
+        </div>
       </div>
 
       <div className="space-y-6">
@@ -1147,7 +1223,7 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
   const { registros, addRegistro, removeRegistro, loadRegistros } = useBarbeariaRegistros(empresaId);
   const { agendamentos, updateStatus, loadAgendamentos } = useBarbeariaAgendamentos(empresaId);
   const { barbeiros, reloadBarbeiros } = useBarbeiros(empresaId);
-  const { servicos, loadConfig, produtos, updateProduto, custos } = useBarbeariaConfig(empresaId);
+  const { servicos, loadConfig, produtos, updateProduto, custos, taxas } = useBarbeariaConfig(empresaId);
   
   const [dataFiltro, setDataFiltro] = useState(() => {
     const hoje = new Date();
@@ -1259,7 +1335,8 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
         barbeiroId: a.barbeiroId,
         barbeiroNome: barbeiros.find(b => b.id === a.barbeiroId)?.nome || 'Qualquer um',
         itens,
-        total
+        total,
+        tipoPagamento: a.tipoPagamento
       });
     }
   };
@@ -1276,10 +1353,13 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
       let faturamentoTotal = 0;
       let comissaoServicos = 0;
       let comissaoProdutos = 0;
+      let totalTaxas = 0;
 
       registrosBarbeiro.forEach(r => {
+        let totalItem = 0;
         r.itens.forEach((item: any) => {
           faturamentoTotal += item.valor;
+          totalItem += item.valor;
           if (item.tipo === 'servico') {
             totalServicos += item.valor;
             comissaoServicos += item.valor * (barbeiro.corte / 100);
@@ -1290,6 +1370,27 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
             comissaoProdutos += item.valor * ((override || 0) / 100);
           }
         });
+
+        // Compute taxas
+        if (r.tipoPagamento && r.tipoPagamento.length > 0) {
+          r.tipoPagamento.forEach((pStr: string) => {
+             try {
+               const p = JSON.parse(pStr);
+               // If payment value > 0, compute tax
+               if (p.valor > 0) {
+                 if (p.tipo === 'Pix' || p.tipo.toLowerCase() === 'pix') {
+                    totalTaxas += p.valor * ((taxas?.pix || 0) / 100);
+                 } else if (p.tipo === 'Crédito' || p.tipo.toLowerCase() === 'crédito') {
+                    totalTaxas += p.valor * ((taxas?.credito || 0) / 100);
+                 } else if (p.tipo === 'Débito' || p.tipo.toLowerCase() === 'débito') {
+                    totalTaxas += p.valor * ((taxas?.debito || 0) / 100);
+                 } else if (p.tipo === 'Dinheiro' || p.tipo.toLowerCase() === 'dinheiro') {
+                    totalTaxas += p.valor * ((taxas?.dinheiro || 0) / 100);
+                 }
+               }
+             } catch (e) {}
+          });
+        }
       });
 
       return {
@@ -1299,14 +1400,15 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
         faturamentoTotal,
         comissaoServicos,
         comissaoProdutos,
+        totalTaxas,
         totalComissao: comissaoServicos + comissaoProdutos,
-        caixaBarbearia: faturamentoTotal - (comissaoServicos + comissaoProdutos)
+        caixaBarbearia: faturamentoTotal - (comissaoServicos + comissaoProdutos) - totalTaxas
       };
     }).filter(c => c.faturamentoTotal > 0);
   };
 
-  const comissoesDia = calcularComissoes(registrosFiltradosDia);
-  const comissoesMes = calcularComissoes(registrosFiltradosMes);
+  const comissoesDia = calcularComissoes(registrosFiltradosDia).sort((a, b) => b.totalComissao - a.totalComissao);
+  const comissoesMes = calcularComissoes(registrosFiltradosMes).sort((a, b) => b.totalComissao - a.totalComissao);
 
   return (
     <div className="space-y-6">
@@ -1389,65 +1491,82 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                     <p>Nenhuma venda ou serviço registrado para esta data.</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-4">
+                  <div className="flex flex-col gap-4 mt-4">
                     {/* Barbearia Card */}
-                    <div className="bg-blue-900/30 p-5 rounded-2xl border border-blue-800/50 flex flex-col gap-2 relative overflow-hidden">
-                       <button 
+                    <div className="bg-blue-900/30 p-5 rounded-2xl border border-blue-800/50 flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 relative group transition-all hover:bg-blue-900/40">
+                       
+                        <div className="flex flex-col gap-1.5 flex-1">
+                          <h3 className="font-bold text-blue-100 text-xl z-10 flex items-center gap-2">
+                             <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                             Caixa Barbearia
+                          </h3>
+                          <div className="text-sm text-blue-300">
+                            Fat. Bruto Geral: <span className="font-bold text-white">R$ {comissoesDia.reduce((sum, c) => sum + c.faturamentoTotal, 0).toFixed(2)}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 flex-1 md:justify-end flex-wrap">
+                          <div className="flex flex-col w-full sm:w-auto">
+                            <span className="text-blue-200 text-xs font-semibold uppercase tracking-wider mb-1">Comissões Pagas</span>
+                            <span className="text-red-400 font-bold text-lg">- R$ {comissoesDia.reduce((sum, c) => sum + c.totalComissao, 0).toFixed(2)}</span>
+                          </div>
+                          <div className="flex flex-col w-full sm:w-auto sm:border-l border-blue-800/50 sm:pl-6">
+                            <span className="text-blue-200 text-xs font-semibold uppercase tracking-wider mb-1">Taxas (Maquininha)</span>
+                            <span className="text-orange-400 font-bold text-lg">- R$ {comissoesDia.reduce((sum, c) => sum + (c.totalTaxas || 0), 0).toFixed(2)}</span>
+                          </div>
+                          <div className="flex flex-col w-full sm:w-auto sm:border-l border-blue-800/50 sm:pl-6">
+                            <span className="text-blue-100 text-xs font-semibold uppercase tracking-wider mb-1">Lucro Barbearia</span>
+                            <span className="text-blue-400 font-black text-2xl">R$ {comissoesDia.reduce((sum, c) => sum + c.caixaBarbearia, 0).toFixed(2)}</span>
+                          </div>
+                        </div>
+
+                        <button 
                           onClick={() => {
                             const faturamentoBrutoTotal = comissoesDia.reduce((sum, c) => sum + c.faturamentoTotal, 0);
                             const caixaTotal = comissoesDia.reduce((sum, c) => sum + c.caixaBarbearia, 0);
                             setReceitaData({ isBarbearia: true, faturamentoBrutoTotal, caixaBarbearia: caixaTotal });
                             setIsFinalizarCaixaOpen(true);
                           }}
-                          className="absolute top-4 right-4 p-2 bg-blue-800/50 border border-blue-700/50 rounded-xl hover:bg-blue-700 hover:text-white transition-all shadow-md group z-20"
+                          className="absolute md:relative top-4 right-4 md:top-auto md:right-auto p-3 bg-blue-800/50 border border-blue-700/50 rounded-xl hover:bg-blue-700 hover:text-white transition-all shadow-md group z-20 shrink-0"
                           title="Fechar Barbearia (Criar Receita)"
                         >
-                          <svg className="w-8 h-8 text-blue-300 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                          <svg className="w-6 h-6 text-blue-300 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
                         </button>
-                        <h3 className="font-bold text-blue-100 text-lg z-10 flex items-center gap-2 pt-1">
-                           <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
-                           Caixa Barbearia
-                        </h3>
-                        <div className="text-xs text-blue-300/70 mb-2 border-b border-blue-800/50 pb-2">
-                          Fat. Bruto Geral: <span className="font-bold text-white">R$ {comissoesDia.reduce((sum, c) => sum + c.faturamentoTotal, 0).toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-sm border-b border-blue-800/50 pb-2">
-                          <span className="text-blue-200">Comissões Pagas</span>
-                          <span className="text-red-400 font-medium">- R$ {comissoesDia.reduce((sum, c) => sum + c.totalComissao, 0).toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between items-center mt-2 pt-1 border-t border-blue-800/50">
-                          <span className="text-blue-100 font-bold text-sm">Lucro Barbearia</span>
-                          <span className="text-blue-400 font-black text-lg">R$ {comissoesDia.reduce((sum, c) => sum + c.caixaBarbearia, 0).toFixed(2)}</span>
-                        </div>
                     </div>
                     {/* Fim Barbearia Card */}
                     {comissoesDia.map((c, idx) => (
-                      <div key={idx} className="bg-gray-900/60 p-5 rounded-2xl border border-gray-700 flex flex-col gap-2 relative overflow-hidden">
+                      <div key={idx} className="bg-gray-900/60 p-5 rounded-2xl border border-gray-700 flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 relative group transition-all hover:bg-gray-900">
+                        
+                        <div className="flex flex-col gap-1.5 flex-1">
+                          <h3 className="font-bold text-white text-xl z-10">{c.barbeiro.nome}</h3>
+                          <div className="text-sm text-gray-400">Fat. Bruto: <span className="font-bold text-white">R$ {c.faturamentoTotal.toFixed(2)}</span></div>
+                        </div>
+                        
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 flex-1 xl:flex-none xl:w-[500px]">
+                          <div className="flex flex-col w-full sm:w-auto">
+                            <span className="text-gray-500 text-xs font-semibold uppercase tracking-wider mb-1">Serviços ({c.barbeiro.corte}%)</span>
+                            <span className="text-green-400 font-bold text-lg">R$ {c.comissaoServicos.toFixed(2)}</span>
+                          </div>
+                          <div className="flex flex-col w-full sm:w-auto sm:border-l border-gray-800 sm:pl-6">
+                            <span className="text-gray-500 text-xs font-semibold uppercase tracking-wider mb-1">Produtos ({c.barbeiro.comissao}%)</span>
+                            <span className="text-blue-400 font-bold text-lg">R$ {c.comissaoProdutos.toFixed(2)}</span>
+                          </div>
+                          <div className="flex flex-col w-full sm:w-auto sm:border-l border-gray-800 sm:pl-6">
+                            <span className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Comissão a Pagar</span>
+                            <span className="text-green-400 font-black text-2xl">R$ {c.totalComissao.toFixed(2)}</span>
+                          </div>
+                        </div>
+
                         <button 
                           onClick={() => {
                             setReceitaData({ ...c, nome: c.barbeiro.nome });
                             setIsFinalizarCaixaOpen(true);
                           }}
-                          className="absolute top-4 right-4 p-2 bg-gray-800 border border-gray-700 rounded-xl hover:bg-gray-700 hover:text-green-400 hover:border-green-500/50 transition-all shadow-md group z-20"
+                          className="absolute md:relative top-4 right-4 md:top-auto md:right-auto p-3 bg-gray-800 border border-gray-700 rounded-xl hover:bg-gray-700 hover:text-green-400 hover:border-green-500/50 transition-all shadow-md group z-20 shrink-0"
                           title="Finalizar Caixa (Criar Receita)"
                         >
-                          <svg className="w-8 h-8 text-gray-400 group-hover:text-green-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                          <svg className="w-6 h-6 text-gray-400 group-hover:text-green-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         </button>
-                        <h3 className="font-bold text-white text-lg z-10">{c.barbeiro.nome}</h3>
-                        <div className="text-xs text-gray-400 mb-2 border-b border-gray-800 pb-2">Fat. Bruto: <span className="font-bold text-white">R$ {c.faturamentoTotal.toFixed(2)}</span></div>
-                        
-                        <div className="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
-                          <span className="text-gray-400">Serviços ({c.barbeiro.corte}%)</span>
-                          <span className="text-green-400 font-medium">R$ {c.comissaoServicos.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
-                          <span className="text-gray-400">Produtos ({c.barbeiro.comissao}%)</span>
-                          <span className="text-blue-400 font-medium">R$ {c.comissaoProdutos.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between items-center mt-2 pt-1 border-t border-gray-800">
-                          <span className="text-gray-200 font-bold text-sm">Comissão a Pagar</span>
-                          <span className="text-green-400 font-black text-lg">R$ {c.totalComissao.toFixed(2)}</span>
-                        </div>
                       </div>
                     ))}
                   </div>
@@ -1485,34 +1604,40 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                     <p>Nenhum registro encontrado para este mês.</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  <div className="flex flex-col gap-4 mt-4">
                     {comissoesMes.map((c, idx) => (
-                      <div key={idx} className="bg-gray-900/40 p-5 rounded-2xl border border-gray-700 flex flex-col gap-2 relative overflow-hidden">
+                      <div key={idx} className="bg-gray-900/40 p-5 rounded-2xl border border-gray-700 flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 relative group transition-all hover:bg-gray-900">
+                        
+                        <div className="flex flex-col gap-1.5 flex-1">
+                          <h3 className="font-bold text-white text-xl z-10">{c.barbeiro.nome}</h3>
+                          <div className="text-sm text-gray-400">Fat. Bruto Mensal: <span className="font-bold text-white">R$ {c.faturamentoTotal.toFixed(2)}</span></div>
+                        </div>
+                        
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 flex-1 xl:flex-none xl:w-[500px]">
+                          <div className="flex flex-col w-full sm:w-auto">
+                            <span className="text-gray-500 text-xs font-semibold uppercase tracking-wider mb-1">Serviços</span>
+                            <span className="text-green-400 font-bold text-lg">R$ {c.comissaoServicos.toFixed(2)}</span>
+                          </div>
+                          <div className="flex flex-col w-full sm:w-auto sm:border-l border-gray-800 sm:pl-6">
+                            <span className="text-gray-500 text-xs font-semibold uppercase tracking-wider mb-1">Produtos</span>
+                            <span className="text-blue-400 font-bold text-lg">R$ {c.comissaoProdutos.toFixed(2)}</span>
+                          </div>
+                          <div className="flex flex-col w-full sm:w-auto sm:border-l border-gray-800 sm:pl-6">
+                            <span className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Comissão Mensal</span>
+                            <span className="text-emerald-400 font-black text-2xl">R$ {c.totalComissao.toFixed(2)}</span>
+                          </div>
+                        </div>
+
                         <button 
                           onClick={() => {
                             setReceitaData({ ...c, nome: c.barbeiro.nome });
                             setIsFinalizarCaixaOpen(true);
                           }}
-                          className="absolute top-4 right-4 p-2 bg-gray-800 border border-gray-700 rounded-xl hover:bg-gray-700 hover:text-green-400 hover:border-green-500/50 transition-all shadow-md group z-20"
+                          className="absolute md:relative top-4 right-4 md:top-auto md:right-auto p-3 bg-gray-800 border border-gray-700 rounded-xl hover:bg-gray-700 hover:text-green-400 hover:border-green-500/50 transition-all shadow-md group z-20 shrink-0"
                           title="Finalizar Caixa (Criar Receita)"
                         >
-                          <svg className="w-8 h-8 text-gray-400 group-hover:text-green-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                          <svg className="w-6 h-6 text-gray-400 group-hover:text-green-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         </button>
-                        <h3 className="font-bold text-white text-lg z-10">{c.barbeiro.nome}</h3>
-                        <div className="text-xs text-gray-400 mb-2 border-b border-gray-800 pb-2">Fat. Bruto Mensal: <span className="font-bold text-white">R$ {c.faturamentoTotal.toFixed(2)}</span></div>
-                        
-                        <div className="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
-                          <span className="text-gray-400">Serviços</span>
-                          <span className="text-green-400 font-medium">R$ {c.comissaoServicos.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
-                          <span className="text-gray-400">Produtos</span>
-                          <span className="text-blue-400 font-medium">R$ {c.comissaoProdutos.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between items-center mt-2 pt-1 border-t border-gray-800">
-                          <span className="text-gray-300 font-bold text-sm">Comissão Mensal</span>
-                          <span className="text-emerald-400 font-black text-lg">R$ {c.totalComissao.toFixed(2)}</span>
-                        </div>
                       </div>
                     ))}
                   </div>
@@ -1524,24 +1649,24 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
 
       {activeSubTab === 'aguardando' && (
         <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">Aguardando Pagamento <span className="bg-gray-900 border border-gray-700 text-sm font-bold text-blue-400 py-0.5 px-2 rounded-lg">{pendentes.length}</span></h2>
+        <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+          <h2 className="text-xl font-bold text-white flex items-center gap-2 w-full sm:w-auto">Aguardando Pagamento <span className="bg-gray-900 border border-gray-700 text-sm font-bold text-blue-400 py-0.5 px-2 rounded-lg">{pendentes.length}</span></h2>
           <button
             onClick={handleReload}
-            className="px-3 py-1 bg-gray-700 text-xs text-gray-300 rounded hover:bg-gray-600 transition border border-gray-600 inline-flex items-center gap-1"
+            className="w-full sm:w-auto px-4 py-2 bg-gray-700 text-sm font-medium text-gray-200 rounded-xl hover:bg-gray-600 transition border border-gray-600 inline-flex items-center justify-center gap-2"
           >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
             Recarregar
           </button>
         </div>
         
         {pendentes.length === 0 ? (
-          <div className="w-full bg-gray-900/50 p-5 md:p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center">
-            <svg className="w-12 h-12 mb-3 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-            <p>Nenhum atendimento aguardando pagamento.</p>
+          <div className="w-full bg-gray-900/50 p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center">
+            <svg className="w-16 h-16 mb-4 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+            <p className="text-lg">Nenhum atendimento aguardando pagamento.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="flex flex-col gap-4 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar">
             {pendentes.map(a => {
               const dataAgendada = new Date(a.dataAgendada);
               const dataStr = dataAgendada.toLocaleDateString();
@@ -1578,66 +1703,60 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
               }
               
               return (
-                <div key={a.id} className="bg-gray-800/90 p-5 rounded-2xl border border-gray-700 flex flex-col gap-3 shadow-md hover:border-blue-500/30 transition-all group relative">
-                  <button 
-                    onClick={() => updateStatus(a.id, 'cancelado')}
-                    className="absolute top-4 right-4 text-gray-500 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 bg-gray-900 p-1.5 rounded-lg"
-                    title="Cancelar agendamento"
-                  >
-                    <XCircleIcon className="w-4 h-4" />
-                  </button>
-                  <div className="flex justify-between items-start pr-8">
-                    <div>
-                      <h3 className="font-bold text-white text-lg leading-tight">{a.cliente}</h3>
-                      <p className="text-sm text-gray-400 mt-1">{a.telefone}</p>
-                    </div>
-                  </div>
+                <div key={a.id} className="bg-gray-800/90 p-5 lg:p-6 rounded-2xl border border-gray-700 flex flex-col gap-5 lg:gap-6 shadow-sm hover:border-blue-500/50 transition-all group overflow-hidden">
                   
-                  <div className="bg-gray-900/50 p-3 rounded-xl border border-gray-800 flex justify-between items-center mt-2">
-                    <div>
-                      <p className="text-blue-400 font-bold text-sm">{dataStr}</p>
-                      <p className="text-gray-300 text-xs font-bold">{horaStr}</p>
+                  {/* Topo: Info do Cliente e Data */}
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-700/50 pb-4 lg:pb-5">
+                    <div className="flex flex-col">
+                      <h3 className="font-bold text-white text-xl lg:text-2xl leading-tight truncate">{a.cliente}</h3>
+                      <p className="text-sm font-medium text-gray-400 mt-1">{a.telefone}</p>
                     </div>
-                    <div className="text-right">
-                       <span className="text-[10px] uppercase font-bold text-gray-500 block">Barbeiro</span>
-                       <p className="text-xs text-gray-300 font-medium">{barbeiro}</p>
+                    
+                    <div className="bg-gray-900/60 p-3 rounded-xl border border-gray-800 flex items-center gap-4 shrink-0 sm:self-auto self-stretch">
+                      <div className="flex flex-col sm:items-end w-full">
+                        <div className="flex items-center justify-between sm:justify-end gap-3 w-full">
+                          <span className="text-blue-400 font-bold text-sm bg-blue-500/10 px-2.5 py-0.5 rounded border border-blue-500/20">{dataStr}</span>
+                          <span className="text-gray-300 text-sm font-bold">{horaStr}</span>
+                        </div>
+                        <div className="flex items-center justify-between sm:justify-end gap-2 mt-2 w-full">
+                           <span className="text-[10px] uppercase font-bold text-gray-500">Barbeiro:</span>
+                           <span className="text-sm text-gray-200 font-bold max-w-[150px] truncate" title={barbeiro}>{barbeiro}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  {servicosDoAgendamento.length > 0 && (
-                    <div className="flex flex-col gap-2 mt-1">
-                      {servicosDoAgendamento.map((s, idx) => (
-                        <div key={`s-${idx}`} className="text-sm text-gray-300 bg-gray-800 px-3 py-1.5 rounded-lg inline-flex justify-between w-full shadow-inner border border-gray-700/50">
-                          <span className="font-medium">{s.nome}</span>
-                          <span className="text-green-400 font-bold">R$ {s.valor.toFixed(2)}</span>
+                  {/* Meio: Itens do Agendamento */}
+                  <div className="flex flex-wrap items-center gap-3">
+                     {servicosDoAgendamento.map((s, idx) => (
+                        <div key={`s-${idx}`} className="text-sm text-gray-200 bg-gray-900/40 px-4 py-2.5 rounded-xl flex items-center justify-between gap-4 shadow-inner border border-gray-700/50 shrink-0">
+                          <span className="font-semibold">{s.nome}</span>
+                          <span className="text-green-400 font-bold whitespace-nowrap">R$ {s.valor.toFixed(2)}</span>
                         </div>
                       ))}
-                    </div>
-                  )}
-
-                  {produtosDoAgendamento.length > 0 && (
-                    <div className="flex flex-col gap-2 mt-1">
                       {produtosDoAgendamento.map((p, idx) => (
-                        <div key={`p-${idx}`} className="text-sm text-gray-300 bg-gray-800 px-3 py-1.5 rounded-lg inline-flex justify-between w-full shadow-inner border border-gray-700/50">
-                          <span className="font-medium">{p.nome} (Produto)</span>
-                          <span className="text-blue-400 font-bold">R$ {p.precoVenda.toFixed(2)}</span>
+                        <div key={`p-${idx}`} className="text-sm text-gray-200 bg-gray-900/40 px-4 py-2.5 rounded-xl flex items-center justify-between gap-4 shadow-inner border border-gray-700/50 shrink-0">
+                          <span className="font-semibold">{p.nome} <span className="text-gray-500 font-normal text-xs ml-1">(Prod)</span></span>
+                          <span className="text-blue-400 font-bold whitespace-nowrap">R$ {p.precoVenda.toFixed(2)}</span>
                         </div>
                       ))}
-                    </div>
-                  )}
-                  
-                  <div className="flex justify-between items-center mt-2 mb-1 px-1">
-                     <span className="text-sm font-bold text-gray-400">Total a Pagar</span>
-                     <span className="text-lg font-black text-white">R$ {valorTotal.toFixed(2)}</span>
                   </div>
 
-                  <div className="flex gap-2 pt-3 border-t border-gray-700/50">
-                    <button 
-                      onClick={() => handleConcluir(a)}
-                      className="w-full flex items-center justify-center gap-2 bg-green-600/20 hover:bg-green-600 text-green-400 hover:text-white border border-green-500/30 font-medium text-sm py-2 rounded-xl transition-all"
-                    >
-                      <CheckCircleIcon className="w-4 h-4" /> Marcar como Pago
-                    </button>
+                  {/* Rodapé: Total e Ações */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pt-5 lg:pt-6 border-t border-gray-700/50 bg-gray-800/30 -mx-5 -mb-5 px-5 pb-5 lg:-mx-6 lg:-mb-6 lg:px-6 lg:pb-6 rounded-b-2xl mt-1">
+                    <div className="flex flex-col items-center sm:items-start w-full sm:w-auto">
+                      <span className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Total a Pagar</span>
+                      <span className="text-3xl lg:text-4xl font-black text-white">R$ {valorTotal.toFixed(2)}</span>
+                    </div>
+
+                    <div className="flex items-center justify-center gap-3 w-full sm:w-auto">
+                      <button 
+                        onClick={() => handleConcluir(a)}
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-green-500/10 hover:bg-green-500 text-green-400 hover:text-white border border-green-500/30 font-bold py-3.5 px-8 rounded-xl transition-all shadow-sm text-lg"
+                      >
+                        <CheckCircleIcon className="w-5 h-5 shrink-0" /> Pago
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -1650,9 +1769,10 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
       {activeSubTab === 'lucro' && (() => {
         const faturamentoMes = comissoesMes.reduce((sum, c) => sum + c.faturamentoTotal, 0);
         const comissoesPagasMes = comissoesMes.reduce((sum, c) => sum + c.totalComissao, 0);
+        const totalTaxasMes = comissoesMes.reduce((sum, c) => sum + (c.totalTaxas || 0), 0);
         const custoFixoMes = custos.filter(c => c.tipo === 'fixo').reduce((sum, c) => sum + c.valor, 0);
         const custoVariavelMes = custos.filter(c => c.tipo === 'variavel').reduce((sum, c) => sum + c.valor, 0);
-        const custosTotaisMes = custoFixoMes + custoVariavelMes;
+        const custosTotaisMes = custoFixoMes + custoVariavelMes + totalTaxasMes;
         const impostoTax = 6; 
         const impostosMes = faturamentoMes > 5000 ? faturamentoMes * (impostoTax / 100) : 0;
         const lucroLiquidoMes = faturamentoMes - comissoesPagasMes - custosTotaisMes - impostosMes;
@@ -1665,7 +1785,7 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                     <h2 className="text-xl font-bold text-white flex items-center gap-2">
                       Lucro Líquido Mensal
                     </h2>
-                    <p className="text-gray-400 text-sm mt-1">Análise de rentabilidade contábil do mês selecionado, já deduzindo comissões aos barbeiros, custos da barbearia e impostos (acima de R$ 5.000 mensais).</p>
+                    <p className="text-gray-400 text-sm mt-1">Análise de rentabilidade contábil do mês selecionado, já deduzindo comissões aos barbeiros, custos da barbearia, taxas de pagamento e impostos.</p>
                 </div>
               </div>
               
@@ -1680,23 +1800,25 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                   />
       
                   <div className="mt-8 flex flex-col gap-4">
-                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
                         <div className="bg-gray-900/60 p-4 border border-gray-700/50 rounded-xl">
-                            <div className="text-xs text-gray-400 mb-1">Faturamento Bruto Geral</div>
+                            <div className="text-xs text-gray-400 mb-1">Faturamento Bruto</div>
                             <div className="text-xl font-bold text-white">R$ {faturamentoMes.toFixed(2)}</div>
                         </div>
                         <div className="bg-gray-900/60 p-4 border border-gray-700/50 rounded-xl">
-                            <div className="text-xs text-gray-400 mb-1">Comissões Pagas</div>
+                            <div className="text-xs text-gray-400 mb-1">Comissões</div>
                             <div className="text-xl font-bold text-red-400/80">- R$ {comissoesPagasMes.toFixed(2)}</div>
                         </div>
-                        <div className="bg-gray-900/60 p-4 border border-gray-700/50 rounded-xl flex items-center justify-between">
-                            <div>
-                                <div className="text-xs text-gray-400 mb-1">Custos Totais Mensais</div>
-                                <div className="text-xl font-bold text-orange-400/80">- R$ {custosTotaisMes.toFixed(2)}</div>
-                            </div>
+                        <div className="bg-gray-900/60 p-4 border border-gray-700/50 rounded-xl">
+                            <div className="text-xs text-gray-400 mb-1">Custos Fixos/Var</div>
+                            <div className="text-xl font-bold text-orange-400/80">- R$ {(custoFixoMes + custoVariavelMes).toFixed(2)}</div>
                         </div>
                         <div className="bg-gray-900/60 p-4 border border-gray-700/50 rounded-xl">
-                            <div className="text-xs text-gray-400 mb-1">Impostos {faturamentoMes > 5000 ? `(${impostoTax}%)` : '(Isento ≤ 5k)'}</div>
+                            <div className="text-xs text-gray-400 mb-1">Taxas Maquininha</div>
+                            <div className="text-xl font-bold text-orange-400/80">- R$ {totalTaxasMes.toFixed(2)}</div>
+                        </div>
+                        <div className="bg-gray-900/60 p-4 border border-gray-700/50 rounded-xl">
+                            <div className="text-xs text-gray-400 mb-1">Impostos</div>
                             <div className="text-xl font-bold text-red-500/80">- R$ {impostosMes.toFixed(2)}</div>
                         </div>
                      </div>
@@ -1724,41 +1846,41 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
       <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
         <h2 className="text-xl font-bold text-white mb-6">Histórico de Registros <span className="text-gray-500 text-sm font-normal ml-2">(Vendas/Cortes)</span></h2>
         {registros.length === 0 ? (
-          <div className="w-full bg-gray-900/50 p-5 md:p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center">
-            <ClipboardListIcon className="w-12 h-12 mb-3 text-gray-700" />
-            <p>Nenhum registro encontrado no histórico.</p>
+          <div className="w-full bg-gray-900/50 p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center">
+            <ClipboardListIcon className="w-16 h-16 mb-4 text-gray-700" />
+            <p className="text-lg">Nenhum registro encontrado no histórico.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+          <div className="grid grid-cols-1 gap-4 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar">
             {[...registros].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()).map(r => {
               const dataObj = new Date(r.data);
               return (
-                <div key={r.id} className="bg-gray-900/40 p-4 rounded-xl border border-gray-800 flex flex-col md:flex-row md:items-center justify-between gap-4 group hover:border-gray-600 transition-all">
+                <div key={r.id} className="bg-gray-900/40 p-5 rounded-2xl border border-gray-800 flex flex-col md:flex-row md:items-center justify-between gap-5 group hover:border-gray-600 transition-all shadow-sm">
                   <div>
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <div className="w-fit bg-emerald-500/10 text-emerald-400 font-bold text-[10px] px-2 py-0.5 rounded-md border border-emerald-500/20 uppercase tracking-widest flex items-center gap-1 shadow-sm">
-                        <CheckCircleIcon className="w-3 h-3" />
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="bg-emerald-500/10 text-emerald-400 font-bold text-xs px-2.5 py-1 rounded-md border border-emerald-500/20 uppercase tracking-widest flex items-center gap-1.5 shadow-sm">
+                        <CheckCircleIcon className="w-3.5 h-3.5" />
                          PAGO
                       </div>
-                      <h3 className="font-bold text-white text-lg">{r.cliente}</h3>
+                      <h3 className="font-bold text-white text-xl">{r.cliente}</h3>
                     </div>
-                    <div className="flex items-center gap-3 mt-1">
+                    <div className="flex items-center gap-3 mt-2">
                       <p className="text-xs font-medium text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-500/20">{dataObj.toLocaleDateString()} {dataObj.toLocaleTimeString()}</p>
-                      <p className="text-xs text-gray-400 font-medium">Barbeiro: <span className="text-gray-300">{r.barbeiroNome || 'N/A'}</span></p>
+                      <p className="text-xs text-gray-400 font-medium">Barbeiro: <span className="text-gray-300 ml-1">{r.barbeiroNome || 'N/A'}</span></p>
                     </div>
-                    <div className="flex flex-wrap gap-2 mt-3">
+                    <div className="flex flex-wrap gap-2 mt-4">
                       {r.itens.map((item, idx) => (
-                        <span key={idx} className="bg-gray-800 border border-gray-700 text-gray-300 text-xs px-2.5 py-1 rounded-lg">
+                        <span key={idx} className="bg-gray-800 border border-gray-700 text-gray-200 font-medium text-xs px-3 py-1.5 rounded-lg">
                           <span className="text-gray-400 mr-1">{item.tipo === 'servico' ? '✂️' : '🧴'}</span>
-                          {item.nome} <span className="text-gray-500 ml-1">R$ {item.valor.toFixed(2)}</span>
+                          {item.nome} <span className="text-gray-500 ml-1 font-normal">R$ {item.valor.toFixed(2)}</span>
                         </span>
                       ))}
                     </div>
                   </div>
-                  <div className="flex items-center justify-between md:flex-col md:items-end gap-2 border-t md:border-t-0 md:border-l border-gray-800 pt-3 md:pt-0 md:pl-4">
-                    <span className="text-green-400 font-black text-xl bg-green-500/10 px-3 py-1 rounded-lg border border-green-500/20">R$ {r.total.toFixed(2)}</span>
-                    <button onClick={() => removeRegistro(r.id)} className="text-gray-500 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all bg-gray-800 p-1.5 rounded-md mt-2">
-                      <TrashIcon className="w-4 h-4" />
+                  <div className="flex items-center justify-between md:flex-col md:items-end gap-2 border-t md:border-t-0 md:border-l border-gray-800 pt-4 md:pt-0 md:pl-5 min-w-40">
+                    <span className="text-green-400 font-black text-2xl bg-green-500/10 px-3.5 py-1.5 rounded-xl border border-green-500/20">R$ {r.total.toFixed(2)}</span>
+                    <button onClick={() => removeRegistro(r.id)} className="text-gray-500 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all bg-gray-800 p-2 rounded-lg mt-2">
+                      <TrashIcon className="w-5 h-5" />
                     </button>
                   </div>
                 </div>
