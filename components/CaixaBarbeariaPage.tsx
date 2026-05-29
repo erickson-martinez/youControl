@@ -12,7 +12,7 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
   const { agendamentos, updateAgendamento, loadAgendamentos } = useBarbeariaAgendamentos(empresaId);
   const { registros, addRegistro } = useBarbeariaRegistros(empresaId);
   const { barbeiros, reloadBarbeiros } = useBarbeiros(empresaId);
-  const { servicos, loadConfig, produtos, updateProduto } = useBarbeariaConfig(empresaId);
+  const { servicos, loadConfig, produtos, updateProduto, taxas } = useBarbeariaConfig(empresaId);
 
   const pendentes = agendamentos
     .filter(a => a.status === 'finalizado')
@@ -68,15 +68,65 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
   };
 
   const handlePagamentoChange = (index: number, val: string) => {
-    const newVal = Number(val) || 0;
+    let newVal;
+    if (val === '') {
+       newVal = 0;
+    } else {
+       newVal = Number(val) || 0;
+    }
+    
     const newPagamentos = [...pagamentosParciais];
+    let diff = newVal - newPagamentos[index].valor;
+    
     newPagamentos[index].valor = newVal;
+    
+    if (diff !== 0) {
+        // Tenta descontar a diferença dos outros campos, começando pelo 'Dinheiro' (0) ou o com maior valor
+        const orderToAdjust = [0, 1, 2, 3].filter(i => i !== index).sort((a, b) => {
+            // Prioriza Dinheiro (index 0)
+            if (a === 0) return -1;
+            if (b === 0) return 1;
+            return newPagamentos[b].valor - newPagamentos[a].valor;
+        });
+
+        for (const adjIdx of orderToAdjust) {
+            if (diff === 0) break;
+            
+            const currentVal = newPagamentos[adjIdx].valor;
+            if (diff > 0) {
+                // Aumentou o valor do index atual, diminuir os outros
+                const toSubtract = Math.min(currentVal, diff);
+                newPagamentos[adjIdx].valor = Number((newPagamentos[adjIdx].valor - toSubtract).toFixed(2));
+                diff -= toSubtract;
+            } else {
+                // Diminuiu o valor, voltar para o principal
+                const toAdd = Math.abs(diff);
+                newPagamentos[orderToAdjust[0]].valor = Number((newPagamentos[orderToAdjust[0]].valor + toAdd).toFixed(2));
+                diff = 0;
+            }
+        }
+    }
+    
     setPagamentosParciais(newPagamentos);
   };
 
   const handleConcluir = async (a: any, pagamentosFinalizados: {tipo:string, valor:number}[]) => {
     // Save types inside the agendamento update as stringified JSON format
-    const tipos = pagamentosFinalizados.filter(p => p.valor > 0).map(p => JSON.stringify(p));
+    const tipos = pagamentosFinalizados
+      .filter(p => p.valor > 0)
+      .map(p => {
+         let key = '';
+         if (p.tipo === 'Dinheiro') key = 'dinheiro';
+         else if (p.tipo === 'Pix') key = 'pix';
+         else if (p.tipo === 'Crédito') key = 'credito';
+         else if (p.tipo === 'Débito') key = 'debito';
+
+         const taxa = key && taxas && taxas[key] ? taxas[key] : 0;
+         const valorDescontado = p.valor - (p.valor * taxa / 100);
+
+         return JSON.stringify({ ...p, valorOriginal: p.valor, taxaAplicada: taxa, valor: Number(valorDescontado.toFixed(2)) });
+      });
+
     await updateAgendamento(a.id, { ...a, status: 'pago', tipoPagamento: tipos });
     
     // Atualiza o estoque do produto se houver
@@ -286,7 +336,11 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
                             try {
                                const p = JSON.parse(pStr);
                                return (
-                                 <div key={`p-${index}`} className="text-[10px] bg-green-500/10 text-green-400 px-2 py-0.5 rounded border border-green-500/20 shadow-sm flex gap-1.5">
+                                 <div 
+                                    key={`p-${index}`} 
+                                    title={p.valorOriginal ? `Cobrado: R$ ${p.valorOriginal.toFixed(2)} | Taxa: R$ ${(p.valorOriginal - p.valor).toFixed(2)}` : ''}
+                                    className="text-[10px] bg-green-500/10 text-green-400 px-2 py-0.5 rounded border border-green-500/20 shadow-sm flex gap-1.5 cursor-help"
+                                 >
                                    <span>{p.tipo}</span>
                                    <span className="font-bold">R$ {p.valor.toFixed(2)}</span>
                                  </div>

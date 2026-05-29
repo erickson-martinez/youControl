@@ -9,6 +9,7 @@ export interface Barbeiro {
   corte: number;
   diasTrabalhados: string[];
   linkId?: string;
+  cargo?: 'barbeiro' | 'caixa';
 }
 
 const promiseCache = new Map<string, Promise<any>>();

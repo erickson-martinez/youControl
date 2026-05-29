@@ -78,7 +78,7 @@ const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user, empresa }) => {
               activeTab === 'barbeiros' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-800'
             }`}
           >
-            <UsersIcon className="w-4 h-4" /> Barbeiros
+            <UsersIcon className="w-4 h-4" /> Equipe
           </button>
           <button
             onClick={() => setActiveTab('produtos')}
@@ -154,6 +154,7 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
   const [corte, setCorte] = useState('');
   const [custoDiario, setCustoDiario] = useState('');
   const [dias, setDias] = useState<string[]>([]);
+  const [cargo, setCargo] = useState<'barbeiro' | 'caixa'>('barbeiro');
 
   const toggleDia = (dia: string) => {
     setDias(prev => prev.includes(dia) ? prev.filter(d => d !== dia) : [...prev, dia]);
@@ -166,6 +167,7 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
     setComissao(barbeiro.comissao?.toString() || '');
     setCorte(barbeiro.corte?.toString() || '');
     setDias(barbeiro.diasTrabalhados || []);
+    setCargo(barbeiro.cargo || 'barbeiro');
     setCustoDiario(''); // Maybe later keep track of this, but not in barbeiro directly
   };
 
@@ -176,11 +178,12 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
     setComissao('');
     setCorte('');
     setCustoDiario('');
+    setCargo('barbeiro');
     setDias([]);
   };
 
   const handleExcluirBarbeiro = async (barbeiro: any) => {
-    alert("A exclusão de barbeiros deve ser feita diretamente na tela de Recursos Humanos (RH).");
+    alert("A exclusão de membros deve ser feita diretamente na tela de Recursos Humanos (RH).");
   };
 
   const [loading, setLoading] = useState(false);
@@ -188,24 +191,25 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
   const handleCadastrar = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nome.trim()) return alert("Nome é obrigatório");
-    if (!editingId) return alert("Criação de novos barbeiros deve ser feita no RH.");
+    if (!editingId) return alert("Criação de novos membros deve ser feita no RH.");
     
     setLoading(true);
 
     const payload = {
         nome,
         telefone, // already populated, input is disabled
-        comissao: Number(comissao) || 0,
-        corte: Number(corte) || 0,
+        comissao: cargo === 'caixa' ? 0 : (Number(comissao) || 0),
+        corte: cargo === 'caixa' ? 0 : (Number(corte) || 0),
         diasTrabalhados: dias,
-        linkId: empresaId
+        linkId: empresaId,
+        cargo
     };
 
     if (updateBarbeiro) {
         await updateBarbeiro(editingId, payload);
     }
     
-    alert("Configurações do barbeiro atualizadas com sucesso!");
+    alert("Configurações do membro atualizadas com sucesso!");
     cancelEdit();
     setLoading(false);
   };
@@ -217,7 +221,7 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
           <h2 className="text-xl font-bold text-white mb-6 border-b border-gray-700/50 pb-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <PencilIcon className="w-5 h-5 text-yellow-500" />
-              Editar Barbeiro
+              Editar Membro
             </div>
             <button onClick={cancelEdit} className="text-sm text-gray-400 hover:text-white underline">
               Cancelar
@@ -245,27 +249,40 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
                 disabled
               />
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Comissão Produtos (%)</label>
-                <input 
-                  type="number" step="0.1" min="0" max="100"
-                  value={comissao} onChange={e => setComissao(e.target.value)}
-                  className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                  placeholder="Ex: 10"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Comissão Serviços (%)</label>
-                <input 
-                  type="number" step="0.1" min="0" max="100"
-                  value={corte} onChange={e => setCorte(e.target.value)}
-                  className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                  placeholder="Ex: 50"
-                />
-              </div>
+            
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Cargo</label>
+              <select
+                value={cargo} onChange={e => setCargo(e.target.value as 'barbeiro'|'caixa')}
+                className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+              >
+                <option value="barbeiro">Barbeiro</option>
+                <option value="caixa">Caixa</option>
+              </select>
             </div>
+
+            {cargo === 'barbeiro' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Comissão Produtos (%)</label>
+                  <input 
+                    type="number" step="0.1" min="0" max="100"
+                    value={comissao} onChange={e => setComissao(e.target.value)}
+                    className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                    placeholder="Ex: 10"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Comissão Serviços (%)</label>
+                  <input 
+                    type="number" step="0.1" min="0" max="100"
+                    value={corte} onChange={e => setCorte(e.target.value)}
+                    className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                    placeholder="Ex: 50"
+                  />
+                </div>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm text-gray-400 mb-2">Dias Trabalhados</label>
@@ -311,7 +328,7 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
       )}
 
       <div className="space-y-4">
-        <h2 className="text-xl font-bold text-white mb-2">Barbeiros Cadastrados</h2>
+        <h2 className="text-xl font-bold text-white mb-2">Equipe Cadastrada</h2>
         
         {/* Proprietário Card */}
         {user && user.phone && !barbeiros.find(b => b.telefone && b.telefone.replace(/\D/g, '') === user.phone!.replace(/\D/g, '')) && (
@@ -380,20 +397,25 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
                     {barbeiro.nome}
                     {isOwner && <span className="text-xs bg-purple-900/30 text-purple-400 px-2 py-0.5 rounded-full border border-purple-500/20">Proprietário</span>}
+                    <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border ${barbeiro.cargo === 'caixa' ? 'bg-orange-900/30 text-orange-400 border-orange-500/20' : 'bg-blue-900/30 text-blue-400 border-blue-500/20'}`}>
+                      {barbeiro.cargo === 'caixa' ? 'Caixa' : 'Barbeiro'}
+                    </span>
                   </h3>
                   {barbeiro.telefone && <p className="text-sm text-gray-400">{barbeiro.telefone}</p>}
                 </div>
                 
-                <div className="flex gap-4 p-3 bg-gray-900/50 rounded-xl border border-gray-800/50">
-                  <div className="flex-1">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 block mb-1">Comissão Prod.</span>
-                    <span className="text-blue-400 font-medium">{barbeiro.comissao}%</span>
+                {barbeiro.cargo !== 'caixa' && (
+                  <div className="flex gap-4 p-3 bg-gray-900/50 rounded-xl border border-gray-800/50">
+                    <div className="flex-1">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 block mb-1">Comissão Prod.</span>
+                      <span className="text-blue-400 font-medium">{barbeiro.comissao}%</span>
+                    </div>
+                    <div className="flex-1 border-l border-gray-800/80 pl-4">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 block mb-1">Comissão Serv.</span>
+                      <span className="text-green-400 font-medium">{barbeiro.corte}%</span>
+                    </div>
                   </div>
-                  <div className="flex-1 border-l border-gray-800/80 pl-4">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 block mb-1">Comissão Serv.</span>
-                    <span className="text-green-400 font-medium">{barbeiro.corte}%</span>
-                  </div>
-                </div>
+                )}
                 
                 {barbeiro.diasTrabalhados.length > 0 && (
                   <div className="flex gap-1 mt-1">
@@ -966,41 +988,32 @@ const TabCustos = ({ empresaId }: { empresaId?: string }) => {
 };
 
 const TabMetas = ({ empresaId }: { empresaId?: string }) => {
-  const { servicos, custos, loadConfig } = useBarbeariaConfig(empresaId);
+  const { servicos, custos, loadConfig, metaLucro, imposto, updateCompanyConfig } = useBarbeariaConfig(empresaId);
   const { barbeiros, reloadBarbeiros } = useBarbeiros(empresaId);
   const { registros } = useBarbeariaRegistros(empresaId);
-  const metaKey = empresaId ? `barbearia_meta_${empresaId}` : 'barbearia_meta';
   
-  const [metaLucro, setMetaLucro] = useState(() => {
-    const saved = localStorage.getItem(metaKey);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return parsed.valor ? String(parsed.valor) : saved;
-      } catch (e) {
-        return saved;
-      }
-    }
-    return '1000';
-  });
-  
-  const [impostoAcima5k, setImpostoAcima5k] = useState('6'); // 6% padrao
+  const [localMetaLucro, setLocalMetaLucro] = useState(String(metaLucro));
+  const [localImposto, setLocalImposto] = useState(String(imposto));
 
   useEffect(() => {
-    const metaObj = {
-      valor: metaLucro,
-      linkId: empresaId
-    };
-    localStorage.setItem(metaKey, JSON.stringify(metaObj));
-  }, [metaLucro, metaKey, empresaId]);
+    setLocalMetaLucro(String(metaLucro));
+    setLocalImposto(String(imposto));
+  }, [metaLucro, imposto]);
+
+  const saveConfig = () => {
+    updateCompanyConfig({
+      metaLucro: Number(localMetaLucro) || 0,
+      imposto: Number(localImposto) || 0
+    });
+  };
 
   const handleReload = () => {
     loadConfig();
     reloadBarbeiros();
   };
 
-  const numMeta = Number(metaLucro) || 0;
-  const numImposto = Number(impostoAcima5k) || 0;
+  const numMeta = Number(localMetaLucro) || 0;
+  const numImposto = Number(localImposto) || 0;
 
   const custoFixoTotal = custos.filter(c => c.tipo === 'fixo').reduce((acc, c) => acc + c.valor, 0);
   const custoVarTotal = custos.filter(c => c.tipo === 'variavel').reduce((acc, c) => acc + c.valor, 0);
@@ -1091,7 +1104,7 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
             <div className="relative">
               <span className="absolute left-3 top-2 text-gray-500">R$</span>
               <input 
-                type="number" step="0.01" value={metaLucro} onChange={e => setMetaLucro(e.target.value)}
+                type="number" step="0.01" value={localMetaLucro} onChange={e => setLocalMetaLucro(e.target.value)} onBlur={saveConfig}
                 className="w-full bg-gray-700 text-white border border-gray-600 rounded pl-9 pr-3 py-2 text-lg font-bold focus:outline-none focus:border-blue-500"
                 placeholder="1000.00"
               />
@@ -1102,7 +1115,7 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
              <label className="block text-sm text-gray-400 mb-1">Taxa de Imposto (%)</label>
             <div className="relative">
               <input 
-                type="number" step="1" value={impostoAcima5k} onChange={e => setImpostoAcima5k(e.target.value)}
+                type="number" step="1" value={localImposto} onChange={e => setLocalImposto(e.target.value)} onBlur={saveConfig}
                 className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-lg font-bold focus:outline-none focus:border-blue-500"
                 placeholder="6"
               />
@@ -1376,16 +1389,21 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
           r.tipoPagamento.forEach((pStr: string) => {
              try {
                const p = JSON.parse(pStr);
-               // If payment value > 0, compute tax
                if (p.valor > 0) {
-                 if (p.tipo === 'Pix' || p.tipo.toLowerCase() === 'pix') {
-                    totalTaxas += p.valor * ((taxas?.pix || 0) / 100);
-                 } else if (p.tipo === 'Crédito' || p.tipo.toLowerCase() === 'crédito') {
-                    totalTaxas += p.valor * ((taxas?.credito || 0) / 100);
-                 } else if (p.tipo === 'Débito' || p.tipo.toLowerCase() === 'débito') {
-                    totalTaxas += p.valor * ((taxas?.debito || 0) / 100);
-                 } else if (p.tipo === 'Dinheiro' || p.tipo.toLowerCase() === 'dinheiro') {
-                    totalTaxas += p.valor * ((taxas?.dinheiro || 0) / 100);
+                 // Use valorOriginal if present to calculate exact tax amount that was applied
+                 if (p.valorOriginal !== undefined) {
+                    totalTaxas += (p.valorOriginal - p.valor);
+                 } else {
+                    // Fallback for old records
+                    if (p.tipo === 'Pix' || p.tipo.toLowerCase() === 'pix') {
+                       totalTaxas += p.valor * ((taxas?.pix || 0) / 100);
+                    } else if (p.tipo === 'Crédito' || p.tipo.toLowerCase() === 'crédito') {
+                       totalTaxas += p.valor * ((taxas?.credito || 0) / 100);
+                    } else if (p.tipo === 'Débito' || p.tipo.toLowerCase() === 'débito') {
+                       totalTaxas += p.valor * ((taxas?.debito || 0) / 100);
+                    } else if (p.tipo === 'Dinheiro' || p.tipo.toLowerCase() === 'dinheiro') {
+                       totalTaxas += p.valor * ((taxas?.dinheiro || 0) / 100);
+                    }
                  }
                }
              } catch (e) {}
@@ -1493,84 +1511,76 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                 ) : (
                   <div className="flex flex-col gap-4 mt-4">
                     {/* Barbearia Card */}
-                    <div className="bg-blue-900/30 p-5 rounded-2xl border border-blue-800/50 flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 relative group transition-all hover:bg-blue-900/40">
-                       
-                        <div className="flex flex-col gap-1.5 flex-1">
-                          <h3 className="font-bold text-blue-100 text-xl z-10 flex items-center gap-2">
-                             <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
-                             Caixa Barbearia
-                          </h3>
-                          <div className="text-sm text-blue-300">
-                            Fat. Bruto Geral: <span className="font-bold text-white">R$ {comissoesDia.reduce((sum, c) => sum + c.faturamentoTotal, 0).toFixed(2)}</span>
-                          </div>
+                    <div className="bg-blue-950/40 p-5 sm:p-6 rounded-2xl border border-blue-900/50 flex flex-col xl:flex-row xl:items-center justify-between gap-6 relative transition-all">
+                      
+                      <div className="flex flex-col gap-1 flex-1">
+                        <h3 className="font-bold text-blue-100 text-xl flex items-center gap-2">
+                           <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                           Caixa Barbearia
+                        </h3>
+                        <div className="text-sm text-blue-300">
+                          Fat. Bruto Geral: <strong className="text-white">R$ {comissoesDia.reduce((sum, c) => sum + c.faturamentoTotal, 0).toFixed(2)}</strong>
                         </div>
-
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 flex-1 md:justify-end flex-wrap">
-                          <div className="flex flex-col w-full sm:w-auto">
-                            <span className="text-blue-200 text-xs font-semibold uppercase tracking-wider mb-1">Comissões Pagas</span>
-                            <span className="text-red-400 font-bold text-lg">- R$ {comissoesDia.reduce((sum, c) => sum + c.totalComissao, 0).toFixed(2)}</span>
-                          </div>
-                          <div className="flex flex-col w-full sm:w-auto sm:border-l border-blue-800/50 sm:pl-6">
-                            <span className="text-blue-200 text-xs font-semibold uppercase tracking-wider mb-1">Taxas (Maquininha)</span>
-                            <span className="text-orange-400 font-bold text-lg">- R$ {comissoesDia.reduce((sum, c) => sum + (c.totalTaxas || 0), 0).toFixed(2)}</span>
-                          </div>
-                          <div className="flex flex-col w-full sm:w-auto sm:border-l border-blue-800/50 sm:pl-6">
-                            <span className="text-blue-100 text-xs font-semibold uppercase tracking-wider mb-1">Lucro Barbearia</span>
-                            <span className="text-blue-400 font-black text-2xl">R$ {comissoesDia.reduce((sum, c) => sum + c.caixaBarbearia, 0).toFixed(2)}</span>
-                          </div>
-                        </div>
-
-                        <button 
-                          onClick={() => {
-                            const faturamentoBrutoTotal = comissoesDia.reduce((sum, c) => sum + c.faturamentoTotal, 0);
-                            const caixaTotal = comissoesDia.reduce((sum, c) => sum + c.caixaBarbearia, 0);
-                            setReceitaData({ isBarbearia: true, faturamentoBrutoTotal, caixaBarbearia: caixaTotal });
-                            setIsFinalizarCaixaOpen(true);
-                          }}
-                          className="absolute md:relative top-4 right-4 md:top-auto md:right-auto p-3 bg-blue-800/50 border border-blue-700/50 rounded-xl hover:bg-blue-700 hover:text-white transition-all shadow-md group z-20 shrink-0"
-                          title="Fechar Barbearia (Criar Receita)"
-                        >
-                          <svg className="w-6 h-6 text-blue-300 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-                        </button>
-                    </div>
-                    {/* Fim Barbearia Card */}
-                    {comissoesDia.map((c, idx) => (
-                      <div key={idx} className="bg-gray-900/60 p-5 rounded-2xl border border-gray-700 flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 relative group transition-all hover:bg-gray-900">
-                        
-                        <div className="flex flex-col gap-1.5 flex-1">
-                          <h3 className="font-bold text-white text-xl z-10">{c.barbeiro.nome}</h3>
-                          <div className="text-sm text-gray-400">Fat. Bruto: <span className="font-bold text-white">R$ {c.faturamentoTotal.toFixed(2)}</span></div>
-                        </div>
-                        
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 flex-1 xl:flex-none xl:w-[500px]">
-                          <div className="flex flex-col w-full sm:w-auto">
-                            <span className="text-gray-500 text-xs font-semibold uppercase tracking-wider mb-1">Serviços ({c.barbeiro.corte}%)</span>
-                            <span className="text-green-400 font-bold text-lg">R$ {c.comissaoServicos.toFixed(2)}</span>
-                          </div>
-                          <div className="flex flex-col w-full sm:w-auto sm:border-l border-gray-800 sm:pl-6">
-                            <span className="text-gray-500 text-xs font-semibold uppercase tracking-wider mb-1">Produtos ({c.barbeiro.comissao}%)</span>
-                            <span className="text-blue-400 font-bold text-lg">R$ {c.comissaoProdutos.toFixed(2)}</span>
-                          </div>
-                          <div className="flex flex-col w-full sm:w-auto sm:border-l border-gray-800 sm:pl-6">
-                            <span className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Comissão a Pagar</span>
-                            <span className="text-green-400 font-black text-2xl">R$ {c.totalComissao.toFixed(2)}</span>
-                          </div>
-                        </div>
-
-                        <button 
-                          onClick={() => {
-                            setReceitaData({ ...c, nome: c.barbeiro.nome });
-                            setIsFinalizarCaixaOpen(true);
-                          }}
-                          className="absolute md:relative top-4 right-4 md:top-auto md:right-auto p-3 bg-gray-800 border border-gray-700 rounded-xl hover:bg-gray-700 hover:text-green-400 hover:border-green-500/50 transition-all shadow-md group z-20 shrink-0"
-                          title="Finalizar Caixa (Criar Receita)"
-                        >
-                          <svg className="w-6 h-6 text-gray-400 group-hover:text-green-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        </button>
                       </div>
-                    ))}
+
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 sm:gap-8 flex-1 xl:justify-end">
+                        <div className="flex flex-col">
+                          <span className="text-blue-200/70 text-[10px] font-bold uppercase tracking-wider mb-1">Comissões Pagas</span>
+                          <span className="text-red-400/90 font-semibold">- R$ {comissoesDia.reduce((sum, c) => sum + c.totalComissao, 0).toFixed(2)}</span>
+                        </div>
+                        <div className="flex flex-col sm:border-l border-blue-900/50 sm:pl-6">
+                          <span className="text-blue-200/70 text-[10px] font-bold uppercase tracking-wider mb-1">Taxas (Cartão)</span>
+                          <span className="text-orange-400/90 font-semibold">- R$ {comissoesDia.reduce((sum, c) => sum + (c.totalTaxas || 0), 0).toFixed(2)}</span>
+                        </div>
+                        <div className="flex flex-col sm:border-l border-blue-900/50 sm:pl-6">
+                          <span className="text-blue-200 text-[10px] font-bold uppercase tracking-wider mb-1">Lucro Barbearia</span>
+                          <span className="text-blue-400 font-bold text-2xl">R$ {comissoesDia.reduce((sum, c) => sum + c.caixaBarbearia, 0).toFixed(2)}</span>
+                        </div>
+                      </div>
+
+                      <button 
+                        onClick={() => {
+                          const faturamentoBrutoTotal = comissoesDia.reduce((sum, c) => sum + c.faturamentoTotal, 0);
+                          const caixaTotal = comissoesDia.reduce((sum, c) => sum + c.caixaBarbearia, 0);
+                          setReceitaData({ isBarbearia: true, faturamentoBrutoTotal, caixaBarbearia: caixaTotal });
+                          setIsFinalizarCaixaOpen(true);
+                        }}
+                        className="absolute md:relative top-4 right-4 md:top-auto md:right-auto p-3 bg-blue-800/50 border border-blue-700/50 rounded-xl hover:bg-blue-700 hover:text-white transition-all shadow-md group z-20 shrink-0"
+                        title="Fechar Barbearia (Criar Receita)"
+                      >
+                        <svg className="w-6 h-6 text-blue-300 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                      </button>
                   </div>
-                )}
+                  {/* Fim Barbearia Card */}
+                  {comissoesDia.map((c, idx) => (
+                    <div key={idx} className="bg-gray-900/40 p-5 sm:p-6 rounded-2xl border border-gray-800/60 flex flex-col xl:flex-row xl:items-center justify-between gap-6 relative transition-all hover:bg-gray-800/50">
+                      
+                      <div className="flex flex-col gap-1 flex-1">
+                        <h3 className="font-bold text-white text-lg z-10">{c.barbeiro.nome}</h3>
+                        <div className="text-sm text-gray-500">Fat. Bruto: <span className="text-gray-300">R$ {c.faturamentoTotal.toFixed(2)}</span></div>
+                      </div>
+                      
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 sm:gap-8 flex-1 xl:justify-end">
+                        <div className="flex flex-col">
+                          <span className="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-1">Comissão a Pagar</span>
+                          <span className="text-emerald-400 font-bold text-2xl">R$ {c.totalComissao.toFixed(2)}</span>
+                        </div>
+                      </div>
+
+                      <button 
+                        onClick={() => {
+                          setReceitaData({ ...c, nome: c.barbeiro.nome });
+                          setIsFinalizarCaixaOpen(true);
+                        }}
+                        className="absolute md:relative top-4 right-4 md:top-auto md:right-auto p-3 bg-gray-800/80 border border-gray-700/80 rounded-xl hover:bg-gray-700 hover:text-green-400 hover:border-green-500/50 transition-all shadow-md group z-20 shrink-0"
+                        title="Finalizar Caixa (Criar Receita)"
+                      >
+                        <svg className="w-6 h-6 text-gray-400 group-hover:text-green-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1600,31 +1610,23 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                 />
               </div>
                 {comissoesMes.length === 0 ? (
-                  <div className="w-full bg-gray-900/50 p-6 rounded-2xl border border-gray-800 text-center text-gray-500">
+                  <div className="w-full bg-gray-900/50 p-6 rounded-2xl border border-gray-800 text-center text-gray-500 mt-4">
                     <p>Nenhum registro encontrado para este mês.</p>
                   </div>
                 ) : (
                   <div className="flex flex-col gap-4 mt-4">
                     {comissoesMes.map((c, idx) => (
-                      <div key={idx} className="bg-gray-900/40 p-5 rounded-2xl border border-gray-700 flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 relative group transition-all hover:bg-gray-900">
+                      <div key={idx} className="bg-gray-900/40 p-5 sm:p-6 rounded-2xl border border-gray-800/60 flex flex-col xl:flex-row xl:items-center justify-between gap-6 relative transition-all hover:bg-gray-800/50">
                         
-                        <div className="flex flex-col gap-1.5 flex-1">
-                          <h3 className="font-bold text-white text-xl z-10">{c.barbeiro.nome}</h3>
-                          <div className="text-sm text-gray-400">Fat. Bruto Mensal: <span className="font-bold text-white">R$ {c.faturamentoTotal.toFixed(2)}</span></div>
+                        <div className="flex flex-col gap-1 flex-1">
+                          <h3 className="font-bold text-white text-lg z-10">{c.barbeiro.nome}</h3>
+                          <div className="text-sm text-gray-500">Fat. Bruto: <span className="text-gray-300">R$ {c.faturamentoTotal.toFixed(2)}</span></div>
                         </div>
                         
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 flex-1 xl:flex-none xl:w-[500px]">
-                          <div className="flex flex-col w-full sm:w-auto">
-                            <span className="text-gray-500 text-xs font-semibold uppercase tracking-wider mb-1">Serviços</span>
-                            <span className="text-green-400 font-bold text-lg">R$ {c.comissaoServicos.toFixed(2)}</span>
-                          </div>
-                          <div className="flex flex-col w-full sm:w-auto sm:border-l border-gray-800 sm:pl-6">
-                            <span className="text-gray-500 text-xs font-semibold uppercase tracking-wider mb-1">Produtos</span>
-                            <span className="text-blue-400 font-bold text-lg">R$ {c.comissaoProdutos.toFixed(2)}</span>
-                          </div>
-                          <div className="flex flex-col w-full sm:w-auto sm:border-l border-gray-800 sm:pl-6">
-                            <span className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Comissão Mensal</span>
-                            <span className="text-emerald-400 font-black text-2xl">R$ {c.totalComissao.toFixed(2)}</span>
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 sm:gap-8 flex-1 xl:justify-end">
+                          <div className="flex flex-col">
+                            <span className="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-1">Comissão Mensal</span>
+                            <span className="text-emerald-400 font-bold text-2xl">R$ {c.totalComissao.toFixed(2)}</span>
                           </div>
                         </div>
 
@@ -1876,6 +1878,26 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                         </span>
                       ))}
                     </div>
+                    {r.tipoPagamento && r.tipoPagamento.length > 0 && (
+                      <div className="flex gap-2 flex-wrap items-center mt-3">
+                        <span className="text-[10px] uppercase font-bold text-gray-500 mr-1">Pagamento:</span>
+                        {r.tipoPagamento.map((pStr: string, index: number) => {
+                          try {
+                             const p = JSON.parse(pStr);
+                             return (
+                               <div 
+                                  key={`p-${index}`} 
+                                  title={p.valorOriginal ? `Cobrado: R$ ${p.valorOriginal.toFixed(2)} | Taxa: R$ ${(p.valorOriginal - p.valor).toFixed(2)}` : ''}
+                                  className="text-[10px] bg-green-500/10 text-green-400 px-2 py-0.5 rounded border border-green-500/20 shadow-sm flex gap-1.5 cursor-help"
+                               >
+                                 <span>{p.tipo}</span>
+                                 <span className="font-bold">R$ {p.valor.toFixed(2)}</span>
+                               </div>
+                             );
+                          } catch(e) { return null; }
+                        })}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center justify-between md:flex-col md:items-end gap-2 border-t md:border-t-0 md:border-l border-gray-800 pt-4 md:pt-0 md:pl-5 min-w-40">
                     <span className="text-green-400 font-black text-2xl bg-green-500/10 px-3.5 py-1.5 rounded-xl border border-green-500/20">R$ {r.total.toFixed(2)}</span>

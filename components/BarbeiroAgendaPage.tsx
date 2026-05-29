@@ -356,6 +356,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
   const [addClienteData, setAddClienteData] = useState<string>(todayStr);
   const [addClienteHora, setAddClienteHora] = useState('');
   const [addClienteDescricao, setAddClienteDescricao] = useState('');
+  const [addClienteBarbeiroId, setAddClienteBarbeiroId] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'proximos' | 'historico' | 'resumoMensal'>('proximos');
 
   const addClienteTotal = React.useMemo(() => {
@@ -414,7 +415,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
     const agendamentoData: any = {
       clienteNome: addClienteNome || "Cliente Avulso",
       clienteTelefone: addClienteTelefone,
-      barbeiroId: selectedBarbeiroId === 'todos' ? '' : selectedBarbeiroId,
+      barbeiroId: addClienteBarbeiroId || (selectedBarbeiroId === 'todos' ? '' : selectedBarbeiroId),
       servicosIds: addClienteServicos,
       produtosIds: addClienteProdutos,
       dataAgendada: `${addClienteData}T${addClienteHora}:00`,
@@ -558,7 +559,10 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
                 Compartilhar
               </button>
-              <button onClick={() => setIsAddClienteModalOpen(true)} className="flex-1 sm:flex-none text-sm font-bold text-green-400 hover:text-green-300 bg-green-500/10 hover:bg-green-500/20 px-4 py-2.5 rounded-xl transition-all border border-green-500/20 whitespace-nowrap">
+              <button onClick={() => {
+                setAddClienteBarbeiroId(selectedBarbeiroId === 'todos' ? (barbeiroLogado ? barbeiroLogado.id : '') : selectedBarbeiroId);
+                setIsAddClienteModalOpen(true);
+              }} className="flex-1 sm:flex-none text-sm font-bold text-green-400 hover:text-green-300 bg-green-500/10 hover:bg-green-500/20 px-4 py-2.5 rounded-xl transition-all border border-green-500/20 whitespace-nowrap">
                 + Adicionar
               </button>
             </div>
@@ -639,6 +643,19 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                       className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-3 text-sm focus:border-blue-500 focus:outline-none"
                       placeholder="(DD) 99999-9999"
                     />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Barbeiro</label>
+                    <select 
+                      value={addClienteBarbeiroId} 
+                      onChange={e => setAddClienteBarbeiroId(e.target.value)}
+                      className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-3 text-sm focus:border-blue-500 focus:outline-none"
+                    >
+                      <option value="">Qualquer Barbeiro</option>
+                      {barbeiros.map(b => (
+                        <option key={b.id} value={b.id}>{b.nome}</option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-sm text-gray-400 mb-1">Nome do Cliente</label>

@@ -45,10 +45,11 @@ export const useBarbeariaConfig = (empresaId?: string) => {
   const [servicos, setServicos] = useState<Servico[]>([]);
   const [custos, setCustos] = useState<Custo[]>([]);
   const [taxas, setTaxas] = useState<Record<string, number>>({ pix: 0, dinheiro: 0, credito: 0, debito: 0 });
+  const [metaLucro, setMetaLucro] = useState<number>(0);
+  const [imposto, setImposto] = useState<number>(0);
 
   const suffix = empresaId ? `_${empresaId}` : '';
   const keyS = `barbearia_servicos${suffix}`;
-  const keyC = `barbearia_custos${suffix}`;
   const keyT = `barbearia_taxas${suffix}`;
 
   const fetchProdutos = useCallback(async () => {
@@ -97,18 +98,85 @@ export const useBarbeariaConfig = (empresaId?: string) => {
     }
   }, [empresaId]);
 
-  const loadConfig = useCallback(() => {
-    const dataC = localStorage.getItem(keyC);
-    const dataT = localStorage.getItem(keyT);
-    
-    setCustos(dataC ? JSON.parse(dataC) : []);
-    if (dataT) {
-      setTaxas(JSON.parse(dataT));
+  const fetchCustos = useCallback(async () => {
+    if (!empresaId) {
+      setCustos([]);
+      return;
     }
-    
+    const url = `${API_BASE_URL}/api/costs?linkId=${empresaId}`;
+    try {
+      if (!promiseCache.has(url)) {
+        promiseCache.set(url, fetch(url).then(async (r) => {
+          if (!r.ok) throw new Error('Erro ao buscar custos');
+          return r.json();
+        }).finally(() => {
+          setTimeout(() => promiseCache.delete(url), 100);
+        }));
+      }
+      const data = await promiseCache.get(url);
+      const mapped = data.map((c: any) => ({ ...c, id: c.id || c._id }));
+      setCustos(mapped);
+    } catch (e) {
+      console.error('Erro ao buscar custos', e);
+    }
+  }, [empresaId]);
+
+  const fetchCompanyConfig = useCallback(async () => {
+    if (!empresaId) return;
+    const url = `${API_BASE_URL}/api/company-config/${empresaId}`;
+    try {
+      if (!promiseCache.has(url)) {
+        promiseCache.set(url, fetch(url).then(async (r) => {
+          if (!r.ok) {
+            if (r.status === 404) return null;
+            throw new Error('Erro ao buscar config da empresa');
+          }
+          return r.json();
+        }).finally(() => setTimeout(() => promiseCache.delete(url), 100)));
+      }
+      const data = await promiseCache.get(url);
+      if (data) {
+        if (data.taxas) setTaxas(data.taxas);
+        if (data.metaLucro !== undefined) setMetaLucro(data.metaLucro);
+        if (data.imposto !== undefined) setImposto(data.imposto);
+      }
+    } catch (e) {
+      console.error('Erro ao buscar company config', e);
+    }
+  }, [empresaId]);
+
+  const updateCompanyConfig = async (updates: Partial<{ taxas: Record<string, number>, metaLucro: number, imposto: number }>) => {
+    if (!empresaId) return;
+    const payload = {
+      taxas: updates.taxas || taxas,
+      metaLucro: updates.metaLucro !== undefined ? updates.metaLucro : metaLucro,
+      imposto: updates.imposto !== undefined ? updates.imposto : imposto
+    };
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/company-config/${empresaId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.config) {
+          if (data.config.taxas) setTaxas(data.config.taxas);
+          if (data.config.metaLucro !== undefined) setMetaLucro(data.config.metaLucro);
+          if (data.config.imposto !== undefined) setImposto(data.config.imposto);
+        }
+      }
+    } catch (e) {
+      console.error('Erro ao salvar company config', e);
+    }
+  };
+
+  const loadConfig = useCallback(() => {
     fetchProdutos();
     fetchServicos();
-  }, [keyC, keyT, fetchProdutos, fetchServicos]);
+    fetchCustos();
+    fetchCompanyConfig();
+  }, [fetchProdutos, fetchServicos, fetchCustos, fetchCompanyConfig]);
 
   useEffect(() => {
     loadConfig();
@@ -117,14 +185,6 @@ export const useBarbeariaConfig = (empresaId?: string) => {
   useEffect(() => {
     localStorage.setItem(keyS, JSON.stringify(servicos));
   }, [servicos, keyS]);
-
-  useEffect(() => {
-    localStorage.setItem(keyC, JSON.stringify(custos));
-  }, [custos, keyC]);
-
-  useEffect(() => {
-    localStorage.setItem(keyT, JSON.stringify(taxas));
-  }, [taxas, keyT]);
 
   // Produtos (API API)
   const addProduto = async (produto: Omit<Produto, 'id'>) => {
@@ -224,23 +284,60 @@ export const useBarbeariaConfig = (empresaId?: string) => {
     }
   };
 
-  // Custos
-  const addCusto = (custo: Omit<Custo, 'id'>) => {
-    setCustos(prev => [...prev, { ...custo, id: Date.now().toString() }]);
+  // Custos (API API)
+  const addCusto = async (custo: Omit<Custo, 'id'>) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/costs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(custo)
+      });
+      if (response.ok) {
+        fetchCustos();
+      }
+    } catch (e) {
+      console.error('Erro ao addCusto', e);
+    }
   };
-  const removeCusto = (id: string) => {
-    setCustos(prev => prev.filter(c => c.id !== id));
+
+  const removeCusto = async (id: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/costs/${id}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        fetchCustos();
+      }
+    } catch (e) {
+      console.error('Erro ao removeCusto', e);
+    }
+  };
+
+  const updateCusto = async (id: string, custo: Partial<Custo>) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/costs/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(custo)
+      });
+      if (response.ok) {
+        fetchCustos();
+      }
+    } catch (e) {
+      console.error('Erro ao updateCusto', e);
+    }
   };
 
   const updateTaxas = (novasTaxas: Record<string, number>) => {
-    setTaxas(novasTaxas);
+    updateCompanyConfig({ taxas: novasTaxas });
   };
 
   return {
     produtos, addProduto, removeProduto, updateProduto, fetchProdutos,
     servicos, addServico, removeServico, updateServico, fetchServicos,
-    custos, addCusto, removeCusto,
+    custos, addCusto, removeCusto, updateCusto, fetchCustos,
     taxas, updateTaxas,
+    metaLucro, imposto, updateCompanyConfig, fetchCompanyConfig,
     loadConfig
   };
 };
