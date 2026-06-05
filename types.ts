@@ -3,6 +3,7 @@ export interface User {
   id?: string;
   name: string;
   phone: string;
+  idEmail?: string;
 }
 
 export interface MenuPermissions {
