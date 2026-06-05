@@ -224,7 +224,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
                  if (transactionsCache.current[cmKey]) {
                      currentMonthData = transactionsCache.current[cmKey];
                  } else {
-                     const cmResponse = await apiFetch(`${API_BASE_URL}/transactions?phone=${user.phone}&includeShared=true&month=${today.getMonth() + 1}&year=${today.getFullYear()}`);
+                     const cmResponse = await apiFetch(`${API_BASE_URL}/transactions?idEmail=${user.idEmail}&includeShared=true&month=${today.getMonth() + 1}&year=${today.getFullYear()}`);
                      if (cmResponse.ok) {
                          currentMonthData = await cmResponse.json();
                          transactionsCache.current[cmKey] = currentMonthData;
@@ -257,7 +257,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
                     loopData = transactionsCache.current[loopKey];
                 } else {
                     // Fetch and Cache
-                    const loopResponse = await apiFetch(`${API_BASE_URL}/transactions?phone=${user.phone}&includeShared=true&month=${loopMonth}&year=${loopYear}`);
+                    const loopResponse = await apiFetch(`${API_BASE_URL}/transactions?idEmail=${user.idEmail}&includeShared=true&month=${loopMonth}&year=${loopYear}`);
                     if (loopResponse.ok) {
                         loopData = await loopResponse.json();
                         transactionsCache.current[loopKey] = loopData;
