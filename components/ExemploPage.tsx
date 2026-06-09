@@ -12,7 +12,7 @@ import { API_BASE_URL } from '../constants';
 const mockTransactions: Transaction[] = [
     {
         id: '1',
-        ownerPhone: '123',
+        ownerEmail: '123',
         type: TransactionType.EXPENSE,
         name: 'Aluguel',
         amount: 700.00,
@@ -22,7 +22,7 @@ const mockTransactions: Transaction[] = [
     },
     {
         id: '2',
-        ownerPhone: '123',
+        ownerEmail: '123',
         type: TransactionType.REVENUE,
         name: 'Salário Meta',
         amount: 16558.96,
@@ -32,7 +32,7 @@ const mockTransactions: Transaction[] = [
     },
      {
         id: '3',
-        ownerPhone: '123',
+        ownerEmail: '123',
         type: TransactionType.REVENUE,
         name: 'Silveira',
         amount: 500.00,
@@ -42,8 +42,8 @@ const mockTransactions: Transaction[] = [
     },
     {
         id: '4',
-        ownerPhone: '456',
-        sharerPhone: '123',
+        ownerEmail: '456',
+        sharerEmail: '123',
         type: TransactionType.EXPENSE,
         name: 'Conta de Luz (Compartilhado)',
         amount: 150.75,
@@ -53,13 +53,13 @@ const mockTransactions: Transaction[] = [
     },
     {
         id: '5',
-        ownerPhone: '123',
+        ownerEmail: '123',
         type: TransactionType.EXPENSE,
         name: 'Pro-labore',
         amount: 1610.00,
         date: '2026-01-11',
         isControlled: true,
-        counterpartyPhone: '67984726820',
+        counterpartyEmail: 'usuario@gmail.com',
         status: PaymentStatus.PAID,
     },
 ];
@@ -67,7 +67,7 @@ const mockTransactions: Transaction[] = [
 const mockWorkRecords: WorkRecord[] = [
     {
         id: 'rec1',
-        employeePhone: '123',
+        employeeEmail: '123',
         companyId: 'comp1',
         entryTime: '2026-01-16T11:42:00Z',
         exitTime: '2026-01-16T11:48:00Z',
@@ -76,7 +76,7 @@ const mockWorkRecords: WorkRecord[] = [
     },
     {
         id: 'rec2',
-        employeePhone: '123',
+        employeeEmail: '123',
         companyId: 'comp1',
         entryTime: '2026-01-15T20:12:00Z',
         exitTime: '2026-01-15T20:13:00Z',
@@ -85,7 +85,7 @@ const mockWorkRecords: WorkRecord[] = [
     },
     {
         id: 'rec3',
-        employeePhone: '123',
+        employeeEmail: '123',
         companyId: 'comp1',
         entryTime: '2026-01-14T09:00:00Z',
         exitTime: '2026-01-14T09:05:00Z',
@@ -98,7 +98,7 @@ const mockWorkRecords: WorkRecord[] = [
 const mockChamados: OrdemServico[] = [
     {
         id: 'os1',
-        openerPhone: '67987654321',
+        openerEmail: 'usuario@gmail.com',
         empresaId: 'comp-owner-123',
         title: 'Impressora não funciona',
         description: 'A impressora do setor de marketing está offline e não imprime nenhum documento.',
@@ -107,7 +107,7 @@ const mockChamados: OrdemServico[] = [
     },
     {
         id: 'os2',
-        openerPhone: '67911223344',
+        openerEmail: 'usuario@gmail.com',
         empresaId: 'comp-owner-123',
         title: 'Acesso ao sistema de vendas',
         description: 'Não consigo acessar o sistema de vendas, aparece uma mensagem de erro de autenticação.',
@@ -210,40 +210,40 @@ const EndpointExample: React.FC<EndpointExampleProps> = ({ method, endpoint, des
 
 const apiEndpoints = {
     'Autenticação': [
-        { method: 'POST', endpoint: '/users/auth', description: 'Autentica um usuário e retorna o nome.', body: { phone: '67912345678', pass: 'senha123' } },
-        { method: 'POST', endpoint: '/users', description: 'Registra um novo usuário.', body: { name: 'Novo Usuário', phone: '67987654321', pass: 'novaSenha456' } },
+        { method: 'POST', endpoint: '/users/auth', description: 'Autentica um usuário e retorna o nome.', body: { email: 'usuario@gmail.com', pass: 'senha123' } },
+        { method: 'POST', endpoint: '/users', description: 'Registra um novo usuário.', body: { name: 'Novo Usuário', email: 'usuario@gmail.com', pass: 'novaSenha456' } },
     ],
     'Financeiro': [
-        { method: 'GET', endpoint: '/transactions?phone={phone}&month={m}&year={y}', description: 'Busca transações e o resumo financeiro para um usuário em um mês específico.' },
-        { method: 'POST', endpoint: '/transactions/simple', description: 'Cria uma nova transação simples (receita ou despesa).', body: { ownerPhone: '67912345678', type: 'expense', name: 'Supermercado', amount: 250.75, date: 'YYYY-MM-DD', status: 'pago' } },
-        { method: 'POST', endpoint: '/transactions/controlled', description: 'Cria uma transação controlada (cobrança/pagamento) entre dois usuários.', body: { ownerPhone: '67912345678', counterpartyPhone: '67987654321', name: 'Aluguel', amount: 1200, date: 'YYYY-MM-DD' } },
+        { method: 'GET', endpoint: '/transactions?idEmail={idEmail}&month={m}&year={y}', description: 'Busca transações e o resumo financeiro para um usuário em um mês específico.' },
+        { method: 'POST', endpoint: '/transactions/simple', description: 'Cria uma nova transação simples (receita ou despesa).', body: { ownerEmail: 'usuario@gmail.com', type: 'expense', name: 'Supermercado', amount: 250.75, date: 'YYYY-MM-DD', status: 'pago' } },
+        { method: 'POST', endpoint: '/transactions/controlled', description: 'Cria uma transação controlada (cobrança/pagamento) entre dois usuários.', body: { ownerEmail: 'usuario@gmail.com', counterpartyEmail: 'usuario@gmail.com', name: 'Aluguel', amount: 1200, date: 'YYYY-MM-DD' } },
         { method: 'PUT', endpoint: '/transactions/{id}', description: 'Atualiza os dados de uma transação existente.', body: { name: 'Nome Atualizado', amount: 300 } },
-        { method: 'PATCH', endpoint: '/transactions/status', description: 'Altera o status de uma transação (ex: de não pago para pago).', body: { transactionId: 'id_da_transacao', ownerPhone: '67912345678', status: 'pago' } },
-        { method: 'DELETE', endpoint: '/transactions', description: 'Exclui uma transação.', body: { transactionId: 'id_da_transacao', ownerPhone: '67912345678' } },
+        { method: 'PATCH', endpoint: '/transactions/status', description: 'Altera o status de uma transação (ex: de não pago para pago).', body: { transactionId: 'id_da_transacao', ownerEmail: 'usuario@gmail.com', status: 'pago' } },
+        { method: 'DELETE', endpoint: '/transactions', description: 'Exclui uma transação.', body: { transactionId: 'id_da_transacao', ownerEmail: 'usuario@gmail.com' } },
     ],
     'Ponto e RH': [
-        { method: 'GET', endpoint: '/rh/company/{userPhone}', description: 'Busca o vínculo de empresa de um usuário para obter o `empresaId`.' },
-        { method: 'POST', endpoint: '/rh/link-user', description: 'Vincula um usuário a uma empresa.', body: { userPhone: '67912345678', empresaId: 'id_da_empresa', status: 'ativo' } },
-        { method: 'GET', endpoint: '/work-records?companyId={id}&employeePhone={phone}&month={m}&year={y}', description: "Busca os registros de ponto de um colaborador para um mês específico." },
-        { method: 'POST', endpoint: '/work-records/clock-in', description: 'Inicia um novo registro de ponto (bater ponto de entrada).', body: { employeePhone: '67912345678', companyId: 'id_da_empresa', entryTime: 'ISODateString' } },
-        { method: 'PATCH', endpoint: '/work-records/{id}/clock-out', description: 'Finaliza um registro de ponto (bater ponto de saída).', body: { employeePhone: '67912345678', exitTime: 'ISODateString' } },
-        { method: 'PATCH', endpoint: '/work-records/{id}/approve', description: 'Aprova um registro de ponto pendente.', body: { approverPhone: 'phone_do_aprovador' } },
-        { method: 'PATCH', endpoint: '/work-records/{id}/reject', description: 'Rejeita um registro de ponto pendente com um motivo.', body: { approverPhone: 'phone_do_aprovador', rejectionReason: 'Horário inválido' } },
+        { method: 'GET', endpoint: '/rh/company/{userEmail}', description: 'Busca o vínculo de empresa de um usuário para obter o `empresaId`.' },
+        { method: 'POST', endpoint: '/rh/link-user', description: 'Vincula um usuário a uma empresa.', body: { idEmail: 'usuario@gmail.com', empresaId: 'id_da_empresa', status: 'ativo' } },
+        { method: 'GET', endpoint: '/work-records?companyId={id}&employeeEmail={email}&month={m}&year={y}', description: "Busca os registros de ponto de um colaborador para um mês específico." },
+        { method: 'POST', endpoint: '/work-records/clock-in', description: 'Inicia um novo registro de ponto (bater ponto de entrada).', body: { employeeEmail: 'usuario@gmail.com', companyId: 'id_da_empresa', entryTime: 'ISODateString' } },
+        { method: 'PATCH', endpoint: '/work-records/{id}/clock-out', description: 'Finaliza um registro de ponto (bater ponto de saída).', body: { employeeEmail: 'usuario@gmail.com', exitTime: 'ISODateString' } },
+        { method: 'PATCH', endpoint: '/work-records/{id}/approve', description: 'Aprova um registro de ponto pendente.', body: { approverEmail: 'email_do_aprovador' } },
+        { method: 'PATCH', endpoint: '/work-records/{id}/reject', description: 'Rejeita um registro de ponto pendente com um motivo.', body: { approverEmail: 'email_do_aprovador', rejectionReason: 'Horário inválido' } },
     ],
     'Ordem de Serviço (OS) / Chamados': [
-        { method: 'POST', endpoint: '/os', description: 'Cria uma nova Ordem de Serviço.', body: { openerPhone: "67984726822", empresaId: "696972f3447c500cfe3e05a2", title: "Falha no software de faturamento", description: "Ao emitir nota fiscal, o sistema apresenta erro 500." } },
-        { method: 'GET', endpoint: '/os/my?phone=67984726822', description: 'Lista as Ordens de Serviço abertas pelo próprio usuário.' },
-        { method: 'GET', endpoint: '/os/company?empresaId=696972f3447c500cfe3e05a2&phone=6798426823', description: 'Lista todos os chamados da empresa (apenas para o dono).' },
-        { method: 'PATCH', endpoint: '/os/{id}/start', description: 'Inicia o atendimento de uma OS, mudando o status para "em andamento".', body: { phone: "6798426823" } },
-        { method: 'PATCH', endpoint: '/os/{id}/resolve', description: 'Resolve/finaliza uma Ordem de Serviço.', body: { resolverPhone: "6798426823", resolution: "Atualizado o endpoint de emissão de NF-e." } },
-        { method: 'PATCH', endpoint: '/os/{id}/cancel', description: 'Cancela uma Ordem de Serviço (apenas quem abriu pode cancelar).', body: { phone: "67984726822" } },
+        { method: 'POST', endpoint: '/os', description: 'Cria uma nova Ordem de Serviço.', body: { openerEmail: "usuario@gmail.com", empresaId: "696972f3447c500cfe3e05a2", title: "Falha no software de faturamento", description: "Ao emitir nota fiscal, o sistema apresenta erro 500." } },
+        { method: 'GET', endpoint: '/os/my?email =usuario@gmail.com', description: 'Lista as Ordens de Serviço abertas pelo próprio usuário.' },
+        { method: 'GET', endpoint: '/os/company?empresaId=696972f3447c500cfe3e05a2&email =usuario@gmail.com', description: 'Lista todos os chamados da empresa (apenas para o dono).' },
+        { method: 'PATCH', endpoint: '/os/{id}/start', description: 'Inicia o atendimento de uma OS, mudando o status para "em andamento".', body: { email: "usuario@gmail.com" } },
+        { method: 'PATCH', endpoint: '/os/{id}/resolve', description: 'Resolve/finaliza uma Ordem de Serviço.', body: { resolverEmail: "usuario@gmail.com", resolution: "Atualizado o endpoint de emissão de NF-e." } },
+        { method: 'PATCH', endpoint: '/os/{id}/cancel', description: 'Cancela uma Ordem de Serviço (apenas quem abriu pode cancelar).', body: { email: "usuario@gmail.com" } },
     ],
      'Configurações e Empresa': [
-        { method: 'GET', endpoint: '/companies/{ownerPhone}', description: 'Busca as empresas de um proprietário.'},
-        { method: 'POST', endpoint: '/companies', description: 'Cria uma nova empresa.', body: { name: 'Minha Nova Empresa', owner: 'phone_do_dono' } },
+        { method: 'GET', endpoint: '/companies/{ownerEmail}', description: 'Busca as empresas de um proprietário.'},
+        { method: 'POST', endpoint: '/companies', description: 'Cria uma nova empresa.', body: { name: 'Minha Nova Empresa', owner: 'email_do_dono' } },
         { method: 'PUT', endpoint: '/companies/{id}', description: 'Atualiza os dados de uma empresa.', body: { name: 'Nome Atualizado da Empresa', cnpj: '12345678000190' } },
-        { method: 'GET', endpoint: '/permissions?userPhone={phone}', description: 'Obtém a lista de permissões de um usuário específico.' },
-        { method: 'PATCH', endpoint: '/permissions?userPhone={phone}&add=true', description: 'Adiciona permissões a um usuário.', body: { permissions: ['ponto', 'rh'] } },
+        { method: 'GET', endpoint: '/permissions?idEmail={idEmail}', description: 'Obtém a lista de permissões de um usuário específico.' },
+        { method: 'PATCH', endpoint: '/permissions?idEmail={idEmail}', description: 'Adiciona permissões a um usuário.', body: { permissions: ['ponto', 'rh'] } },
     ],
 };
 
@@ -276,7 +276,7 @@ const ExemploPage: React.FC = () => {
             <div className="p-4 bg-gray-800 rounded-lg">
                 <TransactionList
                     transactions={mockTransactions}
-                    currentUserPhone="123"
+                    currentUserEmail="123"
                     onUpdateStatus={() => alert('Ação de exemplo: Atualizar status')}
                     onToggleSimplePaid={async () => { alert('Ação de exemplo: Alternar pago/não pago'); }}
                     onStartEdit={() => alert('Ação de exemplo: Editar')}
@@ -341,7 +341,7 @@ const ExemploPage: React.FC = () => {
                             <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
                                 <div>
                                     <h3 className="text-lg font-bold text-white">{os.title}</h3>
-                                    <p className="text-xs text-gray-400">Aberto por: {os.openerPhone}</p>
+                                    <p className="text-xs text-gray-400">Aberto por: {os.openerEmail}</p>
                                 </div>
                                 <OSStatusBadge status={os.status} />
                             </div>

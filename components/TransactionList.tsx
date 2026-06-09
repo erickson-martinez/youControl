@@ -8,25 +8,33 @@ import ConfirmationModal from './ConfirmationModal';
 
 interface TransactionListProps {
   transactions: Transaction[];
-  currentUserPhone: string;
+  currentUserEmail: string;
+  currentUserId: string;
   onUpdateStatus: (transaction: Transaction, newStatus: PaymentStatus) => void;
   onToggleSimplePaid: (id: string) => Promise<void>;
   onStartEdit: (transaction: Transaction) => void;
   onDelete: (transaction: Transaction) => void;
-  onDeleteSubTransaction: (transactionId: string, additionName: string, ownerPhone: string) => Promise<void>;
+  onDeleteSubTransaction: (transactionId: string, additionName: string, idEmail: string) => Promise<void>;
   onOpenAddValueModal: (transaction: Transaction) => void;
+  onRequestPayment: (transaction: Transaction) => void;
+  onApprovePayment: (transaction: Transaction) => void;
+  onRejectPayment: (transaction: Transaction) => void;
   isPastMonth: boolean;
 }
 
 interface TransactionItemProps {
   transaction: Transaction;
-  currentUserPhone: string;
+  currentUserEmail: string;
+  currentUserId: string;
   onUpdateStatus: (transaction: Transaction, newStatus: PaymentStatus) => void;
   onToggleSimplePaid: (id: string) => Promise<void>;
   onStartEdit: (transaction: Transaction) => void;
   onDelete: (transaction: Transaction) => void;
-  onDeleteSubTransaction: (transactionId: string, additionName: string, ownerPhone: string) => Promise<void>;
+  onDeleteSubTransaction: (transactionId: string, additionName: string, idEmail: string) => Promise<void>;
   onOpenAddValueModal: (transaction: Transaction) => void;
+  onRequestPayment: (transaction: Transaction) => void;
+  onApprovePayment: (transaction: Transaction) => void;
+  onRejectPayment: (transaction: Transaction) => void;
   isPastMonth: boolean;
 }
 
@@ -44,7 +52,7 @@ const StatusBadge: React.FC<{ status: PaymentStatus }> = ({ status }) => {
     return <div className={`flex items-center flex-shrink-0 space-x-1 text-xs font-medium px-2 py-1 rounded-full ${color} bg-gray-700`}>{icon}<span>{text}</span></div>;
 };
 
-const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transaction, currentUserPhone, onUpdateStatus, onToggleSimplePaid, onStartEdit, onDelete, onDeleteSubTransaction, onOpenAddValueModal, isPastMonth }) => {
+const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transaction, currentUserEmail, currentUserId, onUpdateStatus, onToggleSimplePaid, onStartEdit, onDelete, onDeleteSubTransaction, onOpenAddValueModal, onRequestPayment, onApprovePayment, onRejectPayment, isPastMonth }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [additionToDelete, setAdditionToDelete] = useState<Addition | null>(null);
     const [isConfirmUnpayOpen, setIsConfirmUnpayOpen] = useState(false);
@@ -53,14 +61,15 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
     const isPaid = transaction.status === PaymentStatus.PAID;
     
     // Logic for shared transactions aggregation visualization
-    const isSharedWithMe = transaction.ownerPhone !== currentUserPhone;
+    const isOwner = transaction.idEmail === currentUserId;
+    const isSharedWithMe = !isOwner && transaction.sharedEmail === currentUserEmail;
     const isAggregated = transaction.aggregate === true;
 
-    // True when I am the creditor of a controlled revenue and the debtor has sent a payment request. My action is required.
-    const isPendingApprovalFromMe = transaction.isControlled && isRevenue && transaction.status === PaymentStatus.PENDING && transaction.ownerPhone === currentUserPhone;
+    // True when I am the owner and the status is PENDING
+    const isPendingApprovalFromMe = transaction.isControlled && transaction.status === PaymentStatus.PENDING && isOwner;
     
-    // True when I am the creator/collector of a controlled revenue I created (covers all its states)
-    const isCollectorOfControlledRevenue = transaction.isControlled && isRevenue && transaction.ownerPhone === currentUserPhone;
+    // True when I am the owner of a controlled transaction
+    const isOwnerOfControlled = transaction.isControlled && isOwner;
     
     const addValueTitle = isPastMonth
         ? "Não é possível adicionar valores em meses anteriores"
@@ -89,7 +98,7 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
 
     const handleConfirmDeleteAddition = async () => {
         if (additionToDelete) {
-            await onDeleteSubTransaction(transaction.id, additionToDelete.name, transaction.ownerPhone);
+            await onDeleteSubTransaction(transaction.id, additionToDelete.name, transaction.idEmail);
         }
         setAdditionToDelete(null);
     };
@@ -120,12 +129,12 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
             );
         }
 
-        // Case 2: Collector of a controlled revenue (PAID/UNPAID states) has direct control
-        if (isCollectorOfControlledRevenue) {
+        // Case 2: Owner of a controlled transaction (PAID/UNPAID states) has direct control
+        if (isOwnerOfControlled) {
             const isDisabled = isPastMonth && isPaid;
             const title = isDisabled 
                 ? "Não é possível alterar o status em meses anteriores." 
-                : isPaid ? "Marcar como Não Recebido" : "Confirmar Recebimento";
+                : isPaid ? "Marcar como Não Pago" : "Confirmar Recebimento";
             return (
                 <label 
                     htmlFor={`paid-toggle-${transaction.id}`} 
@@ -195,29 +204,23 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
                                         <BellIcon className="w-5 h-5 text-yellow-accent animate-pulse" />
                                     </span>
                                 )}
-                                {transaction.ownerPhone !== currentUserPhone && (
-                                    <span className="inline-flex items-center flex-shrink-0 px-2 py-0.5 text-xs text-purple-300 bg-purple-800 rounded-full" title={`Compartilhado por ${transaction.ownerPhone}`}>
+                                {transaction.sharedEmail && (
+                                    <span className="inline-flex items-center flex-shrink-0 px-2 py-0.5 text-xs text-purple-300 bg-purple-800 rounded-full" title={`Compartilhamento`}>
                                         <ShareIcon className="w-3 h-3 mr-1.5" />
-                                        <span>{transaction.ownerPhone}</span>
+                                        <span className="truncate max-w-[150px]">
+                                            {transaction.idEmail === currentUserId 
+                                                ? `Com: ${transaction.sharedEmail}` 
+                                                : (transaction.email ? `De: ${transaction.email}` : "Compartilhado com você")}
+                                        </span>
                                     </span>
                                 )}
                             </div>
                             <p className="flex items-center mt-1 text-sm text-gray-400 truncate">
                                 <span>{new Date(transaction.date).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
-                                {transaction.isControlled && (
-                                    <span className="flex items-center ml-2" title={`Transação controlada com: ${transaction.counterpartyPhone}`}>
-                                        <ShareIcon className="w-3.5 h-3.5 text-purple-400" />
-                                        {transaction.counterpartyPhone !== '67984726821' && (
-                                            <span className="ml-1.5 text-xs">
-                                                {transaction.counterpartyPhone}
-                                            </span>
-                                        )}
-                                    </span>
-                                )}
                             </p>
                         </div>
                     </div>
-                    {transaction.ownerPhone === currentUserPhone && !isPendingApprovalFromMe && (
+                    {isOwner && !isPendingApprovalFromMe && (
                          <button 
                             onClick={handleDelete}
                             className="p-1.5 text-gray-400 transition-colors rounded-md hover:bg-gray-600 hover:text-red-accent"
@@ -253,14 +256,19 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
                     </div>
                     
                     <div className="flex items-center flex-wrap justify-end gap-x-3 gap-y-2">
-                        {transaction.isControlled && transaction.ownerPhone === currentUserPhone && transaction.type === TransactionType.EXPENSE && transaction.status === PaymentStatus.UNPAID && (
-                            <button onClick={() => onUpdateStatus(transaction, PaymentStatus.PENDING)} className="px-2 py-1 text-xs text-white transition-colors bg-blue-accent rounded-md hover:bg-blue-accent/90">Solicitar</button>
+                        {/* If I am the Participant, and the bill is UNPAID, I can click "Inform payment" */}
+                        {transaction.isControlled && isSharedWithMe && transaction.status === PaymentStatus.UNPAID && (
+                            <button onClick={() => onRequestPayment(transaction)} className="px-2 py-1 text-xs text-white transition-colors bg-blue-accent rounded-md hover:bg-blue-accent/90">Informar Pagamento</button>
                         )}
+                        {/* If I am the Owner, and status is PENDING, I can Approve/Reject */}
                         {isPendingApprovalFromMe && (
-                            <button onClick={() => onUpdateStatus(transaction, PaymentStatus.UNPAID)} className="px-2 py-1 text-xs text-white transition-colors bg-red-600 rounded-md hover:bg-red-700">Recusar</button>
+                            <>
+                            <button onClick={() => onApprovePayment(transaction)} className="px-2 py-1 text-xs text-white transition-colors bg-green-accent rounded-md hover:bg-green-600">Aprovar</button>
+                            <button onClick={() => onRejectPayment(transaction)} className="px-2 py-1 text-xs text-white transition-colors bg-red-600 rounded-md hover:bg-red-700">Recusar</button>
+                            </>
                         )}
 
-                        {transaction.ownerPhone === currentUserPhone && !isPendingApprovalFromMe && (
+                        {isOwner && !isPendingApprovalFromMe && (
                             <>
                             <button
                                 onClick={() => onOpenAddValueModal(transaction)}

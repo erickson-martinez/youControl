@@ -7,13 +7,13 @@ import { API_BASE_URL } from '../constants';
 interface AddCollaboratorModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (phone: string, empresaId: string, role: string) => Promise<void>;
+    onSave: (email: string, empresaId: string, role: string) => Promise<void>;
     empresas: Empresa[];
-    linkedUserPhones: string[];
+    linkedUserEmails: string[];
 }
 
-const AddCollaboratorModal: React.FC<AddCollaboratorModalProps> = ({ isOpen, onClose, onSave, empresas, linkedUserPhones }) => {
-    const [selectedPhone, setSelectedPhone] = useState('');
+const AddCollaboratorModal: React.FC<AddCollaboratorModalProps> = ({ isOpen, onClose, onSave, empresas, linkedUserEmails }) => {
+    const [selectedEmail, setSelectedEmail] = useState('');
     const [selectedEmpresa, setSelectedEmpresa] = useState<string>('');
     const [selectedRole, setSelectedRole] = useState<string>('Barbeiro');
     const [allUsers, setAllUsers] = useState<User[]>([]);
@@ -39,30 +39,33 @@ const AddCollaboratorModal: React.FC<AddCollaboratorModalProps> = ({ isOpen, onC
     
     useEffect(() => {
         if (isOpen) {
-            setSelectedPhone('');
+            setSelectedEmail('');
             setSelectedEmpresa(empresas.length > 0 ? empresas[0].id : '');
             fetchUsers();
         }
     }, [isOpen, empresas, fetchUsers]);
     
     const unlinkedUsers = useMemo(() => {
-        const linkedPhonesSet = new Set(linkedUserPhones);
+        const linkedIdsSet = new Set(linkedUserEmails);
         return allUsers
-          .filter(user => !linkedPhonesSet.has(user.phone))
-          .sort((a,b) => a.name.localeCompare(b.name));
-    }, [allUsers, linkedUserPhones]);
+          .filter(user => {
+            const userId = user.idEmail || user.email;
+            return !linkedIdsSet.has(userId);
+          })
+          .sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+    }, [allUsers, linkedUserEmails]);
 
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!selectedPhone || !selectedEmpresa || !selectedRole) {
+        if (!selectedEmail || !selectedEmpresa || !selectedRole) {
             alert("Por favor, selecione um colaborador, uma empresa e uma função.");
             return;
         }
         
         setIsSaving(true);
         try {
-            await onSave(selectedPhone, selectedEmpresa, selectedRole);
+            await onSave(selectedEmail, selectedEmpresa, selectedRole);
         } catch (error) {
             alert(`Falha ao salvar: ${(error as Error).message}`);
         } finally {
@@ -84,10 +87,10 @@ const AddCollaboratorModal: React.FC<AddCollaboratorModalProps> = ({ isOpen, onC
                             <label htmlFor="collaborator" className="block mb-2 text-sm font-medium text-gray-300">Colaborador</label>
                             {isLoading ? <p className="text-gray-400">Carregando usuários...</p> : error ? <p className="text-red-accent">{error}</p> :
                                 <SearchableSelect
-                                    options={unlinkedUsers.map(u => ({ id: u.phone, name: `${u.name} (${u.phone})` }))}
-                                    value={selectedPhone}
-                                    onChange={setSelectedPhone}
-                                    placeholder="Buscar colaborador por nome ou telefone..."
+                                    options={unlinkedUsers.map(u => ({ id: u.idEmail || u.email, name: `${u.name} (${u.email})` }))}
+                                    value={selectedEmail}
+                                    onChange={setSelectedEmail}
+                                    placeholder="Buscar colaborador por nome ou email..."
                                 />
                             }
                         </div>

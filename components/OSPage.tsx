@@ -54,7 +54,7 @@ const OSPage: React.FC<OSPageProps> = ({ user, empresas, userCompany }) => {
         setIsLoading(true);
         setError(null);
         try {
-            const response = await apiFetch(`${API_BASE_URL}/os/my?phone=${user.phone}`);
+            const response = await apiFetch(`${API_BASE_URL}/os/my?email =${user.email}`);
             const data = await response.json();
             const osList = (data.chamados || []).map((os: any) => ({
                 ...os,
@@ -68,7 +68,7 @@ const OSPage: React.FC<OSPageProps> = ({ user, empresas, userCompany }) => {
         } finally {
             setIsLoading(false);
         }
-    }, [user.phone, apiFetch]);
+    }, [user.email, apiFetch]);
 
     useEffect(() => {
         fetchMyOS();
@@ -80,7 +80,7 @@ const OSPage: React.FC<OSPageProps> = ({ user, empresas, userCompany }) => {
             await apiFetch(`${API_BASE_URL}/os`, {
                 method: 'POST',
                 body: JSON.stringify({
-                    openerPhone: user.phone,
+                    openerEmail: user.email,
                     title: osData.title,
                     description: osData.description,
                     empresaId: userCompany.id,
@@ -125,7 +125,7 @@ const OSPage: React.FC<OSPageProps> = ({ user, empresas, userCompany }) => {
                     )}
 
                     <p className="mt-3 text-xs text-right text-gray-500">
-                        Aberto por {os.openerPhone} em {formatDate(os.createdAt)}
+                        Aberto por {os.openerEmail} em {formatDate(os.createdAt)}
                     </p>
                 </div>
             );

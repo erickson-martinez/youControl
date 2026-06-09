@@ -10,11 +10,12 @@ interface CompleteListModalProps {
     onConfirm: (financialData: any) => Promise<void>;
     listName: string;
     totalAmount: number;
-    userPhone: string;
+    idEmail: string;
+    userEmail: string;
 }
 
 const CompleteListModal: React.FC<CompleteListModalProps> = ({ 
-    isOpen, onClose, onConfirm, listName, totalAmount, userPhone 
+    isOpen, onClose, onConfirm, listName, totalAmount, idEmail, userEmail
 }) => {
     // Estados do Formulário
     // 'registered' = Já registrei no sistema (apenas conclui a lista)
@@ -75,7 +76,7 @@ const CompleteListModal: React.FC<CompleteListModalProps> = ({
                 const month = dateObj.getMonth() + 1;
                 const year = dateObj.getFullYear();
                 
-                const response = await fetch(`${API_BASE_URL}/transactions?phone=${userPhone}&month=${month}&year=${year}`);
+                const response = await fetch(`${API_BASE_URL}/transactions?idEmail=${idEmail}${userEmail ? `&email=${encodeURIComponent(userEmail)}` : ''}&month=${month}&year=${year}`);
                 if (response.ok) {
                     const data = await response.json();
                     // Filtra apenas Despesas NÃO PAGAS e mapeia ID
@@ -90,7 +91,7 @@ const CompleteListModal: React.FC<CompleteListModalProps> = ({
                 setIsLoadingTransactions(false);
             }
         }
-    }, [date, mode, paymentStatus, userPhone]);
+    }, [date, mode, paymentStatus, userEmail]);
 
     useEffect(() => {
         fetchTransactionsForDate();
@@ -119,7 +120,7 @@ const CompleteListModal: React.FC<CompleteListModalProps> = ({
 
             if (mode === 'new') {
                 payload.data = {
-                    ownerPhone: userPhone,
+                    idEmail: idEmail,
                     type: TransactionType.EXPENSE,
                     name: expenseName,
                     amount: totalAmount,
@@ -136,7 +137,7 @@ const CompleteListModal: React.FC<CompleteListModalProps> = ({
                     transactionId: selectedTransactionId,
                     description: `Lista: ${listName}`,
                     additionalAmount: totalAmount,
-                    ownerPhone: userPhone
+                    idEmail: idEmail
                 };
             }
 

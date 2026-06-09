@@ -119,7 +119,7 @@ const AprovarHorasPage: React.FC<AprovarHorasPageProps> = ({ user, empresas, cur
     try {
         await apiFetch(`${API_BASE_URL}/work-records/${recordId}/approve`, {
             method: 'PATCH',
-            body: JSON.stringify({ approverPhone: user.phone }),
+            body: JSON.stringify({ approverEmail: user.email }),
         });
         await fetchCompanyWorkRecords();
     } catch (err) {
@@ -131,7 +131,7 @@ const AprovarHorasPage: React.FC<AprovarHorasPageProps> = ({ user, empresas, cur
     try {
         await apiFetch(`${API_BASE_URL}/work-records/${recordId}/reject`, {
             method: 'PATCH',
-            body: JSON.stringify({ approverPhone: user.phone, rejectionReason: reason }),
+            body: JSON.stringify({ approverEmail: user.email, rejectionReason: reason }),
         });
         await fetchCompanyWorkRecords();
     } catch (err) {
@@ -141,7 +141,7 @@ const AprovarHorasPage: React.FC<AprovarHorasPageProps> = ({ user, empresas, cur
 
   const userMap = useMemo(() => {
     return allUsers.reduce((acc, user) => {
-      acc[user.phone] = user.name;
+      acc[user.email] = user.name;
       return acc;
     }, {} as Record<string, string>);
   }, [allUsers]);
@@ -225,7 +225,7 @@ const AprovarHorasPage: React.FC<AprovarHorasPageProps> = ({ user, empresas, cur
                         <div key={record.id} className="p-4 bg-gray-700 rounded-lg">
                           <div className="flex flex-col gap-4 sm:flex-row sm:justify-between">
                             <div>
-                              <p className="font-bold text-white">{record.employeeName || userMap[record.employeePhone] || record.employeePhone || 'Usuário Desconhecido'}</p>
+                              <p className="font-bold text-white">{record.employeeName || userMap[record.employeeEmail] || record.employeeEmail || 'Usuário Desconhecido'}</p>
                               <p className="text-xs text-gray-400">{formatDate(record.entryTime)}</p>
                             </div>
                             <div className="flex flex-col items-start sm:items-end">
@@ -304,7 +304,7 @@ const AprovarHorasPage: React.FC<AprovarHorasPageProps> = ({ user, empresas, cur
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75">
             <div className="w-full max-w-md p-6 mx-4 bg-gray-800 rounded-lg shadow-xl">
                 <h2 className="mb-4 text-xl font-bold text-white">Rejeitar Ponto</h2>
-                <p className="mb-1 text-sm text-gray-300">Colaborador: {rejectingRecord.employeeName || userMap[rejectingRecord.employeePhone] || rejectingRecord.employeePhone}</p>
+                <p className="mb-1 text-sm text-gray-300">Colaborador: {rejectingRecord.employeeName || userMap[rejectingRecord.employeeEmail] || rejectingRecord.employeeEmail}</p>
                 <p className="mb-4 text-sm text-gray-400">Data: {formatDate(rejectingRecord.entryTime)}</p>
                 <div>
                     <label htmlFor="rejectionReason" className="block mb-2 text-sm font-medium text-gray-300">Motivo da Rejeição</label>

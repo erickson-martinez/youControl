@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useBarbeiros } from '../hooks/useBarbeiros';
 import { useBarbeariaConfig, Produto, Servico, Custo } from '../hooks/useBarbeariaConfig';
 import { useBarbeariaRegistros, useBarbeariaAgendamentos } from '../hooks/useBarbeariaRegistros';
-import { UsersIcon, TrashIcon, PencilIcon, PlusIcon, TagIcon, CogIcon, CashIcon, DocumentTextIcon, ChartBarIcon, ClipboardListIcon, CheckCircleIcon, XCircleIcon, ChevronLeftIcon, ChevronRightIcon } from './icons';
+import { UsersIcon, TrashIcon, PencilIcon, PlusIcon, TagIcon, CogIcon, CashIcon, DocumentTextIcon, ChartBarIcon, ClipboardListIcon, CheckCircleIcon, XCircleIcon, ChevronLeftIcon, ChevronRightIcon, InformationCircleIcon, XIcon } from './icons';
 import { Empresa, User } from '../types';
 import { API_BASE_URL } from '../constants';
 import { CustomDatePicker } from './CustomDatePicker';
@@ -30,33 +30,30 @@ const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user, empresa }) => {
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8 pb-20">
-      <div className="flex flex-col md:flex-row md:items-end justify-between border-b border-gray-800 pb-6 gap-4">
-        <div className="flex items-center gap-4">
-          <div className="bg-blue-600/20 p-3 rounded-2xl border border-blue-500/30">
+      <div className="flex flex-col md:flex-row md:items-start justify-between border-b border-gray-800 pb-6 gap-4">
+        <div className="flex items-start gap-4">
+          <div className="bg-blue-600/20 p-3 rounded-2xl border border-blue-500/30 mt-1">
             <UsersIcon className="w-8 h-8 text-blue-400" />
           </div>
           <div>
             <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">Barbearia Admin</h1>
             <p className="text-gray-400 mt-1 text-sm font-medium">Gestão completa {empresa?.name ? `da ${empresa.name}` : ''}</p>
             {empresa?.linkId && (
-              <p className="mt-2 text-sm font-bold bg-blue-500/10 text-blue-400 px-2 py-1 rounded inline-flex border border-blue-500/20">
-                Código da Empresa: {empresa.linkId}
-              </p>
+              <div className="flex flex-wrap items-center gap-2 mt-3">
+                <button 
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/agendamento?empresaId=${empresa.id}`);
+                    alert("Link de agendamento copiado para a área de transferência!");
+                  }}
+                  className="flex items-center justify-center gap-2 px-3 py-1.5 text-sm font-bold text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 rounded-lg transition-all border border-gray-700 shadow-sm"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+                  Compartilhar
+                </button>
+              </div>
             )}
           </div>
         </div>
-        {empresa && (
-          <button 
-            onClick={() => {
-              navigator.clipboard.writeText(`${window.location.origin}/agendamento?empresaId=${empresa.id}`);
-              alert("Link de agendamento copiado para a área de transferência!");
-            }}
-            className="flex-1 sm:flex-none text-sm font-bold text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 px-4 py-2.5 rounded-xl transition-all border border-gray-700 flex items-center justify-center gap-2 shadow-md w-full sm:w-auto h-fit mt-2 sm:mt-0"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
-            Compartilhar
-          </button>
-        )}
       </div>
 
       {/* Tabs */}
@@ -149,7 +146,7 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
   
   const [editingId, setEditingId] = useState<string | null>(null);
   const [nome, setNome] = useState('');
-  const [telefone, setTelefone] = useState('');
+  const [email, setEmail] = useState('');
   const [comissao, setComissao] = useState('');
   const [corte, setCorte] = useState('');
   const [custoDiario, setCustoDiario] = useState('');
@@ -163,7 +160,7 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
   const handleEdit = (barbeiro: any) => {
     setEditingId(barbeiro.id);
     setNome(barbeiro.nome);
-    setTelefone(barbeiro.telefone || '');
+    setEmail(barbeiro.email || '');
     setComissao(barbeiro.comissao?.toString() || '');
     setCorte(barbeiro.corte?.toString() || '');
     setDias(barbeiro.diasTrabalhados || []);
@@ -174,7 +171,7 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
   const cancelEdit = () => {
     setEditingId(null);
     setNome('');
-    setTelefone('');
+    setEmail('');
     setComissao('');
     setCorte('');
     setCustoDiario('');
@@ -197,7 +194,8 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
 
     const payload = {
         nome,
-        telefone, // already populated, input is disabled
+        email,
+        telefone: email,
         comissao: cargo === 'caixa' ? 0 : (Number(comissao) || 0),
         corte: cargo === 'caixa' ? 0 : (Number(corte) || 0),
         diasTrabalhados: dias,
@@ -205,152 +203,167 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
         cargo
     };
 
-    if (updateBarbeiro) {
-        await updateBarbeiro(editingId, payload);
+    if (editingId && editingId !== 'new_owner') {
+        if (updateBarbeiro) await updateBarbeiro(editingId, payload);
+        alert("Configurações do membro atualizadas com sucesso!");
+    } else if (editingId === 'new_owner') {
+        if (addBarbeiro) await addBarbeiro(payload);
+        alert("Proprietário configurado como barbeiro!");
     }
     
-    alert("Configurações do membro atualizadas com sucesso!");
     cancelEdit();
     setLoading(false);
   };
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 md:p-8">
-      {editingId ? (
-        <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
-          <h2 className="text-xl font-bold text-white mb-6 border-b border-gray-700/50 pb-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <PencilIcon className="w-5 h-5 text-yellow-500" />
-              Editar Membro
-            </div>
-            <button onClick={cancelEdit} className="text-sm text-gray-400 hover:text-white underline">
-              Cancelar
-            </button>
-          </h2>
-          
-          <form onSubmit={handleCadastrar} className="space-y-4">
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">Nome *</label>
-              <input 
-                type="text" required
-                value={nome} onChange={e => setNome(e.target.value)}
-                className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                placeholder="Ex: João Silva"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">Telefone</label>
-              <input 
-                type="text" 
-                value={telefone} onChange={e => setTelefone(e.target.value)}
-                className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 disabled:opacity-50"
-                placeholder="Ex: 67999999999"
-                disabled
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">Cargo</label>
-              <select
-                value={cargo} onChange={e => setCargo(e.target.value as 'barbeiro'|'caixa')}
-                className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-              >
-                <option value="barbeiro">Barbeiro</option>
-                <option value="caixa">Caixa</option>
-              </select>
-            </div>
-
-            {cargo === 'barbeiro' && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Comissão Produtos (%)</label>
-                  <input 
-                    type="number" step="0.1" min="0" max="100"
-                    value={comissao} onChange={e => setComissao(e.target.value)}
-                    className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                    placeholder="Ex: 10"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Comissão Serviços (%)</label>
-                  <input 
-                    type="number" step="0.1" min="0" max="100"
-                    value={corte} onChange={e => setCorte(e.target.value)}
-                    className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                    placeholder="Ex: 50"
-                  />
-                </div>
+    <div className="flex flex-col md:p-8">
+      {editingId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-gray-800 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold text-white mb-6 border-b border-gray-700/50 pb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <PencilIcon className="w-5 h-5 text-yellow-500" />
+                Editar Membro
               </div>
-            )}
-
-            <div>
-              <label className="block text-sm text-gray-400 mb-2">Dias Trabalhados</label>
-              <div className="flex flex-wrap gap-2">
-                {DIAS_SEMANA.map(dia => (
-                  <button
-                    key={dia}
-                    type="button"
-                    onClick={() => toggleDia(dia)}
-                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                      dias.includes(dia) 
-                        ? 'bg-blue-600 border-blue-500 text-white' 
-                        : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'
-                    }`}
-                  >
-                    {dia}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-gray-700">
-              <button 
-                type="submit"
-                disabled={loading}
-                className={`w-full flex items-center justify-center gap-2 font-semibold py-2 px-4 rounded-lg transition-colors ${loading ? 'bg-blue-400 cursor-not-allowed' : 'bg-yellow-600 hover:bg-yellow-500 text-white'}`}
-              >
-                <PencilIcon className="w-5 h-5" />
-                {loading ? 'Salvando...' : 'Salvar Alterações'}
+              <button type="button" onClick={cancelEdit} className="text-gray-400 hover:text-white transition-colors">
+                 <XIcon className="w-6 h-6" />
               </button>
-            </div>
-          </form>
-        </div>
-      ) : (
-        <div className="bg-gray-800/80 p-8 rounded-2xl border border-gray-700/50 shadow-xl flex flex-col items-center justify-center text-center h-full min-h-[350px]">
-            <UsersIcon className="w-16 h-16 text-blue-500/80 mb-6" />
-            <h3 className="text-xl font-bold text-white mb-3">Gerenciamento de Equipe</h3>
-            <p className="text-gray-400 text-sm max-w-sm leading-relaxed">
-               A criação e exclusão de novos barbeiros deve ser feita pela aba de <strong>RH</strong> da plataforma, bem como atribuição da função. 
-               <br/><br/>Neste local, você pode <strong>editar</strong> as configurações internas (como comissões e dias de trabalho) dos barbeiros ativos na empresa.
-            </p>
+            </h2>
+            
+            <form onSubmit={handleCadastrar} className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Nome *</label>
+                <input 
+                  type="text" required
+                  value={nome} onChange={e => setNome(e.target.value)}
+                  className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                  placeholder="Ex: João Silva"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Email</label>
+                <input 
+                  type="text" 
+                  value={email} onChange={e => setEmail(e.target.value)}
+                  className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 disabled:opacity-50"
+                  placeholder="Ex: 67999999999"
+                  disabled
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Cargo</label>
+                <select
+                  value={cargo} onChange={e => setCargo(e.target.value as 'barbeiro'|'caixa')}
+                  className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                >
+                  <option value="barbeiro">Barbeiro</option>
+                  <option value="caixa">Caixa</option>
+                </select>
+              </div>
+
+              {cargo === 'barbeiro' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Comissão Produtos (%)</label>
+                    <input 
+                      type="number" step="0.1" min="0" max="100"
+                      value={comissao} onChange={e => setComissao(e.target.value)}
+                      className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                      placeholder="Ex: 10"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Comissão Serviços (%)</label>
+                    <input 
+                      type="number" step="0.1" min="0" max="100"
+                      value={corte} onChange={e => setCorte(e.target.value)}
+                      className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                      placeholder="Ex: 50"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Dias Trabalhados</label>
+                <div className="flex flex-wrap gap-2">
+                  {DIAS_SEMANA.map(dia => (
+                    <button
+                      key={dia}
+                      type="button"
+                      onClick={() => toggleDia(dia)}
+                      className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                        dias.includes(dia) 
+                          ? 'bg-blue-600 border-blue-500 text-white' 
+                          : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'
+                      }`}
+                    >
+                      {dia}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-4 mt-6 border-t border-gray-700 flex justify-end gap-3">
+                <button 
+                  type="button"
+                  onClick={cancelEdit}
+                  className="px-4 py-2 text-sm font-semibold text-gray-300 hover:text-white transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit"
+                  disabled={loading}
+                  className={`flex items-center justify-center gap-2 font-semibold py-2 px-6 rounded-lg transition-colors ${loading ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}
+                >
+                  {loading ? 'Salvando...' : 'Salvar'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
-      <div className="space-y-4">
-        <h2 className="text-xl font-bold text-white mb-2">Equipe Cadastrada</h2>
+      <div className="space-y-4 w-full mx-auto max-w-4xl">
+        <div className="flex items-center mb-2">
+            <h2 className="text-xl font-bold text-white">Equipe Cadastrada</h2>
+            <div className="relative group flex items-center">
+                <InformationCircleIcon className="w-5 h-5 text-gray-400 hover:text-white cursor-help transition-colors" />
+                <div className="absolute hidden group-hover:block bg-gray-900 border border-gray-700 text-gray-300 text-xs p-4 rounded-xl shadow-2xl w-72 z-50 left-1/2 -translate-x-1/2 top-full mt-2 pointer-events-none">
+                    <p className="mb-2">A criação e exclusão de novos membros deve ser feita pela aba de <strong className="text-white">RH</strong> da plataforma, bem como atribuição da função.</p>
+                    <p>Neste local, você pode <strong className="text-white">editar</strong> as configurações internas (como comissões e dias de trabalho) da equipe ativa.</p>
+                </div>
+            </div>
+        </div>
         
         {/* Proprietário Card */}
-        {user && user.phone && !barbeiros.find(b => b.telefone && b.telefone.replace(/\D/g, '') === user.phone!.replace(/\D/g, '')) && (
+        {user && user.email && !barbeiros.filter(b => b.linkId === empresaId).find(b => {
+          const uStr = user.email!.trim().toLowerCase();
+          const bStr = (b.email || '').trim().toLowerCase();
+          return uStr === bStr || (uStr.replace(/\D/g, '') && uStr.replace(/\D/g, '') === bStr.replace(/\D/g, ''));
+        }) && (
           <div className="bg-gray-800/90 p-5 rounded-2xl border border-gray-700/50 flex flex-col gap-4 relative group hover:border-blue-500/30 transition-all shadow-md opacity-70">
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-purple-600/20 text-purple-400 flex items-center justify-center text-sm font-bold border border-purple-500/20">
+            <div className="flex justify-between items-start gap-4">
+              <div className="min-w-0 flex-1">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2 flex-wrap">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-600/20 text-purple-400 flex items-center justify-center text-sm font-bold border border-purple-500/20">
                     {user.name && user.name.length > 1 ? user.name.substring(0, 2).toUpperCase() : 'PR'}
                   </div>
-                  {user.name || 'Proprietário'} <span className="text-xs bg-purple-900/30 text-purple-400 px-2 py-0.5 rounded-full border border-purple-500/20">Proprietário</span>
+                  <span className="truncate">{user.name || 'Proprietário'}</span> 
+                  <span className="flex-shrink-0 text-xs bg-purple-900/30 text-purple-400 px-2 py-0.5 rounded-full border border-purple-500/20 whitespace-nowrap">Proprietário</span>
                 </h3>
-                <p className="text-sm text-gray-400 ml-10">{user.phone}</p>
+                <p className="text-sm text-gray-400 ml-10 truncate">{user.email}</p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-shrink-0 mt-1">
                 <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Inativo</span>
                 <button 
                   onClick={() => {
                     setNome(user.name || '');
-                    setTelefone(user.phone || '');
-                    // Scroll up to the form
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    setEmail(user.email || '');
+                    setEditingId('new_owner');
                   }}
                   className="w-10 h-6 bg-gray-700 rounded-full relative transition-colors duration-200 focus:outline-none"
                 >
@@ -364,47 +377,52 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
           </div>
         )}
 
-        {barbeiros.length === 0 ? (
+        {barbeiros.filter(b => b.linkId === empresaId).length === 0 ? (
           <div className="w-full bg-gray-900/50 p-5 md:p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center mt-4">
             <UsersIcon className="w-12 h-12 mb-3 text-gray-700" />
             <p>Nenhum barbeiro cadastrado ainda.</p>
           </div>
         ) : (
           <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-            {barbeiros.map(barbeiro => {
-              const isOwner = user && user.phone && barbeiro.telefone && barbeiro.telefone.replace(/\D/g, '') === user.phone.replace(/\D/g, '');
+            {barbeiros.filter(b => b.linkId === empresaId).map(barbeiro => {
+              const isOwner = user && user.email && barbeiro.email && (
+                user.email.trim().toLowerCase() === barbeiro.email.trim().toLowerCase() ||
+                (user.email.replace(/\D/g, '') && user.email.replace(/\D/g, '') === barbeiro.email.replace(/\D/g, ''))
+              );
               
               return (
               <div key={barbeiro.id} className="bg-gray-800/90 p-5 rounded-2xl border border-gray-700/50 flex flex-col gap-4 relative group hover:border-blue-500/30 transition-all shadow-md">
-                <div className="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                  <button 
-                    onClick={() => handleEdit(barbeiro)}
-                    className="text-gray-500 hover:text-yellow-400 bg-gray-900 p-2 rounded-lg"
-                    title="Editar Barbeiro"
-                  >
-                    <PencilIcon className="w-4 h-4" />
-                  </button>
-                  <button 
-                    onClick={() => handleExcluirBarbeiro(barbeiro)}
-                    className="text-gray-500 hover:text-red-400 bg-gray-900 p-2 rounded-lg"
-                    title="Excluir Barbeiro"
-                  >
-                    <TrashIcon className="w-4 h-4" />
-                  </button>
+                <div className="absolute top-4 right-4 flex items-center gap-3">
+                  <span className={`flex-shrink-0 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border whitespace-nowrap ${barbeiro.cargo === 'caixa' ? 'bg-orange-900/30 text-orange-400 border-orange-500/20' : 'bg-blue-900/30 text-blue-400 border-blue-500/20'}`}>
+                    {barbeiro.cargo === 'caixa' ? 'Caixa' : 'Barbeiro'}
+                  </span>
+                  <div className="flex items-center gap-2 transition-all">
+                    <button 
+                      onClick={() => handleEdit(barbeiro)}
+                      className="text-gray-500 hover:text-yellow-400 bg-gray-900 p-2 rounded-lg"
+                      title="Editar Barbeiro"
+                    >
+                      <PencilIcon className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={() => handleExcluirBarbeiro(barbeiro)}
+                      className="text-gray-500 hover:text-red-400 bg-gray-900 p-2 rounded-lg"
+                      title="Excluir Barbeiro"
+                    >
+                      <TrashIcon className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
                 
-                <div>
-                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    {barbeiro.nome}
-                    {isOwner && <span className="text-xs bg-purple-900/30 text-purple-400 px-2 py-0.5 rounded-full border border-purple-500/20">Proprietário</span>}
-                    <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border ${barbeiro.cargo === 'caixa' ? 'bg-orange-900/30 text-orange-400 border-orange-500/20' : 'bg-blue-900/30 text-blue-400 border-blue-500/20'}`}>
-                      {barbeiro.cargo === 'caixa' ? 'Caixa' : 'Barbeiro'}
-                    </span>
+                <div className="pr-[160px] min-w-0 flex-1">
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2 flex-wrap">
+                    <span className="truncate">{barbeiro.nome}</span>
+                    {isOwner && <span className="flex-shrink-0 text-xs bg-purple-900/30 text-purple-400 px-2 py-0.5 rounded-full border border-purple-500/20 whitespace-nowrap">Proprietário</span>}
                   </h3>
-                  {barbeiro.telefone && <p className="text-sm text-gray-400">{barbeiro.telefone}</p>}
+                  {barbeiro.email && <p className="text-sm text-gray-400 truncate">{barbeiro.email}</p>}
                 </div>
                 
-                {barbeiro.cargo !== 'caixa' && (
+                {barbeiro.cargo !== 'caixa' ? (
                   <div className="flex gap-4 p-3 bg-gray-900/50 rounded-xl border border-gray-800/50">
                     <div className="flex-1">
                       <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 block mb-1">Comissão Prod.</span>
@@ -413,6 +431,13 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
                     <div className="flex-1 border-l border-gray-800/80 pl-4">
                       <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 block mb-1">Comissão Serv.</span>
                       <span className="text-green-400 font-medium">{barbeiro.corte}%</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-4 p-3 bg-gray-900/50 rounded-xl border border-gray-800/50">
+                    <div className="flex-1">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 block mb-1">Função</span>
+                      <span className="text-orange-400 font-medium">Recepção / Caixa</span>
                     </div>
                   </div>
                 )}
@@ -1260,16 +1285,16 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
     try {
       const isBarbearia = receitaData.isBarbearia;
       
-      let ownerPhone = user.phone;
+      let idEmail = user.idEmail || user.id;
       if (!isBarbearia) {
-         ownerPhone = (receitaData.barbeiro?.telefone || '').replace(/\D/g, "");
-         if (!ownerPhone || ownerPhone.length < 10) {
-             ownerPhone = user.phone;
+         idEmail = (receitaData.barbeiro?.email || '').replace(/\D/g, "");
+         if (!idEmail || idEmail.length < 10) {
+             idEmail = user.idEmail || user.id;
          }
       }
 
       const payload = {
-        ownerPhone: ownerPhone,
+        idEmail: idEmail,
         type: 'revenue',
         name: isBarbearia ? `Fechamento Barbearia - ${dataFiltro.split('-').reverse().join('/')}` : `Comissões Barbeiro (${receitaData.nome}) - ${dataFiltro.split('-').reverse().join('/')}`,
         amount: isBarbearia ? receitaData.caixaBarbearia : receitaData.totalComissao,
@@ -1344,7 +1369,7 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
     if (itens.length > 0) {
       await addRegistro({
         cliente: a.cliente,
-        telefone: a.telefone,
+        email: a.email,
         barbeiroId: a.barbeiroId,
         barbeiroNome: barbeiros.find(b => b.id === a.barbeiroId)?.nome || 'Qualquer um',
         itens,
@@ -1359,7 +1384,7 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
   const registrosFiltradosMes = registros.filter(r => r.data.startsWith(dataFiltro.substring(0, 7)));
 
   const calcularComissoes = (registrosBase: any[]) => {
-    return barbeiros.map(barbeiro => {
+    return barbeiros.filter(b => b.linkId === empresaId).map(barbeiro => {
       const registrosBarbeiro = registrosBase.filter(r => r.barbeiroId === barbeiro.id);
       let totalServicos = 0;
       let totalProdutos = 0;
@@ -1711,7 +1736,7 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-700/50 pb-4 lg:pb-5">
                     <div className="flex flex-col">
                       <h3 className="font-bold text-white text-xl lg:text-2xl leading-tight truncate">{a.cliente}</h3>
-                      <p className="text-sm font-medium text-gray-400 mt-1">{a.telefone}</p>
+                      <p className="text-sm font-medium text-gray-400 mt-1">{a.email}</p>
                     </div>
                     
                     <div className="bg-gray-900/60 p-3 rounded-xl border border-gray-800 flex items-center gap-4 shrink-0 sm:self-auto self-stretch">

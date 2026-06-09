@@ -3,12 +3,12 @@ import autoTable from 'jspdf-autotable';
 import { API_BASE_URL } from '../constants';
 import { PaymentStatus, TransactionType } from '../types';
 
-export const exportYearlyPDF = async (userPhone: string, year: number) => {
+export const exportYearlyPDF = async (idEmail: string, email: string, year: number) => {
     try {
         const promises = [];
         for (let month = 1; month <= 12; month++) {
             promises.push(
-                fetch(`${API_BASE_URL}/transactions?phone=${userPhone}&includeShared=true&month=${month}&year=${year}`, {
+                fetch(`${API_BASE_URL}/transactions?idEmail=${idEmail}${email ? `&email=${encodeURIComponent(email)}` : ''}&includeShared=true&month=${month}&year=${year}`, {
                     headers: { 'Content-Type': 'application/json' },
                     cache: 'no-store'
                 }).then(res => res.json()).catch(() => ({ transactions: [] }))

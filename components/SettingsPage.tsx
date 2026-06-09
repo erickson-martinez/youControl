@@ -37,7 +37,7 @@ const frontendToApiPermissions = (frontendPerms: MenuPermissions): string[] => {
 const UserPermissionsCard: React.FC<{
   user: User;
   permissions: MenuPermissions;
-  onUpdate: (phone: string, newPermissions: MenuPermissions) => Promise<void>;
+  onUpdate: (user: User, newPermissions: MenuPermissions) => Promise<void>;
 }> = ({ user, permissions, onUpdate }) => {
   const [currentPermissions, setCurrentPermissions] = useState<MenuPermissions>(permissions);
   const [isSaving, setIsSaving] = useState(false);
@@ -54,7 +54,7 @@ const UserPermissionsCard: React.FC<{
   const handleSave = async (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent accordion toggle
     setIsSaving(true);
-    await onUpdate(user.phone, currentPermissions);
+    await onUpdate(user, currentPermissions);
     setIsSaving(false);
   };
 
@@ -66,7 +66,7 @@ const UserPermissionsCard: React.FC<{
       >
         <div>
             <h3 className="font-bold text-white">{user.name}</h3>
-            <p className="text-sm text-gray-400">{user.phone}</p>
+            <p className="text-sm text-gray-400">{user.email}</p>
         </div>
         <div className="flex items-center space-x-4">
             <span className="text-xs text-gray-400 hidden sm:block">
@@ -109,13 +109,13 @@ const UserPermissionsCard: React.FC<{
 const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, onCurrentUserPermissionsUpdate }) => {
     const [allUsers, setAllUsers] = useState<User[]>([]);
     const [allPermissions, setAllPermissions] = useState<Record<string, MenuPermissions>>({});
-    const [isLoadingUsers, setIsLoadingUsers] = useState(true);
-    const [isLoadingPermissions, setIsLoadingPermissions] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [hasSearched, setHasSearched] = useState(false);
 
     // Filter states
     const [nameFilter, setNameFilter] = useState('');
-    const [phoneFilter, setPhoneFilter] = useState('');
+    const [emailFilter, setEmailFilter] = useState('');
 
     const apiFetch = useCallback(async (url: string, options: RequestInit = {}) => {
         const response = await fetch(url, {
@@ -131,69 +131,68 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, onCurrentUserP
         return response;
     }, []);
     
-    const fetchAllUsers = useCallback(async () => {
-        setIsLoadingUsers(true);
-        try {
-            const response = await apiFetch(`${API_BASE_URL}/users`);
-            const data = await response.json();
-            const usersList = Array.isArray(data) ? data : data.users;
-            setAllUsers(usersList || []);
-        } catch (err) {
-           console.error("Falha ao buscar todos os usuários.", err);
-           setError((err as Error).message);
-        } finally {
-           setIsLoadingUsers(false);
+    const handleSearch = async () => {
+        if (!nameFilter.trim() && !emailFilter.trim()) {
+            setError("Por favor, informe um nome ou e-mail para buscar.");
+            setAllUsers([]);
+            return;
         }
-    }, [apiFetch]);
-    
-    useEffect(() => {
-        fetchAllUsers();
-    }, [fetchAllUsers]);
 
-    const fetchAllPermissions = useCallback(async () => {
-        setIsLoadingPermissions(true);
+        setIsLoading(true);
         setError(null);
-        try {
-            const response = await apiFetch(`${API_BASE_URL}/permissions`);
-            const data = await response.json();
-            const permissionsList = data.permissions || data;
+        setHasSearched(true);
 
-            if (!Array.isArray(permissionsList)) {
-                console.error('API response for all permissions is not an array:', permissionsList);
-                throw new Error("Formato de resposta da API de permissões inválido.");
+        try {
+            // Se a API suportar query params a gente os envia
+            const queryParams = new URLSearchParams();
+            if (nameFilter.trim()) queryParams.append('name', nameFilter.trim());
+            if (emailFilter.trim()) queryParams.append('email', emailFilter.trim());
+
+            const response = await apiFetch(`${API_BASE_URL}/users?${queryParams.toString()}`);
+            const data = await response.json();
+            let usersList = Array.isArray(data) ? data : (data.users || []);
+
+            // Fallback: se a API retornar todos os usuários, a gente filtra via frontend
+            if (usersList.length > 0) {
+                usersList = usersList.filter((u: any) => {
+                    const matchesName = !nameFilter.trim() || (u.name || '').toLowerCase().includes(nameFilter.trim().toLowerCase());
+                    const matchesEmail = !emailFilter.trim() || (u.email || '').toLowerCase().includes(emailFilter.trim().toLowerCase());
+                    return matchesName && matchesEmail;
+                });
             }
 
-            const permissionsMap = new Map<string, MenuPermissions>();
-            permissionsList.forEach((p: { userPhone: string; permissions: string[] }) => {
-                permissionsMap.set(p.userPhone, apiToFrontendPermissions(p.permissions));
-            });
+            setAllUsers(usersList);
 
-            const allPerms: Record<string, MenuPermissions> = {};
-            allUsers.forEach(user => {
-                allPerms[user.phone] = permissionsMap.get(user.phone) || FALLBACK_PERMISSIONS;
-            });
-            
-            setAllPermissions(allPerms);
+            if (usersList.length > 0) {
+                // Fetch permissions só dos usuários encontrados
+                const perms: Record<string, MenuPermissions> = {};
+                for (const u of usersList) {
+                    const safeEmail = u.email || 'unknown';
+                    const idToMatch = u.idEmail || u.id || safeEmail;
+                    try {
+                        const pResp = await apiFetch(`${API_BASE_URL}/permissions?idEmail=${idToMatch}${safeEmail && safeEmail !== 'unknown' ? `&email=${encodeURIComponent(safeEmail)}` : ''}`);
+                        const pData = await pResp.json();
+                        perms[safeEmail] = apiToFrontendPermissions(pData.permissions || []);
+                    } catch (e) {
+                        console.warn(`Could not fetch permissions for ${safeEmail}`, e);
+                        perms[safeEmail] = FALLBACK_PERMISSIONS;
+                    }
+                }
+                setAllPermissions(perms);
+            }
 
         } catch (err) {
-            console.error("Falha ao buscar todas as permissões.", err);
+            console.error("Falha ao buscar usuários ou permissões.", err);
             setError((err as Error).message);
         } finally {
-            setIsLoadingPermissions(false);
+            setIsLoading(false);
         }
-    }, [allUsers, apiFetch]);
+    };
 
-    useEffect(() => {
-        if (!isLoadingUsers && allUsers.length > 0) {
-            fetchAllPermissions();
-        } else if (!isLoadingUsers) {
-            // No users, so no permissions to fetch.
-            setIsLoadingPermissions(false);
-        }
-    }, [allUsers, isLoadingUsers, fetchAllPermissions]);
-
-    const handleUpdatePermissions = async (phone: string, newPerms: MenuPermissions) => {
-        const oldPerms = allPermissions[phone] || FALLBACK_PERMISSIONS;
+    const handleUpdatePermissions = async (user: User, newPerms: MenuPermissions) => {
+        const email = user.email;
+        const idEmail = user.idEmail || user.id || email;
+        const oldPerms = allPermissions[email || 'unknown'] || FALLBACK_PERMISSIONS;
         const oldPermsList = frontendToApiPermissions(oldPerms);
         const newPermsList = frontendToApiPermissions(newPerms);
 
@@ -202,77 +201,100 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, onCurrentUserP
 
         const apiPromises = [];
         if (permsToAdd.length > 0) {
-            apiPromises.push(apiFetch(`${API_BASE_URL}/permissions?userPhone=${phone}&add=true`, { method: 'PATCH', body: JSON.stringify({ permissions: permsToAdd }) }));
+            apiPromises.push(apiFetch(`${API_BASE_URL}/permissions?idEmail=${idEmail}&add=true`, { 
+                method: 'PATCH', 
+                body: JSON.stringify({ idEmail, email, permissions: permsToAdd }) 
+            }));
         }
         if (permsToRemove.length > 0) {
-            apiPromises.push(apiFetch(`${API_BASE_URL}/permissions?userPhone=${phone}&add=false`, { method: 'PATCH', body: JSON.stringify({ permissions: permsToRemove }) }));
+            apiPromises.push(apiFetch(`${API_BASE_URL}/permissions?idEmail=${idEmail}&add=false`, { 
+                method: 'PATCH', 
+                body: JSON.stringify({ idEmail, email, permissions: permsToRemove }) 
+            }));
         }
+        
         if (apiPromises.length === 0) return;
 
         try {
             await Promise.all(apiPromises);
-            await fetchAllPermissions();
-            if (currentUser.phone === phone) {
+            
+            // Re-fetch individual user
+            const pResp = await apiFetch(`${API_BASE_URL}/permissions?idEmail=${idEmail}${email ? `&email=${encodeURIComponent(email)}` : ''}`);
+            const pData = await pResp.json();
+            const safeEmail = email || 'unknown';
+
+            setAllPermissions(prev => ({
+                ...prev,
+                [safeEmail]: apiToFrontendPermissions(pData.permissions || [])
+            }));
+
+            if (currentUser.email === email) {
                 onCurrentUserPermissionsUpdate();
             }
             alert('Permissões atualizadas com sucesso!');
         } catch (err) {
             alert(`Falha ao atualizar permissões: ${(err as Error).message}`);
-            await fetchAllPermissions();
         }
     };
 
-    const filteredUsers = allUsers.filter(user => {
-        const matchesName = user.name.toLowerCase().includes(nameFilter.toLowerCase());
-        const matchesPhone = user.phone.includes(phoneFilter);
-        return matchesName && matchesPhone;
-    });
-
     const renderContent = () => {
-        if (isLoadingUsers || isLoadingPermissions) return <p className="text-center text-gray-400">Carregando dados...</p>;
-        if (error) return <p className="text-center text-red-accent">Erro ao carregar: {error}</p>;
-        if (filteredUsers.length === 0) return <p className="text-center text-gray-400">Nenhum usuário encontrado.</p>;
+        if (isLoading) return <p className="text-center text-gray-400">Buscando dados...</p>;
+        if (error) return <p className="text-center text-red-accent">{error}</p>;
+        if (!hasSearched) return <p className="text-center text-gray-400">Utilize os filtros acima para buscar um usuário.</p>;
+        if (allUsers.length === 0) return <p className="text-center text-gray-400">Nenhum usuário encontrado para a busca especificada.</p>;
 
-        return filteredUsers.map(user => (
+        return allUsers.map((user, index) => {
+            const safeEmail = user.email || 'unknown';
+            return (
             <UserPermissionsCard 
-                key={user.phone}
+                key={user.idEmail || user.id || user.email || `index-${index}`}
                 user={user}
-                permissions={allPermissions[user.phone] || FALLBACK_PERMISSIONS}
+                permissions={allPermissions[safeEmail] || FALLBACK_PERMISSIONS}
                 onUpdate={handleUpdatePermissions}
             />
-        ));
+            );
+        });
     };
 
     return (
         <div className="p-4 bg-gray-800 rounded-lg">
-            <div className="flex flex-col mb-6 gap-4">
+            <div className="flex flex-col gap-4 mb-6">
                 <h1 className="text-2xl font-bold text-white">Gerenciar Permissões</h1>
                 
-                <div className="bg-gray-700 p-4 rounded-lg shadow-md">
-                    <h2 className="text-sm font-semibold text-gray-300 mb-3 uppercase tracking-wider">Filtros</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label htmlFor="filterName" className="block text-xs text-gray-400 mb-1">Buscar por Nome</label>
+                <div className="p-4 bg-gray-700 rounded-lg shadow-md">
+                    <h2 className="mb-3 text-sm font-semibold tracking-wider text-gray-300 uppercase">Buscar Usuário</h2>
+                    <div className="flex flex-col items-end gap-4 md:flex-row">
+                        <div className="flex-1 w-full">
+                            <label htmlFor="filterName" className="block mb-1 text-xs text-gray-400">Buscar por Nome</label>
                             <input 
                                 id="filterName"
                                 type="text" 
                                 placeholder="Ex: João Silva" 
                                 value={nameFilter}
                                 onChange={(e) => setNameFilter(e.target.value)}
-                                className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                                className="w-full px-3 py-2 text-white bg-gray-800 border border-gray-600 rounded-md placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
                         </div>
-                        <div>
-                            <label htmlFor="filterPhone" className="block text-xs text-gray-400 mb-1">Buscar por Telefone</label>
+                        <div className="flex-1 w-full">
+                            <label htmlFor="filterEmail" className="block mb-1 text-xs text-gray-400">Buscar por Email</label>
                             <input 
-                                id="filterPhone"
+                                id="filterEmail"
                                 type="text" 
-                                placeholder="Ex: 679..." 
-                                value={phoneFilter}
-                                onChange={(e) => setPhoneFilter(e.target.value)}
-                                className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="Ex: usuario@gmail.com" 
+                                value={emailFilter}
+                                onChange={(e) => setEmailFilter(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                                className="w-full px-3 py-2 text-white bg-gray-800 border border-gray-600 rounded-md placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
                         </div>
+                        <button 
+                            onClick={handleSearch}
+                            disabled={isLoading}
+                            className="w-full px-6 py-2 font-medium text-white transition-colors rounded-md md:w-auto bg-blue-accent hover:bg-blue-600 disabled:opacity-50"
+                        >
+                            {isLoading ? 'Buscando...' : 'Buscar'}
+                        </button>
                     </div>
                 </div>
             </div>

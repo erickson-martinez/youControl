@@ -237,7 +237,7 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-700/50 pb-4 lg:pb-5">
                     <div className="flex flex-col">
                       <h3 className="font-bold text-white text-xl lg:text-2xl leading-tight truncate">{a.cliente}</h3>
-                      <p className="text-sm font-medium text-gray-400 mt-1">{a.telefone}</p>
+                      <p className="text-sm font-medium text-gray-400 mt-1">{a.email}</p>
                     </div>
                     
                     <div className="bg-gray-900/60 p-3 rounded-xl border border-gray-800 flex items-center gap-4 shrink-0 sm:self-auto self-stretch">

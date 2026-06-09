@@ -5,7 +5,7 @@ import type { Empresa, OrdemServico } from '../types';
 interface AbrirOSModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (osData: Omit<OrdemServico, 'id' | 'status' | 'createdAt' | 'openerPhone' | 'empresaId' | 'resolution'>) => Promise<void>;
+    onSave: (osData: Omit<OrdemServico, 'id' | 'status' | 'createdAt' | 'openerEmail' | 'empresaId' | 'resolution'>) => Promise<void>;
     userCompany: Empresa;
 }
 

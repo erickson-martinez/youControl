@@ -81,7 +81,7 @@ const ChamadosPage: React.FC<ChamadosPageProps> = ({ managedEmpresas, user }) =>
 
         try {
             const companyOsPromises = managedEmpresas.map(empresa =>
-                apiFetch(`${API_BASE_URL}/os/company?empresaId=${empresa.id}&phone=${user.phone}`)
+                apiFetch(`${API_BASE_URL}/os/company?empresaId=${empresa.id}&email =${user.email}`)
                     .then(res => res.json())
                     .then(data => data.chamados || [])
                     .catch(err => {
@@ -120,7 +120,7 @@ const ChamadosPage: React.FC<ChamadosPageProps> = ({ managedEmpresas, user }) =>
         try {
             await apiFetch(`${API_BASE_URL}/os/${osId}/resolve`, {
                 method: 'PATCH',
-                body: JSON.stringify({ resolverPhone: user.phone, resolution }),
+                body: JSON.stringify({ resolverEmail: user.email, resolution }),
             });
             await fetchChamados();
         } catch (error) {
@@ -130,7 +130,7 @@ const ChamadosPage: React.FC<ChamadosPageProps> = ({ managedEmpresas, user }) =>
     
     const userMap = useMemo(() => {
         return allUsers.reduce((acc, u) => {
-          acc[u.phone] = u.name;
+          acc[u.email] = u.name;
           return acc;
         }, {} as Record<string, string>);
     }, [allUsers]);
@@ -169,7 +169,7 @@ const ChamadosPage: React.FC<ChamadosPageProps> = ({ managedEmpresas, user }) =>
 
                     <div className="flex items-end justify-between pt-2 mt-3 border-t border-gray-600">
                         <div className="text-xs text-gray-400">
-                            <p>Aberto por: {userMap[os.openerPhone] || os.openerPhone}</p>
+                            <p>Aberto por: {userMap[os.openerEmail] || os.openerEmail}</p>
                             <p>Em: {formatDate(os.createdAt)}</p>
                         </div>
                         {os.status === OSStatus.ABERTO && (

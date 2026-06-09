@@ -27,8 +27,8 @@ const BurgerProductsPage: React.FC<BurgerProductsPageProps> = ({ user }) => {
     useEffect(() => {
         const checkOwnership = async () => {
             try {
-                // Tenta buscar configuração pelo telefone do usuário
-                const res = await fetch(`${BURGER_API_URL}/api/config/${user.phone}`);
+                // Tenta buscar configuração pelo email do usuário
+                const res = await fetch(`${BURGER_API_URL}/api/config/${user.email}`);
                 if (res.ok) {
                     const data = await res.json();
                     const configData = data.data || data;
@@ -59,7 +59,7 @@ const BurgerProductsPage: React.FC<BurgerProductsPageProps> = ({ user }) => {
             }
         };
         checkOwnership();
-    }, [user.phone]);
+    }, [user.email]);
 
     const fetchProducts = useCallback(async () => {
         setIsLoading(true);

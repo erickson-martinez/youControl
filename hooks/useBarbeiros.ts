@@ -52,10 +52,27 @@ export const useBarbeiros = (empresaId?: string) => {
   }, [reloadBarbeiros]);
 
   // Manter compatibilidade com a adição manual temporária enquanto a tela não for 100% migrada
-  const addBarbeiro = (barbeiro: Omit<Barbeiro, 'id'>) => {
-    // Isso pode ser removido quando a tela estiver usando o reload diretamente após o POST
-    const novo = { ...barbeiro, id: Date.now().toString() };
-    setBarbeiros(prev => [...prev, novo]);
+  const addBarbeiro = async (barbeiro: Omit<Barbeiro, 'id'>) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/barbers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(barbeiro)
+      });
+      if (response.ok) {
+        reloadBarbeiros();
+        return true;
+      } else {
+        const errorText = await response.text();
+        console.error('Erro ao adicionar barbeiro via API:', response.status, errorText);
+        alert(`Erro ao adicionar barbeiro: ${errorText}`);
+        return false;
+      }
+    } catch(e) {
+      console.error('Erro ao adicionar barbeiro via API', e);
+      alert('Erro de conexão ao adicionar barbeiro.');
+      return false;
+    }
   };
 
   const removeBarbeiro = async (id: string) => {
@@ -88,10 +105,13 @@ export const useBarbeiros = (empresaId?: string) => {
       if (response.ok) {
         reloadBarbeiros();
       } else {
-        console.error('Erro ao atualizar barbeiro via API');
+        const errorText = await response.text();
+        console.error('Erro ao atualizar barbeiro via API:', errorText);
+        alert(`Erro ao atualizar: ${errorText}`);
       }
     } catch (e) {
       console.error('Erro ao comunicar atualização do barbeiro', e);
+      alert('Erro de conexão ao atualizar barbeiro.');
     }
   };
 

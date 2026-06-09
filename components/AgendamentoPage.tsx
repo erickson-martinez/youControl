@@ -33,7 +33,7 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
   const { agendamentos, addAgendamento, loadAgendamentos } =
     useBarbeariaAgendamentos(selectedEmpresaId);
 
-  const [telefone, setTelefone] = useState("");
+  const [email, setEmail] = useState("");
   const [nome, setNome] = useState("");
   const [barbeiroId, setBarbeiroId] = useState("");
   const [servicosSelecionados, setServicosSelecionados] = useState<string[]>(
@@ -84,7 +84,7 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
       const uStr = localStorage.getItem("currentUser");
       if (uStr) {
         const u = JSON.parse(uStr);
-        if (u.phone && !telefone) setTelefone(u.phone);
+        if (u.email && !email) setEmail(u.email);
         if (u.name && !nome) setNome(u.name);
       }
     } catch (e) {}
@@ -112,9 +112,9 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
     loadAgendamentos();
   };
 
-  const handleTelefoneBlur = () => {
-    if (!telefone) return;
-    const existente = agendamentos.find((a) => a.telefone === telefone);
+  const handleEmailBlur = () => {
+    if (!email) return;
+    const existente = agendamentos.find((a) => a.email === email);
     if (existente && !nome) {
       setNome(existente.cliente);
     }
@@ -124,7 +124,7 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
     e.preventDefault();
     // ... rest of submit
     if (
-      !telefone.trim() ||
+      !email.trim() ||
       !nome.trim() ||
       !data ||
       horariosSelecionados.length === 0
@@ -135,9 +135,9 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
       return;
     }
 
-    const justNumbers = telefone.replace(/\D/g, "");
+    const justNumbers = email.replace(/\D/g, "");
     if (justNumbers.length < 10 || justNumbers.length > 11) {
-      alert("Por favor, insira um telefone válido com código de área (DDD) contendo 10 ou 11 dígitos.");
+      alert("Por favor, insira um email válido com código de área (DDD) contendo 10 ou 11 dígitos.");
       return;
     }
 
@@ -174,7 +174,7 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
 
     const payload = {
       clienteNome: nome,
-      clienteTelefone: telefone,
+      clienteEmail: email,
       barbeiroId: barbeiroId || "",
       servicosIds: servicosSelecionados,
       produtosIds: produtosSelecionados,
@@ -317,7 +317,7 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
           <button
             onClick={() => {
               setAgendado(false);
-              setTelefone("");
+              setEmail("");
               setNome("");
               setData("");
               setHorariosSelecionados([]);
@@ -388,20 +388,20 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm text-gray-400 mb-1">
-                  Telefone (Obrigatório) *
+                  Email (Obrigatório) *
                 </label>
                 <input
                   type="tel"
                   required
-                  value={telefone}
+                  value={email}
                   onChange={(e) => {
                     let val = e.target.value.replace(/\D/g, "");
                     if (val.length > 11) val = val.substring(0, 11);
                     if (val.length > 2) val = `(${val.substring(0, 2)}) ${val.substring(2)}`;
                     if (val.length > 9) val = `${val.substring(0, 10)}-${val.substring(10)}`;
-                    setTelefone(val);
+                    setEmail(val);
                   }}
-                  onBlur={handleTelefoneBlur}
+                  onBlur={handleEmailBlur}
                   className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-blue-500"
                   placeholder="(DDD) 99999-9999"
                 />

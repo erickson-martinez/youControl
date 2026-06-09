@@ -53,9 +53,11 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
       const usersData = await usersResponse.json();
       const allUsersList: User[] = (Array.isArray(usersData) ? usersData : usersData.users) || [];
       const userMap = allUsersList.reduce((acc, u) => {
-        acc[u.phone] = u.name;
+        if (u.idEmail) acc[u.idEmail] = u;
+        if (u.email) acc[u.email] = u;
+        if (u.id) acc[u.id] = u;
         return acc;
-      }, {} as Record<string, string>);
+      }, {} as Record<string, User>);
 
       // 2. Fetch all employee links for the managed companies.
       const linkPromises = empresas
@@ -71,28 +73,30 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
 
       const links: UserCompanyLink[] = [];
       const currentLinkedUsers: User[] = [];
-      const seenPhones = new Set<string>();
+      const seenIds = new Set<string>();
 
       allLinksRaw.forEach(link => {
-        const userPhone = link.userPhone;
-        if (userPhone && userMap[userPhone]) { // Ensure the user exists in our map
+        const userId = link.idEmail || link.userEmail;
+        const mappedUser = userId ? userMap[userId] : null;
+        if (userId && mappedUser) { // Ensure the user exists in our map
+          const definitiveId = mappedUser.idEmail || mappedUser.email;
           links.push({
             _id: link.empId || link._id,
-            userPhone: userPhone,
+            userEmail: definitiveId,
             empresaId: link.empresaId,
             status: link.status,
             role: link.role,
           });
           
-          if (!seenPhones.has(userPhone)) {
-            currentLinkedUsers.push({ name: userMap[userPhone], phone: userPhone });
-            seenPhones.add(userPhone);
+          if (!seenIds.has(definitiveId)) {
+            currentLinkedUsers.push(mappedUser);
+            seenIds.add(definitiveId);
           }
         }
       });
 
       setUserCompanyLinks(links);
-      setLinkedUsers(currentLinkedUsers.sort((a, b) => a.name.localeCompare(b.name)));
+      setLinkedUsers(currentLinkedUsers.sort((a, b) => (a.name || '').localeCompare(b.name || '')));
 
     } catch (err) {
       console.error("Falha ao buscar dados de RH:", err);
@@ -107,9 +111,9 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
   }, [fetchData]);
 
 
-  const handleLinkUser = useCallback(async (userPhone: string, empresaId: string, role: string = 'funcionario') => {
+  const handleLinkUser = useCallback(async (userEmail: string, empresaId: string, role: string = 'funcionario') => {
     try {
-      const existingLink = userCompanyLinks.find(link => link.userPhone === userPhone);
+      const existingLink = userCompanyLinks.find(link => link.userEmail === userEmail);
 
       if (empresaId === '') {
         if (!existingLink || !existingLink._id) throw new Error('Vínculo não encontrado.');
@@ -121,10 +125,10 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
                 if (response.ok) {
                    const barbers = await response.json();
                    const barber = barbers.find((b: any) => {
-                       if (!b.telefone) return false;
-                       const digits = Array.from(b.telefone).filter((c: any) => c >= '0' && c <= '9').join('');
-                       const cleanPhone = userPhone.replace(/\D/g, '');
-                       return digits === cleanPhone;
+                       if (!b.email) return false;
+                       const digits = Array.from(b.email).filter((c: any) => c >= '0' && c <= '9').join('');
+                       const cleanEmail = userEmail.replace(/\D/g, '');
+                       return digits === cleanEmail;
                    });
                    if (barber) {
                        await apiFetch(`${API_BASE_URL}/api/barbers/${barber.id || barber._id}`, { method: 'DELETE' });
@@ -137,29 +141,31 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
       } else {
         await apiFetch(`${API_BASE_URL}/rh/link-user`, {
           method: 'POST',
-          body: JSON.stringify({ userPhone, empresaId, status: 'ativo', role }),
+          body: JSON.stringify({ idEmail: userEmail, empresaId, status: 'ativo', role }),
         });
         
         try {
-            const cleanPhone = userPhone.replace(/\D/g, '');
+            const cleanEmail = userEmail.replace(/\D/g, '');
             const response = await apiFetch(`${API_BASE_URL}/api/barbers?linkId=${empresaId}`);
             if (response.ok) {
                 const barbers = await response.json();
                 const barber = barbers.find((b: any) => {
-                    if (!b.telefone) return false;
-                    const digits = Array.from(b.telefone).filter((c: any) => c >= '0' && c <= '9').join('');
-                    return digits === cleanPhone;
+                    if (!b.email) return false;
+                    const digits = Array.from(b.email).filter((c: any) => c >= '0' && c <= '9').join('');
+                    return digits === cleanEmail;
                 });
                 
                 if (role === 'Barbeiro') {
                     if (!barber) {
                         let userName = "Barbeiro";
+                        let currentIdEmail = cleanEmail;
                         try {
                             const resUsers = await apiFetch(`${API_BASE_URL}/users`);
                             if (resUsers.ok) {
                                 const allUsers = await resUsers.json();
-                                const found = allUsers.find((u: any) => (u.phone || '').replace(/\D/g, '') === cleanPhone);
+                                const found = allUsers.users ? allUsers.users.find((u: any) => (u.email || '').replace(/\D/g, '') === cleanEmail) : allUsers.find((u: any) => (u.email || '').replace(/\D/g, '') === cleanEmail);
                                 if (found && found.name) userName = found.name;
+                                if (found && (found.idEmail || found.id)) currentIdEmail = found.idEmail || found.id;
                             }
                         } catch(e) {}
                         
@@ -169,7 +175,8 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
                                     nome: userName,
-                                    telefone: cleanPhone,
+                                    email: currentIdEmail,
+                                    telefone: cleanEmail,
                                     comissao: 10,
                                     corte: 50,
                                     diasTrabalhados: ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'],
@@ -181,16 +188,29 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
                         }
                         
                         try {
-                            // Atribui a permissão "minha agenda" (barbeiroAgenda)
-                            await apiFetch(`${API_BASE_URL}/permissions?userPhone=${cleanPhone}&add=true`, {
-                                method: 'PATCH',
-                                headers: {
-                                    'Content-Type': 'application/json'
-                                },
-                                body: JSON.stringify({
-                                    permissions: ['barbeiroAgenda']
-                                })
-                            });
+                            // Fetch current permissions first to append instead of replace
+                            let currentPerms: string[] = [];
+                            try {
+                                const permRes = await apiFetch(`${API_BASE_URL}/permissions?idEmail=${currentIdEmail}${cleanEmail ? `&email=${encodeURIComponent(cleanEmail)}` : ''}`);
+                                if (permRes.ok) {
+                                    const pData = await permRes.json();
+                                    currentPerms = pData.permissions || [];
+                                }
+                            } catch(e) {}
+
+                            if (!currentPerms.includes('barbeiroAgenda')) {
+                                await apiFetch(`${API_BASE_URL}/permissions?idEmail=${currentIdEmail}&add=true`, {
+                                    method: 'PATCH',
+                                    headers: {
+                                        'Content-Type': 'application/json'
+                                    },
+                                    body: JSON.stringify({
+                                        idEmail: currentIdEmail,
+                                        email: cleanEmail,
+                                        permissions: ['barbeiroAgenda']
+                                    })
+                                });
+                            }
                         } catch (pErr) {
                             console.warn("Erro ao atribuir permissão barbeiroAgenda via RH:", pErr);
                         }
@@ -212,16 +232,16 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
       
       await fetchData();
       
-      if (user.phone === userPhone) {
+      if (user.email === userEmail) {
         onCurrentUserUpdate();
       }
     } catch (err) {
       alert(`Falha ao vincular/desvincular: ${(err as Error).message}`);
     }
-  }, [user.phone, apiFetch, userCompanyLinks, fetchData, onCurrentUserUpdate, empresas]);
+  }, [user.email, apiFetch, userCompanyLinks, fetchData, onCurrentUserUpdate, empresas]);
 
-  const handleSaveCollaborator = async (phone: string, empresaId: string, role: string) => {
-    await handleLinkUser(phone, empresaId, role);
+  const handleSaveCollaborator = async (email: string, empresaId: string, role: string) => {
+    await handleLinkUser(email, empresaId, role);
     setIsModalOpen(false);
   };
   
@@ -233,13 +253,13 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
   // FIX: Make function async to match onConfirm prop type which expects a Promise.
   const handleConfirmUnlink = async () => {
     if (userToUnlink) {
-      await handleLinkUser(userToUnlink.phone, '');
+      await handleLinkUser(userToUnlink.idEmail || userToUnlink.email, '');
     }
     setIsConfirmModalOpen(false);
     setUserToUnlink(null);
   };
   
-  const userToUnlinkLink = userToUnlink ? userCompanyLinks.find(link => link.userPhone === userToUnlink.phone) : null;
+  const userToUnlinkLink = userToUnlink ? userCompanyLinks.find(link => link.userEmail === (userToUnlink.idEmail || userToUnlink.email)) : null;
   const userToUnlinkCompany = userToUnlinkLink ? empresas.find(e => e.id === userToUnlinkLink.empresaId) : null;
 
   const renderContent = () => {
@@ -253,19 +273,20 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
         return <tr><td colSpan={3} className="px-6 py-4 text-center text-gray-500">Nenhum colaborador vinculado encontrado.</td></tr>;
     }
     return linkedUsers.map(u => {
-      const userLink = userCompanyLinks.find(link => link.userPhone === u.phone);
+      const definitiveId = u.idEmail || u.email;
+      const userLink = userCompanyLinks.find(link => link.userEmail === definitiveId);
       const selectedCompanyId = userLink ? userLink.empresaId : '';
       const selectedRole = userLink?.role || 'funcionario';
       return (
-        <tr key={u.phone} className="bg-gray-800 border-b border-gray-700">
+        <tr key={definitiveId} className="bg-gray-800 border-b border-gray-700">
           <td className="px-6 py-4 font-medium text-white">
             <div className="font-semibold">{u.name}</div>
-            <div className="text-xs text-gray-500">{u.phone}</div>
+            <div className="text-xs text-gray-500">{u.email}</div>
           </td>
           <td className="px-6 py-4">
             <select
               value={selectedCompanyId}
-              onChange={(e) => handleLinkUser(u.phone, e.target.value, selectedRole)}
+              onChange={(e) => handleLinkUser(definitiveId, e.target.value, selectedRole)}
               className="px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500"
             >
               <option value="">Nenhuma</option>
@@ -279,7 +300,7 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
           <td className="px-6 py-4">
             <select
               value={selectedRole}
-              onChange={(e) => handleLinkUser(u.phone, selectedCompanyId, e.target.value)}
+              onChange={(e) => handleLinkUser(definitiveId, selectedCompanyId, e.target.value)}
               disabled={!selectedCompanyId}
               className="px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500 disabled:opacity-50"
             >
@@ -341,7 +362,7 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveCollaborator}
         empresas={empresas}
-        linkedUserPhones={userCompanyLinks.map(link => link.userPhone)}
+        linkedUserEmails={userCompanyLinks.map(link => link.userEmail)}
       />
       <ConfirmationModal
         isOpen={isConfirmModalOpen}

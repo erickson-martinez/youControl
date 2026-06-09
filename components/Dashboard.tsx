@@ -47,7 +47,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
     if (isExporting) return;
     setIsExporting(true);
     try {
-        await exportYearlyPDF(user.phone, currentDate.getFullYear());
+        await exportYearlyPDF(user.idEmail || user.id || '', user.email, currentDate.getFullYear());
     } catch (err) {
         alert('Falha ao exportar PDF. Tente novamente.');
     } finally {
@@ -114,25 +114,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
     };
   }, [currentDate]);
 
-  const fetchAllUsers = useCallback(async () => {
-    try {
-        const response = await apiFetch(`${API_BASE_URL}/users`);
-        if (!response.ok) return;
-        const data = await response.json();
-        const usersList = Array.isArray(data) ? data : data.users;
-        setAllUsers(usersList || []);
-    } catch (err) {
-       console.error("Falha ao buscar todos os usuários para o mapa de nomes.", err);
-    }
-  }, [apiFetch]);
-
-  useEffect(() => {
-    fetchAllUsers();
-  }, [fetchAllUsers]);
-
   const userMap = useMemo(() => {
     return allUsers.reduce((acc, user) => {
-      acc[user.phone] = user.name;
+      acc[user.email] = user.name;
       return acc;
     }, {} as Record<string, string>);
   }, [allUsers]);
@@ -140,11 +124,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   const calculateMonthlyTotals = useCallback((transactionsList: any[]) => {
       let r = 0;
       let e = 0;
+      const currentUserId = user.idEmail || user.id;
       transactionsList.forEach((tx: any) => {
           const amt = Number(tx.amount || 0);
-          const isMine = tx.ownerPhone === user.phone;
+          const isMine = tx.idEmail === currentUserId;
           // Include if mine OR (shared with me AND aggregate is true)
-          const isSharedWithMe = tx.sharerPhone === user.phone && tx.ownerPhone !== user.phone;
+          const isSharedWithMe = tx.sharedEmail === user.email && tx.idEmail !== currentUserId;
           
           if (isMine || (isSharedWithMe && tx.aggregate === true)) {
               if (tx.type === TransactionType.REVENUE) r += amt;
@@ -152,7 +137,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
           }
       });
       return { revenue: r, expenses: e };
-  }, [user.phone]);
+  }, [user.email, user.id, user.idEmail]);
 
   const fetchTransactions = useCallback(async () => {
     setIsLoading(true);
@@ -167,37 +152,55 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
         // Tenta pegar do cache primeiro
         if (transactionsCache.current[cacheKey]) {
             data = transactionsCache.current[cacheKey];
-        } else {
-            const response = await apiFetch(`${API_BASE_URL}/transactions?phone=${user.phone}&includeShared=true&month=${month}&year=${year}`);
+        } else {           
+            const response = await apiFetch(`${API_BASE_URL}/transactions?idEmail=${user.idEmail || user.id}${user.email ? `&email=${encodeURIComponent(user.email)}` : ''}&month=${month}&year=${year}`);
+          
             if (!response.ok) {
                 const errData = await response.json().catch(() => ({ message: 'Falha ao buscar transações.' }));
                 throw new Error(errData.message || 'Erro de rede');
             }
             data = await response.json();
+
             // Salva no cache
             transactionsCache.current[cacheKey] = data;
         }
         
-        const mappedTransactions = (data.transactions || []).map((tx: any) => ({
-            id: tx._id, ownerPhone: tx.ownerPhone, type: tx.type, name: tx.name, amount: tx.amount,
+        const mappedTransactions: Transaction[] = (data.transactions || []).map(
+          (tx: any) => ({
+            id: tx._id,
+            idEmail: tx.idEmail,
+            email: tx.email,
+            type: tx.type,
+            name: tx.name,
+            amount: tx.amount,
             date: new Date(tx.date).toISOString().split('T')[0],
-            isControlled: tx.isControlled, counterpartyPhone: tx.counterpartyPhone, status: tx.status,
-            controlId: tx.controlId, sharerPhone: tx.sharerPhone, aggregate: tx.aggregate,
+            isControlled: tx.isControlled,
+            status: tx.status,
+            sharedEmail: tx.sharedEmail || '',
+            aggregate: tx.aggregate,
+            paymentRequest: tx.paymentRequest,
             additions: (tx.additions || []).map((add: any) => ({
-                _id: add._id,
-                name: add.description,
-                value: add.amount,
-                removed: add.removed,
-            })).filter((a: any) => a._id),
-            paidAmount: tx.paidAmount || 0,
-        }));
-        setTransactions(mappedTransactions);
+              _id: add._id,
+              name: add.description,
+              value: add.amount,
+              removed: add.removed,
+            })),
+            paidAmount: tx.paidAmount ?? 0,
+          })
+        );
+ console.log("mappedTransactions", mappedTransactions)
+
+setTransactions(mappedTransactions);
+       
+        console.log(transactions)
+
         
         // Extract shared users info from transactions shared WITH me
         const sharedInfoMap = new Map<string, SharedUser>();
+        const currentUserId = user.idEmail || user.id;
         mappedTransactions.forEach((tx: Transaction) => {
-            if (tx.sharerPhone === user.phone && tx.ownerPhone !== user.phone) {
-                sharedInfoMap.set(tx.ownerPhone, { phone: tx.ownerPhone, aggregate: !!tx.aggregate });
+            if (tx.sharedEmail === user.email && tx.idEmail !== currentUserId) {
+                sharedInfoMap.set(tx.idEmail, { email: tx.sharedEmail, aggregate: !!tx.aggregate });
             }
         });
         setSharedUsersInfo(Array.from(sharedInfoMap.values()));
@@ -224,7 +227,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
                  if (transactionsCache.current[cmKey]) {
                      currentMonthData = transactionsCache.current[cmKey];
                  } else {
-                     const cmResponse = await apiFetch(`${API_BASE_URL}/transactions?idEmail=${user.idEmail}&includeShared=true&month=${today.getMonth() + 1}&year=${today.getFullYear()}`);
+                     const cmResponse = await apiFetch(`${API_BASE_URL}/transactions?idEmail=${user.idEmail || user.id}${user.email ? `&email=${encodeURIComponent(user.email)}` : ''}&includeShared=true&month=${today.getMonth() + 1}&year=${today.getFullYear()}`);
                      if (cmResponse.ok) {
                          currentMonthData = await cmResponse.json();
                          transactionsCache.current[cmKey] = currentMonthData;
@@ -257,7 +260,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
                     loopData = transactionsCache.current[loopKey];
                 } else {
                     // Fetch and Cache
-                    const loopResponse = await apiFetch(`${API_BASE_URL}/transactions?idEmail=${user.idEmail}&includeShared=true&month=${loopMonth}&year=${loopYear}`);
+                    const loopResponse = await apiFetch(`${API_BASE_URL}/transactions?email =${user.email}&includeShared=true&month=${loopMonth}&year=${loopYear}`);
                     if (loopResponse.ok) {
                         loopData = await loopResponse.json();
                         transactionsCache.current[loopKey] = loopData;
@@ -277,14 +280,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
     } finally {
         setIsLoading(false);
     }
-  }, [currentDate, user.phone, apiFetch, isPastMonth, calculateMonthlyTotals]);
+  }, [currentDate, user.email, apiFetch, isPastMonth, calculateMonthlyTotals]);
 
 
   useEffect(() => {
     fetchTransactions();
   }, [fetchTransactions]);
 
-  const onAddTransaction = async (newTransactionData: Omit<Transaction, 'id' | 'ownerPhone' | 'controlId'> & { repeatCount?: number }) => {
+  const onAddTransaction = async (newTransactionData: Omit<Transaction, 'id' | 'idEmail' | 'controlId'> & { repeatCount?: number }) => {
     const { repeatCount, ...baseTransactionData } = newTransactionData;
     const isControlled = baseTransactionData.isControlled;
     const endpoint = isControlled
@@ -294,8 +297,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
     const createTransactionPayload = (data: typeof baseTransactionData) => {
       if (isControlled) {
         return { 
-          ownerPhone: user.phone, 
-          counterpartyPhone: data.counterpartyPhone, 
+          idEmail: user.idEmail || user.id, 
+          email: user.email,
+          sharedEmail: data.sharedEmail,
           name: data.name, 
           amount: data.amount, 
           date: data.date,
@@ -303,7 +307,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
           status: data.status
         };
       } else {
-        return { ownerPhone: user.phone, type: data.type, name: data.name, amount: data.amount, date: data.date, status: data.status };
+        return { idEmail: user.idEmail || user.id, email: user.email, type: data.type, name: data.name, amount: data.amount, date: data.date, status: data.status };
       }
     };
 
@@ -380,7 +384,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
     try {
         const response = await apiFetch(`${API_BASE_URL}/transactions`, { 
           method: 'DELETE',
-          body: JSON.stringify({ transactionId: transactionToDelete.id, ownerPhone: transactionToDelete.ownerPhone })
+          body: JSON.stringify({ transactionId: transactionToDelete.id, idEmail: transactionToDelete.idEmail })
         });
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ message: 'Erro ao decodificar a resposta de erro da API.'}));
@@ -399,11 +403,62 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
     }
   };
   
+  const onRequestPayment = async (transaction: Transaction, message: string = 'Pagamento informado') => {
+    try {
+      const response = await apiFetch(`${API_BASE_URL}/transactions/request-payment`, {
+        method: 'PATCH',
+        body: JSON.stringify({ transactionId: transaction.id, email: user.email, message }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.message || 'Falha ao informar pagamento.');
+      }
+      invalidateCache(transaction.date);
+      await fetchTransactions();
+    } catch (error) {
+      alert((error as Error).message);
+    }
+  };
+
+  const onApprovePayment = async (transaction: Transaction) => {
+    try {
+      const response = await apiFetch(`${API_BASE_URL}/transactions/approve-payment`, {
+        method: 'PATCH',
+        body: JSON.stringify({ transactionId: transaction.id, idEmail: transaction.idEmail }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.message || 'Falha ao aprovar pagamento.');
+      }
+      invalidateCache(transaction.date);
+      await fetchTransactions();
+    } catch (error) {
+      alert((error as Error).message);
+    }
+  };
+
+  const onRejectPayment = async (transaction: Transaction, reason: string = 'Pagamento não localizado') => {
+    try {
+      const response = await apiFetch(`${API_BASE_URL}/transactions/reject-payment`, {
+        method: 'PATCH',
+        body: JSON.stringify({ transactionId: transaction.id, idEmail: transaction.idEmail, reason }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.message || 'Falha ao rejeitar pagamento.');
+      }
+      invalidateCache(transaction.date);
+      await fetchTransactions();
+    } catch (error) {
+      alert((error as Error).message);
+    }
+  };
+
   const onUpdateTransactionStatus = async (transaction: Transaction, newStatus: PaymentStatus) => {
     try {
       const response = await apiFetch(`${API_BASE_URL}/transactions/status`, {
         method: 'PATCH',
-        body: JSON.stringify({ transactionId: transaction.id, ownerPhone: transaction.ownerPhone, status: newStatus }),
+        body: JSON.stringify({ transactionId: transaction.id, idEmail: transaction.idEmail, status: newStatus }),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: 'Falha ao atualizar status. O servidor não respondeu com detalhes.' }));
@@ -425,7 +480,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
     try {
       const response = await apiFetch(`${API_BASE_URL}/transactions/status`, {
         method: 'PATCH',
-        body: JSON.stringify({ transactionId: transaction.id, ownerPhone: transaction.ownerPhone, status: newStatus }),
+        body: JSON.stringify({ transactionId: transaction.id, idEmail: transaction.idEmail, status: newStatus }),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: 'Falha ao atualizar o status da transação.' }));
@@ -440,13 +495,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
     }
   };
   
-  const onDeleteSubTransaction = async (transactionId: string, description: string, ownerPhone: string) => {
+  const onDeleteSubTransaction = async (transactionId: string, description: string, idEmail: string) => {
     try {
         const transaction = transactions.find(t => t.id === transactionId);
         
         const response = await apiFetch(`${API_BASE_URL}/transactions/${transactionId}/subtract-value`, {
             method: 'PATCH',
-            body: JSON.stringify({ description, ownerPhone }),
+            body: JSON.stringify({ description, idEmail }),
         });
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ message: 'Falha ao remover item da transação.' }));
@@ -465,13 +520,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
     }
   };
 
-  const onShare = async (shareePhone: string, aggregate: boolean) => {
+  const onShare = async (shareeEmail: string, aggregate: boolean) => {
     try {
         const response = await apiFetch(`${API_BASE_URL}/transactions/follow`, {
             method: 'POST',
             body: JSON.stringify({
-                myPhone: user.phone, 
-                targetPhone: shareePhone,
+                myEmail: user.email, 
+                targetEmail: shareeEmail,
                 aggregate
             })
         });
@@ -482,7 +537,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
         }
 
         const data = await response.json();
-        alert(`Sucesso! Agora ${shareePhone} pode visualizar suas transações.`);
+        alert(`Sucesso! Agora ${shareeEmail} pode visualizar suas transações.`);
         
     } catch (error) {
         console.error("Erro ao compartilhar:", error);
@@ -490,15 +545,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
     }
   };
 
-  const onUnshare = async (phoneToUnshare: string) => {
-      if (!confirm(`Deseja parar de acompanhar as finanças de ${phoneToUnshare}?`)) return;
+  const onUnshare = async (emailToUnshare: string) => {
+      if (!confirm(`Deseja parar de acompanhar as finanças de ${emailToUnshare}?`)) return;
 
       try {
           const response = await apiFetch(`${API_BASE_URL}/transactions/follow`, {
               method: 'DELETE',
               body: JSON.stringify({
-                  myPhone: phoneToUnshare,
-                  targetPhone: user.phone
+                  myEmail: emailToUnshare,
+                  targetEmail: user.email
               })
           });
 
@@ -508,7 +563,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
           
           clearCache(); // Limpa tudo pois afeta o conjunto de dados globalmente
           await fetchTransactions();
-          alert(`Você deixou de acompanhar ${phoneToUnshare}.`);
+          alert(`Você deixou de acompanhar ${emailToUnshare}.`);
 
       } catch (error) {
           alert((error as Error).message);
@@ -519,11 +574,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   const handleStartEdit = (transaction: Transaction) => { setEditingTransaction(transaction); setIsModalOpen(true); };
   const handleModalClose = () => { setIsModalOpen(false); setEditingTransaction(null); };
 
-  const handleModalSubmit = async (data: (Omit<Transaction, 'id' | 'ownerPhone' | 'controlId'> | Transaction) & { repeatCount?: number }) => {
+  const handleModalSubmit = async (data: (Omit<Transaction, 'id' | 'idEmail' | 'controlId'> | Transaction) & { repeatCount?: number }) => {
       if ('id' in data) {
         await onEditTransaction(data as Transaction);
       } else {
-        await onAddTransaction(data as Omit<Transaction, 'id' | 'ownerPhone' | 'controlId'> & { repeatCount?: number });
+        await onAddTransaction(data as Omit<Transaction, 'id' | 'idEmail' | 'controlId'> & { repeatCount?: number });
       }
       handleModalClose();
   };
@@ -541,7 +596,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
         body: JSON.stringify({
           description: data.name,
           additionalAmount: data.value,
-          ownerPhone: transactionToAddValueTo.ownerPhone,
+          idEmail: transactionToAddValueTo.idEmail,
         }),
       });
       if (!response.ok) {
@@ -561,10 +616,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   };
 
   const { personalTransactions, sharedTransactions } = useMemo(() => {
-    const personal = transactions.filter(t => t.ownerPhone === user.phone);
-    const shared = transactions.filter(t => t.sharerPhone === user.phone && t.ownerPhone !== user.phone);
+    const currentUserId = user.idEmail || user.id;
+    const personal = transactions.filter(t => t.idEmail === currentUserId);
+    const shared = transactions.filter(t => t.sharedEmail === user.email && t.idEmail !== currentUserId);
     return { personalTransactions: personal, sharedTransactions: shared };
-  }, [transactions, user.phone]);
+  }, [transactions, user.email, user.id, user.idEmail]);
 
   const overdueTransactions = useMemo(() => {
     const today = new Date();
@@ -588,13 +644,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   }, [isLoading, overdueTransactions]);
   
   const pendingApprovalTransactions = useMemo(() => {
+    const currentUserId = user.idEmail || user.id;
     return transactions.filter(t =>
       t.isControlled &&
       t.status === PaymentStatus.PENDING &&
-      t.ownerPhone === user.phone && 
+      t.idEmail === currentUserId && 
       t.type === TransactionType.REVENUE
     );
-  }, [transactions, user.phone]);
+  }, [transactions, user.id, user.idEmail]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -622,7 +679,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
 
 
   const transactionsForCurrentTab = activeTab === 'transactions' ? personalTransactions : sharedTransactions;
-
   return (
     <>
       <MonthNavigator 
@@ -653,15 +709,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
               <h3 className="mb-2 text-sm font-semibold text-white">Compartilhado Comigo (Você segue):</h3>
               <ul className="space-y-2">
                   {sharedUsersInfo.map(sharedUser => (
-                      <li key={sharedUser.phone} className="flex items-center justify-between p-2 text-sm bg-gray-700 rounded-md">
+                      <li key={sharedUser.email} className="flex items-center justify-between p-2 text-sm bg-gray-700 rounded-md">
                           <div>
-                            <span className="font-medium text-white">{userMap[sharedUser.phone] || sharedUser.phone}</span>
+                            <span className="font-medium text-white">{userMap[sharedUser.email] || sharedUser.email}</span>
                             {sharedUser.aggregate && <span className="ml-2 text-xs text-blue-300">(Somando valores)</span>}
                           </div>
                           <button 
-                            onClick={() => onUnshare(sharedUser.phone)} 
+                            onClick={() => onUnshare(sharedUser.email)} 
                             className="text-red-400 transition-colors hover:text-red-300" 
-                            aria-label={`Parar de compartilhar com ${sharedUser.phone}`}
+                            aria-label={`Parar de compartilhar com ${sharedUser.email}`}
                             title="Parar de seguir"
                           >
                             <XCircleIcon className="w-5 h-5" />
@@ -683,13 +739,17 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
           {isLoading ? <p>Carregando...</p> : error ? <p className="text-red-accent">{error}</p> : (
             <TransactionList 
               transactions={transactionsForCurrentTab} 
-              currentUserPhone={user.phone}
+              currentUserEmail={user.email}
+              currentUserId={user.idEmail || user.id}
               onUpdateStatus={onUpdateTransactionStatus}
               onToggleSimplePaid={onToggleSimpleTransactionPaid}
               onStartEdit={handleStartEdit}
               onDelete={handleStartDelete}
               onDeleteSubTransaction={onDeleteSubTransaction}
               onOpenAddValueModal={handleOpenAddValueModal}
+              onRequestPayment={onRequestPayment}
+              onApprovePayment={onApprovePayment}
+              onRejectPayment={onRejectPayment}
               isPastMonth={isPastMonth}
             />
           )}
@@ -704,10 +764,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
             type={editingTransaction?.type ?? modalType} 
             transactionToEdit={editingTransaction} 
             currentDateForForm={currentDate} 
-            currentUserPhone={user.phone} 
+            currentUserEmail={user.email} 
         /> 
       )}
-      <ShareModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} onShare={(sharedUserInfo) => onShare(sharedUserInfo.phone, sharedUserInfo.aggregate)} />
+      <ShareModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} onShare={(sharedUserInfo) => onShare(sharedUserInfo.email, sharedUserInfo.aggregate)} />
       <ConfirmationModal isOpen={isConfirmModalOpen} onClose={() => setIsConfirmModalOpen(false)} onConfirm={handleConfirmDelete} title="Confirmar Exclusão" message={`Tem certeza de que deseja excluir a transação "${transactionToDelete?.name}"? Esta ação não pode ser desfeita.`} />
       {isAddValueModalOpen && transactionToAddValueTo && (
         <AddValueModal

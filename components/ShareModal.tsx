@@ -10,27 +10,27 @@ interface ShareModalProps {
 }
 
 const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, onShare, showAggregate = true }) => {
-  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [aggregate, setAggregate] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
-      setPhone('');
+      setEmail('');
       setAggregate(false);
     }
   }, [isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!phone.trim()) {
-        alert("Por favor, insira um número de telefone.");
+    if (!email.trim()) {
+        alert("Por favor, insira um número de email.");
         return;
     }
     
     setIsSharing(true);
     try {
-      await onShare({ phone: phone.trim(), aggregate });
+      await onShare({ email: email.trim(), aggregate });
       onClose();
     } catch (error) {
       alert(`Falha ao compartilhar: ${(error as Error).message}`);
@@ -46,17 +46,17 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, onShare, showA
       <div className="w-full max-w-lg p-6 mx-4 bg-gray-800 rounded-lg shadow-xl">
         <h2 className="mb-4 text-2xl font-bold text-white">Compartilhar Suas Finanças</h2>
         <p className="mb-4 text-sm text-gray-400">
-            Digite o telefone da pessoa que poderá <strong>visualizar</strong> suas transações no painel dela.
+            Digite o email da pessoa que poderá <strong>visualizar</strong> suas transações no painel dela.
         </p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="share-phone" className="block mb-1 text-sm font-medium text-gray-300">Telefone do Visualizador</label>
+            <label htmlFor="share-email" className="block mb-1 text-sm font-medium text-gray-300">Email do Visualizador</label>
             <input 
                 type="tel" 
-                name="phone" 
-                id="share-phone" 
-                value={phone} 
-                onChange={(e) => setPhone(e.target.value)} 
+                name="email" 
+                id="share-email" 
+                value={email} 
+                onChange={(e) => setEmail(e.target.value)} 
                 required 
                 maxLength={11}
                 disabled={isSharing}

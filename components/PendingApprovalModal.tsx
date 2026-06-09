@@ -55,7 +55,7 @@ const PendingApprovalModal: React.FC<PendingApprovalModalProps> = ({ isOpen, onC
                 <div className="pr-2 space-y-3 overflow-y-auto max-h-72">
                     {pendingTransactions.map(tx => {
                         const isProcessing = processingId === tx.id;
-                        const debtorName = tx.counterpartyPhone ? userMap[tx.counterpartyPhone] || tx.counterpartyPhone : 'Desconhecido';
+                        const debtorName = tx.sharedEmail ? userMap[tx.sharedEmail] || tx.sharedEmail : 'Desconhecido';
                         return (
                              <div key={tx.id} className="p-3 bg-gray-700 rounded-lg">
                                 <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center">

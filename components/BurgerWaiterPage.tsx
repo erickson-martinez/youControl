@@ -10,7 +10,7 @@ interface Table {
 
 interface OrderFormData {
     clientName: string;
-    clientPhone: string;
+    clientEmail: string;
     notes: string;
     isTakeout: boolean;
     paymentMethod: string;
@@ -28,7 +28,7 @@ const BurgerWaiterPage: React.FC = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formData, setFormData] = useState<OrderFormData>({
         clientName: '',
-        clientPhone: '',
+        clientEmail: '',
         notes: '',
         isTakeout: false,
         paymentMethod: 'Dinheiro'
@@ -75,7 +75,7 @@ const BurgerWaiterPage: React.FC = () => {
         // Reset form data when opening a new table
         setFormData({
             clientName: '',
-            clientPhone: '',
+            clientEmail: '',
             notes: '',
             isTakeout: false,
             paymentMethod: 'Dinheiro'
@@ -117,7 +117,7 @@ const BurgerWaiterPage: React.FC = () => {
             id: Date.now(),
             time: new Date().toISOString(),
             name: formData.clientName ? `${formData.clientName} (Mesa ${selectedTable})` : `Mesa ${selectedTable}`,
-            phone: formData.clientPhone,
+            email: formData.clientEmail,
             tableNumber: selectedTable.toString(),
             items,
             total,
@@ -235,11 +235,11 @@ const BurgerWaiterPage: React.FC = () => {
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-300 mb-1">Telefone (Opcional)</label>
+                                        <label className="block text-sm font-medium text-gray-300 mb-1">Email (Opcional)</label>
                                         <input
                                             type="tel"
-                                            value={formData.clientPhone}
-                                            onChange={(e) => setFormData({...formData, clientPhone: e.target.value})}
+                                            value={formData.clientEmail}
+                                            onChange={(e) => setFormData({...formData, clientEmail: e.target.value})}
                                             className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder-gray-500"
                                             placeholder="(XX) 9XXXX-XXXX"
                                         />

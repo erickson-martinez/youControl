@@ -14,7 +14,7 @@ interface CaixaConfig {
     pay: string[];
     debit: number;
     credit: number;
-    phone: string;
+    email: string;
 }
 
 const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
@@ -82,16 +82,16 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
         const verifyAccess = async () => {
             setCheckingAuth(true);
             try {
-                // Agora passa o telefone do usuário na rota para verificar permissão no backend
-                const response = await fetch(`${BURGER_API_URL}/api/config/caixa/${user.phone}`);
+                // Agora passa o email do usuário na rota para verificar permissão no backend
+                const response = await fetch(`${BURGER_API_URL}/api/config/caixa/${user.email}`);
                 const json = await response.json();
                 
                 if (json && json.data) {
                     const data: CaixaConfig = json.data;
                     setConfig(data);
 
-                    const isOwner = data.phone === user.phone;
-                    const isCashier = Array.isArray(data.caixa) && data.caixa.includes(user.phone);
+                    const isOwner = data.email === user.email;
+                    const isCashier = Array.isArray(data.caixa) && data.caixa.includes(user.email);
 
                     if (isOwner || isCashier) {
                         setIsAuthorized(true);
@@ -111,7 +111,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
         };
 
         verifyAccess();
-    }, [user.phone]);
+    }, [user.email]);
 
     // Polling for orders (only if authorized and config loaded)
     useEffect(() => {
@@ -223,7 +223,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            ownerPhone: user.phone,
+                            idEmail: user.idEmail || user.id,
                             type: 'revenue',
                             name: `Fechamento Caixa - ${new Date().toLocaleDateString('pt-BR')}`,
                             amount: realSalesRevenue,
@@ -281,7 +281,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                             paymentMethod: 'Sistema',
                             delivery: false,
                             notes: `Fechamento parcial: ${record.type}`,
-                            phone: user.phone,
+                            email: user.email,
                             onclient: false,
                             burger: config?.burger
                         };
@@ -348,7 +348,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                 paymentMethod: 'Dinheiro',
                 delivery: false,
                 notes: 'Fundo de troco inicial',
-                phone: user.phone,
+                email: user.email,
                 onclient: false,
                 burger: config?.burger 
             };
@@ -370,7 +370,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        ownerPhone: user.phone,
+                        idEmail: user.idEmail || user.id,
                         type: 'revenue',
                         name: `Abertura de Caixa - ${new Date().toLocaleDateString('pt-BR')}`,
                         amount: amount,
@@ -427,7 +427,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                 paymentMethod: 'Dinheiro',
                 delivery: false,
                 notes: `Retirada realizada por ${user.name}`,
-                phone: user.phone,
+                email: user.email,
                 onclient: false,
                 burger: config?.burger
             };
@@ -445,7 +445,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        ownerPhone: user.phone, 
+                        idEmail: user.idEmail || user.id,
                         type: 'expense',
                         name: nameDescription,
                         amount: amount,
@@ -568,7 +568,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                     <div>Pedido: #${order.id}</div>
                     ${order.tableNumber ? `<div>Mesa: <span class="bold">${order.tableNumber}</span></div>` : ''}
                     <div>Cliente: ${order.name}</div>
-                    ${order.phone ? `<div>Tel: ${order.phone}</div>` : ''}
+                    ${order.email ? `<div>Tel: ${order.email}</div>` : ''}
                 </div>
 
                 <table class="border-bottom">
@@ -669,7 +669,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                 <LockClosedIcon className="w-20 h-20 text-red-500 mb-6" />
                 <h2 className="text-2xl font-bold text-white mb-2">Acesso Restrito</h2>
                 <p className="text-gray-400 max-w-md">
-                    Seu usuário ({user.phone}) não tem permissão de Caixa ou Proprietário nesta loja.
+                    Seu usuário ({user.email}) não tem permissão de Caixa ou Proprietário nesta loja.
                 </p>
             </div>
         );

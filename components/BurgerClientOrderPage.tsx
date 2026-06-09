@@ -20,7 +20,7 @@ const BurgerClientOrderPage: React.FC = () => {
     
     // Form States
     const [clientName, setClientName] = useState('');
-    const [clientPhone, setClientPhone] = useState('');
+    const [clientEmail, setClientEmail] = useState('');
     
     // Orders List States
     const [myOrders, setMyOrders] = useState<BurgerOrder[]>([]);
@@ -43,13 +43,13 @@ const BurgerClientOrderPage: React.FC = () => {
     const [isCalculating, setIsCalculating] = useState(false);
     const [paymentMethod, setPaymentMethod] = useState('');
 
-    const fetchMyOrders = useCallback(async (phone: string) => {
-        if (!phone || phone.length < 8) return;
+    const fetchMyOrders = useCallback(async (email: string) => {
+        if (!email || email.length < 8) return;
         setIsLoadingOrders(true);
         try {
             // Remove caracteres não numéricos para garantir compatibilidade
-            const cleanPhone = phone.replace(/\D/g, '');
-            const response = await fetch(`${BURGER_API_URL}/api/orders/phone/${cleanPhone}`);
+            const cleanEmail = email.replace(/\D/g, '');
+            const response = await fetch(`${BURGER_API_URL}/api/orders/email/${cleanEmail}`);
             if (response.ok) {
                 const data = await response.json();
                 // Suporta retorno { data: [...] } ou array direto, dependendo da API
@@ -91,10 +91,10 @@ const BurgerClientOrderPage: React.FC = () => {
             if (savedUser) {
                 const user = JSON.parse(savedUser);
                 if (user.name) setClientName(user.name);
-                if (user.phone) {
-                    setClientPhone(user.phone);
-                    // Busca pedidos iniciais se tiver telefone salvo
-                    fetchMyOrders(user.phone);
+                if (user.email) {
+                    setClientEmail(user.email);
+                    // Busca pedidos iniciais se tiver email salvo
+                    fetchMyOrders(user.email);
                 }
             }
         } catch (e) {
@@ -102,15 +102,15 @@ const BurgerClientOrderPage: React.FC = () => {
         }
     }, [fetchMyOrders]);
 
-    // Busca pedidos sempre que o telefone mudar e tiver tamanho válido (ex: debounce manual ou blur)
+    // Busca pedidos sempre que o email mudar e tiver tamanho válido (ex: debounce manual ou blur)
     useEffect(() => {
-        if (clientPhone.length >= 10) {
+        if (clientEmail.length >= 10) {
             const timer = setTimeout(() => {
-                fetchMyOrders(clientPhone);
+                fetchMyOrders(clientEmail);
             }, 800); // Debounce de 800ms
             return () => clearTimeout(timer);
         }
-    }, [clientPhone, fetchMyOrders]);
+    }, [clientEmail, fetchMyOrders]);
 
     // Função para calcular distância (Haversine Formula)
     const getDistanceFromLatLonInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -224,7 +224,7 @@ const BurgerClientOrderPage: React.FC = () => {
                     id: Date.now(),
                     time: new Date().toISOString(),
                     name: clientName,
-                    phone: clientPhone,
+                    email: clientEmail,
                     items,
                     total: cartTotalPrice, // Total dos produtos
                     deliveryFee: isDelivery ? deliveryFee : 0, 
@@ -255,7 +255,7 @@ const BurgerClientOrderPage: React.FC = () => {
             alert("Pedido realizado com sucesso!");
             
             // Atualiza a lista de pedidos
-            fetchMyOrders(clientPhone);
+            fetchMyOrders(clientEmail);
 
             setCart({});
             setIsCartOpen(false);
@@ -295,7 +295,7 @@ const BurgerClientOrderPage: React.FC = () => {
                 </h1>
                 <div className="flex gap-3">
                     <button 
-                        onClick={() => { fetchMyOrders(clientPhone); setIsOrdersListOpen(true); }} 
+                        onClick={() => { fetchMyOrders(clientEmail); setIsOrdersListOpen(true); }} 
                         className="relative p-2 text-white bg-gray-700 rounded-full hover:bg-gray-600 transition-colors"
                         title="Meus Pedidos"
                     >
@@ -379,10 +379,10 @@ const BurgerClientOrderPage: React.FC = () => {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-400 mb-1 ml-1 uppercase">Seu Telefone</label>
+                                    <label className="block text-xs font-bold text-gray-400 mb-1 ml-1 uppercase">Seu Email</label>
                                     <input 
                                         type="tel" placeholder="(XX) 9XXXX-XXXX" required 
-                                        value={clientPhone} onChange={e => setClientPhone(e.target.value)}
+                                        value={clientEmail} onChange={e => setClientEmail(e.target.value)}
                                         className="w-full p-3 bg-gray-700 rounded-lg text-white border border-gray-600 focus:border-blue-500 focus:outline-none placeholder-gray-500"
                                     />
                                 </div>
@@ -557,7 +557,7 @@ const BurgerClientOrderPage: React.FC = () => {
                             ) : myOrders.length === 0 ? (
                                 <div className="text-center py-8 text-gray-400">
                                     <ClipboardListIcon className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                                    <p>Nenhum pedido encontrado para o telefone informado.</p>
+                                    <p>Nenhum pedido encontrado para o email informado.</p>
                                 </div>
                             ) : (
                                 <ul className="space-y-4">

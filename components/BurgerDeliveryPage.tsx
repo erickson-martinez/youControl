@@ -13,7 +13,7 @@ interface DeliveryConfig {
     pay: string[];
     debit: number;
     credit: number;
-    phone: string; // Owner phone
+    email: string; // Owner email
     taxa_delivery_fixa?: number;
 }
 
@@ -43,8 +43,8 @@ const BurgerDeliveryPage: React.FC<BurgerDeliveryPageProps> = ({ user }) => {
                     .then(data => setProducts(data.data || []))
                     .catch(err => console.error("Erro ao carregar produtos", err));
 
-                // Carregar Configuração de Delivery passando o telefone do usuário
-                const configResponse = await fetch(`${BURGER_API_URL}/api/config/delivery/${user.phone}`);
+                // Carregar Configuração de Delivery passando o email do usuário
+                const configResponse = await fetch(`${BURGER_API_URL}/api/config/delivery/${user.email}`);
                 const configJson = await configResponse.json();
                 
                 if (configJson && configJson.data) {
@@ -52,13 +52,13 @@ const BurgerDeliveryPage: React.FC<BurgerDeliveryPageProps> = ({ user }) => {
                     setConfig(data);
 
                     // Verificar Permissões (Dono ou Entregador Autorizado)
-                    // Normaliza telefones removendo caracteres não numéricos para comparação segura
-                    const cleanUserPhone = user.phone.replace(/\D/g, '');
-                    const cleanOwnerPhone = data.phone.replace(/\D/g, '');
-                    const deliveryPhones = Array.isArray(data.delivery) ? data.delivery.map(p => p.replace(/\D/g, '')) : [];
+                    // Normaliza emails removendo caracteres não numéricos para comparação segura
+                    const cleanUserEmail = user.email.replace(/\D/g, '');
+                    const cleanOwnerEmail = data.email.replace(/\D/g, '');
+                    const deliveryEmails = Array.isArray(data.delivery) ? data.delivery.map(p => p.replace(/\D/g, '')) : [];
 
-                    const isUserOwner = cleanUserPhone === cleanOwnerPhone;
-                    const isAuthorizedDriver = deliveryPhones.includes(cleanUserPhone);
+                    const isUserOwner = cleanUserEmail === cleanOwnerEmail;
+                    const isAuthorizedDriver = deliveryEmails.includes(cleanUserEmail);
 
                     setIsOwner(isUserOwner);
                     setCanDeliver(isUserOwner || isAuthorizedDriver);
@@ -71,7 +71,7 @@ const BurgerDeliveryPage: React.FC<BurgerDeliveryPageProps> = ({ user }) => {
         };
 
         loadInitialData();
-    }, [user.phone]);
+    }, [user.email]);
     
     // 2. Buscar Pedidos Disponíveis
     const fetchDeliveries = useCallback(async () => {

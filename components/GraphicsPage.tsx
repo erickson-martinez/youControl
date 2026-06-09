@@ -164,11 +164,11 @@ const GraphicsPage: React.FC<GraphicsPageProps> = ({ user }) => {
         try {
             const month = currentDate.getMonth() + 1;
             const year = currentDate.getFullYear();
-            const response = await apiFetch(`${API_BASE_URL}/transactions?phone=${user.phone}&includeShared=true&month=${month}&year=${year}`);
+            const response = await apiFetch(`${API_BASE_URL}/transactions?idEmail=${user.idEmail || user.id}${user.email ? `&email=${encodeURIComponent(user.email)}` : ''}&includeShared=true&month=${month}&year=${year}`);
             const data = await response.json();
 
             const mappedTransactions = (data.transactions || []).map((tx: any) => ({
-                id: tx._id, ownerPhone: tx.ownerPhone, type: tx.type, name: tx.name, amount: tx.amount,
+                id: tx._id, idEmail: tx.idEmail, type: tx.type, name: tx.name, amount: tx.amount,
                 date: new Date(tx.date).toISOString().split('T')[0],
                 status: tx.status
             }));
@@ -193,7 +193,7 @@ const GraphicsPage: React.FC<GraphicsPageProps> = ({ user }) => {
         } finally {
             setIsLoading(false);
         }
-    }, [currentDate, user.phone, apiFetch]);
+    }, [currentDate, user.email, apiFetch]);
 
     useEffect(() => {
         fetchData();

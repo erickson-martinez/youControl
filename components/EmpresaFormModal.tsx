@@ -12,7 +12,7 @@ interface EmpresaFormModalProps {
 const initialState = {
     name: '',
     cnpj: '',
-    phone: '',
+    email: '',
     email: '',
     address: '',
     city: '',
@@ -31,7 +31,7 @@ const EmpresaFormModal: React.FC<EmpresaFormModalProps> = ({ isOpen, onClose, on
             setFormData({
                 name: empresaToEdit.name || '',
                 cnpj: empresaToEdit.cnpj || '',
-                phone: empresaToEdit.phone || '',
+                email: empresaToEdit.email || '',
                 email: empresaToEdit.email || '',
                 address: empresaToEdit.address || '',
                 city: empresaToEdit.city || '',
@@ -104,8 +104,8 @@ const EmpresaFormModal: React.FC<EmpresaFormModalProps> = ({ isOpen, onClose, on
                                 <input type="text" name="cnpj" id="cnpj" value={formData.cnpj} onChange={handleChange} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
                             </div>
                             <div>
-                                <label htmlFor="phone" className="block mb-1 text-sm text-gray-300">Telefone</label>
-                                <input type="tel" name="phone" id="phone" value={formData.phone} onChange={handleChange} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
+                                <label htmlFor="email" className="block mb-1 text-sm text-gray-300">Email</label>
+                                <input type="tel" name="email" id="email" value={formData.email} onChange={handleChange} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
                             </div>
                         </div>
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

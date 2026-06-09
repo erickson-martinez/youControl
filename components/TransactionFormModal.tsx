@@ -8,7 +8,7 @@ type FormDataType = {
   date: string;
   paid: boolean;
   isControlled: boolean;
-  counterpartyPhone: string;
+  sharedEmail: string;
   repeat: boolean;
   repeatCount: string;
 };
@@ -16,21 +16,21 @@ type FormDataType = {
 interface TransactionFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: (Omit<Transaction, 'id' | 'ownerPhone' | 'controlId'> | Transaction) & { repeatCount?: number }) => Promise<void>;
+  onSubmit: (data: (Omit<Transaction, 'id' | 'idEmail' | 'controlId'> | Transaction) & { repeatCount?: number }) => Promise<void>;
   type: TransactionType;
   transactionToEdit?: Transaction | null;
   currentDateForForm: Date;
-  currentUserPhone?: string;
+  currentUserEmail?: string;
 }
 
-const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onClose, onSubmit, type, transactionToEdit, currentDateForForm, currentUserPhone }) => {
+const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onClose, onSubmit, type, transactionToEdit, currentDateForForm, currentUserEmail }) => {
   const [formData, setFormData] = useState<FormDataType>({
     name: '',
     amount: '',
     date: new Date().toISOString().split('T')[0],
     paid: true,
     isControlled: false,
-    counterpartyPhone: '',
+    sharedEmail: '',
     repeat: false,
     repeatCount: '1',
   });
@@ -47,7 +47,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
         date: transactionToEdit.date,
         paid: transactionToEdit.status === PaymentStatus.PAID,
         isControlled: transactionToEdit.isControlled,
-        counterpartyPhone: transactionToEdit.counterpartyPhone || '',
+        sharedEmail: transactionToEdit.sharedEmail || '',
         repeat: false,
         repeatCount: '1',
       });
@@ -63,7 +63,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
         date: `${year}-${month}-${day}`,
         paid: false,
         isControlled: false,
-        counterpartyPhone: '',
+        sharedEmail: '',
         repeat: false,
         repeatCount: '1',
       });
@@ -83,7 +83,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
     setIsSubmitting(true);
     
     // Validação Client-Side: Impedir criação para o mesmo usuário
-    if (formData.isControlled && currentUserPhone && formData.counterpartyPhone === currentUserPhone) {
+    if (formData.isControlled && currentUserEmail && formData.sharedEmail === currentUserEmail) {
         alert("Não é permitido criar cobrança para o mesmo usuário.");
         setIsSubmitting(false);
         return;
@@ -108,7 +108,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
                 date: formData.date,
                 type,
                 isControlled: formData.isControlled,
-                counterpartyPhone: formData.counterpartyPhone || undefined,
+                sharedEmail: formData.sharedEmail || undefined,
                 status: formData.isControlled ? PaymentStatus.UNPAID : (formData.paid ? PaymentStatus.PAID : PaymentStatus.UNPAID),
                 repeatCount: repeatCount > 0 ? repeatCount : undefined,
             };
@@ -174,8 +174,8 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
 
           {formData.isControlled && (
             <div>
-              <label htmlFor="counterpartyPhone" className="block mb-1 text-sm font-medium text-gray-300">Telefone</label>
-              <input type="tel" name="counterpartyPhone" id="counterpartyPhone" value={formData.counterpartyPhone} onChange={handleChange} required maxLength={11} disabled={isEditing || isSubmitting} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500 disabled:opacity-50" placeholder="(XX) XXXXX-XXXX" />
+              <label htmlFor="sharedEmail" className="block mb-1 text-sm font-medium text-gray-300">Email</label>
+              <input type="email" name="sharedEmail" id="sharedEmail" value={formData.sharedEmail} onChange={handleChange} required disabled={isEditing || isSubmitting} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500 disabled:opacity-50" placeholder="usuario@email.com" />
             </div>
           )}
 

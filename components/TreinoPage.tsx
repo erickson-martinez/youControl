@@ -79,7 +79,7 @@ const TreinoPage: React.FC<TreinoPageProps> = ({ user }) => {
     addExercise,
     updateExercise,
     completeWorkout
-  } = useWorkoutCycle(user.phone);
+  } = useWorkoutCycle(user.email);
 
   const [viewOffset, setViewOffset] = useState(0);
   const [showAddModal, setShowAddModal] = useState(false);

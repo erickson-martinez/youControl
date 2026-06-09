@@ -37,7 +37,7 @@ import type { User, MenuPermissions, Empresa, WorkRecord, ActivePage, PontoStatu
 import { API_BASE_URL, FALLBACK_PERMISSIONS, NEW_COLLABORATOR_PERMISSIONS } from './constants';
 import { PontoStatus as PontoStatusEnum, OSStatus } from './types';
 
-const apiToFrontendPermissions = (apiPerms: string[] | null | undefined, userPhone?: string): MenuPermissions => {
+const apiToFrontendPermissions = (apiPerms: string[] | null | undefined, userEmail?: string): MenuPermissions => {
     // Default structure including burger perms
     const frontendPerms: MenuPermissions = { 
         rh: false, financeiro: false, graficos: false, os: false, ponto: false, aprovarHoras: false, 
@@ -138,9 +138,10 @@ const App: React.FC = () => {
   useEffect(() => {
     try {
       const savedUserJSON = localStorage.getItem('currentUser');
+
       if (savedUserJSON) {
         const savedUser: User = JSON.parse(savedUserJSON);
-        if (savedUser && savedUser.phone && savedUser.name) {
+        if (savedUser && savedUser.name && (savedUser.email || savedUser.id || savedUser.idEmail)) {
           setUser(savedUser);
         } else {
           setIsLoading(false); 
@@ -148,6 +149,7 @@ const App: React.FC = () => {
       } else {
         setIsLoading(false); 
       }
+
     } catch (error) {
       console.error("Failed to parse user from localStorage", error);
       localStorage.removeItem('currentUser');
@@ -173,9 +175,8 @@ const App: React.FC = () => {
     } catch (error) {
       console.error(`API call to ${url} failed with network error:`, error);
       const networkErrorMessage = 'Falha de conexão: Não foi possível comunicar com o servidor. Verifique sua conexão com a internet e tente novamente.';
-      if (!apiError) {
-        setApiError(networkErrorMessage);
-      }
+      // Don't fatally block the UI
+      // if (!apiError) setApiError(networkErrorMessage);
       throw new Error(networkErrorMessage);
     }
 
@@ -189,69 +190,80 @@ const App: React.FC = () => {
       const serverErrorMessage = errorJson.error || errorJson.message || `Erro do servidor (HTTP ${response.status}).`;
       console.error(`API call to ${url} failed with status ${response.status}:`, serverErrorMessage);
       
-      if (response.status !== 404 && !apiError) {
-        setApiError(serverErrorMessage);
-      }
+      // Don't fatally block the UI for 404/500s that components might want to handle locally
+      // if (response.status !== 404 && !apiError) setApiError(serverErrorMessage);
       throw new Error(serverErrorMessage);
     }
 
     return response;
   }, [user, apiError]);
 
-  const fetchUserPermissions = useCallback(async (phone: string) => {
+  const fetchUserPermissions = useCallback(async (idEmail: string, email: string) => {
     try {
-        const response = await apiFetch(`${API_BASE_URL}/permissions?userPhone=${phone}`);
+        const response = await fetch(`${API_BASE_URL}/permissions?idEmail=${idEmail}${email ? `&email=${encodeURIComponent(email)}` : ''}`, { cache: 'no-store' });
+        
+        if (!response.ok) {
+           throw new Error(`Servidor respondeu com ${response.status}`);
+        }
+
         const data = await response.json();
         const permissionsList = data.permissions || [];
 
         if (permissionsList.length === 0) {
-            console.warn(`User ${phone} has no permissions. Granting default 'financeiro' access.`);
-            await apiFetch(`${API_BASE_URL}/permissions?userPhone=${phone}&add=true`, {
-                method: 'PATCH',
-                body: JSON.stringify({ permissions: ["financeiro", "graficos"] }),
+            console.warn(`User ${email} has no permissions. Granting default 'financeiro' access.`);
+            await fetch(`${API_BASE_URL}/permissions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ idEmail: idEmail, email: email, permissions: ["financeiro", "graficos"] }),
             });
             
-            const refetchedResponse = await apiFetch(`${API_BASE_URL}/permissions?userPhone=${phone}`);
-            const refetchedData = await refetchedResponse.json();
-            const refetchedPermissionsList = refetchedData.permissions || [];
-            const perms = apiToFrontendPermissions(refetchedPermissionsList, phone);
-            setUserPermissions(perms);
-            return perms;
+            const refetchedResponse = await fetch(`${API_BASE_URL}/permissions?idEmail=${idEmail}${email ? `&email=${encodeURIComponent(email)}` : ''}`, { cache: 'no-store' });
+            if (refetchedResponse.ok) {
+                const refetchedData = await refetchedResponse.json();
+                const refetchedPermissionsList = refetchedData.permissions || [];
+                const perms = apiToFrontendPermissions(refetchedPermissionsList, email);
+                setUserPermissions(perms);
+                return perms;
+            }
         }
 
-        const perms = apiToFrontendPermissions(permissionsList, phone);
+        const perms = apiToFrontendPermissions(permissionsList, email);
         setUserPermissions(perms);
         return perms;
 
     } catch (error) {
         if ((error as Error).message.includes('404')) {
-            console.warn(`No permissions record for ${phone} (404). Granting default 'financeiro' access.`);
+            console.warn(`No permissions record for ${email} (404). Granting default 'financeiro' access.`);
             try {
-                await apiFetch(`${API_BASE_URL}/permissions?userPhone=${phone}&add=true`, {
-                    method: 'PATCH',
-                    body: JSON.stringify({ permissions: ["financeiro", "graficos"] }),
+                await fetch(`${API_BASE_URL}/permissions`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ idEmail: idEmail, email: email, permissions: ["financeiro", "graficos"] }),
                 });
 
-                const refetchedResponse = await apiFetch(`${API_BASE_URL}/permissions?userPhone=${phone}`);
-                const refetchedData = await refetchedResponse.json();
-                const perms = apiToFrontendPermissions(refetchedData.permissions || [], phone);
-                setUserPermissions(perms);
-                return perms;
+                const refetchedResponse = await fetch(`${API_BASE_URL}/permissions?idEmail=${idEmail}${email ? `&email=${encodeURIComponent(email)}` : ''}`, { cache: 'no-store' });
+                if (refetchedResponse.ok) {
+                    const refetchedData = await refetchedResponse.json();
+                    const perms = apiToFrontendPermissions(refetchedData.permissions || [], email);
+                    setUserPermissions(perms);
+                    return perms;
+                }
             } catch (grantError) {
-                console.error(`Failed to grant permissions after 404 for ${phone}, applying fallback.`, grantError);
-                setUserPermissions(FALLBACK_PERMISSIONS);
-                return FALLBACK_PERMISSIONS;
+                console.error(`Failed to grant permissions after 404 for ${email}, applying fallback.`, grantError);
             }
         } else {
-            console.error("Erro ao carregar permissões do usuário:", error);
-            throw error;
+             console.error("Erro ao carregar permissões do usuário (banco de dados ou rede):", error);
         }
+        
+        setUserPermissions(FALLBACK_PERMISSIONS);
+        return FALLBACK_PERMISSIONS;
     }
-  }, [apiFetch]);
+  }, []);
 
   const fetchUserCompanyLink = useCallback(async (currentUser: User) => {
     try {
-        const response = await apiFetch(`${API_BASE_URL}/rh/company/${currentUser.phone}`);
+        const idToFetch = currentUser.idEmail || currentUser.id || currentUser.email;
+        const response = await apiFetch(`${API_BASE_URL}/rh/company/${idToFetch}`);
         const data = await response.json();
         if (data && Array.isArray(data.employees) && data.employees.length > 0) {
             const activeLink = data.employees.find((emp: any) => emp.status === 'ativo');
@@ -275,7 +287,8 @@ const App: React.FC = () => {
 
   const fetchEmpresas = useCallback(async (currentUser: User): Promise<Empresa[]> => {
     try {
-        const response = await apiFetch(`${API_BASE_URL}/companies/${currentUser.phone}`);
+        const idToFetch = currentUser.idEmail || currentUser.id || currentUser.email;
+        const response = await apiFetch(`${API_BASE_URL}/companies/${idToFetch}`);
         const data = await response.json();
         const companiesData = data.companies;
         const companiesArray = Array.isArray(companiesData) ? companiesData : 
@@ -373,7 +386,7 @@ const App: React.FC = () => {
       setIsLoading(true);
       setApiError(null);
       try {
-        await fetchUserPermissions(user.phone);
+        await fetchUserPermissions(user.id || user.email, user.email);
         await refreshCompanies(user);
       } catch (error) {
         console.error("Falha crítica ao inicializar a sessão do usuário.", error);
@@ -412,7 +425,7 @@ const App: React.FC = () => {
     try {
         await apiFetch(`${API_BASE_URL}/companies`, {
             method: 'POST',
-            body: JSON.stringify({ ...empresaData, owner: user.phone }),
+            body: JSON.stringify({ ...empresaData, owner: user.email }),
         });
         await refreshCompanies(user);
     } catch (error) {
@@ -461,7 +474,7 @@ const App: React.FC = () => {
   const handleCurrentUserUpdate = useCallback(async () => {
     if (!user) return;
     await refreshCompanies(user);
-    await fetchUserPermissions(user.phone);
+    await fetchUserPermissions(user.id || user.email, user.email);
   }, [user, refreshCompanies, fetchUserPermissions]);
   
   const handlePontoUpdate = useCallback(async () => {
@@ -469,7 +482,7 @@ const App: React.FC = () => {
 
   const handleCurrentUserPermissionsUpdate = useCallback(async () => {
     if (!user) return;
-    await fetchUserPermissions(user.phone);
+    await fetchUserPermissions(user.id || user.email, user.email);
   }, [user, fetchUserPermissions]);
 
   if (apiError) {

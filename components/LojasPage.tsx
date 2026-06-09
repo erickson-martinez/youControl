@@ -76,7 +76,7 @@ const LojasPage: React.FC<LojasPageProps> = ({ user }) => {
   };
 
   const handleSave = async (data: Omit<Loja, 'id'>) => {
-    const payload = { ...data, phone: user.phone };
+    const payload = { ...data, email: user.email };
     
     if (editingLoja) {
         await apiFetch(`${API_BASE_URL}/markets/${editingLoja.id}`, {
@@ -97,7 +97,7 @@ const LojasPage: React.FC<LojasPageProps> = ({ user }) => {
       try {
           await apiFetch(`${API_BASE_URL}/markets/${loja.id}`, {
               method: 'PATCH',
-              body: JSON.stringify({ status: newStatus, phone: user.phone }),
+              body: JSON.stringify({ status: newStatus, email: user.email }),
           });
           await fetchLojas();
       } catch (err) {
@@ -113,7 +113,7 @@ const LojasPage: React.FC<LojasPageProps> = ({ user }) => {
   const handleConfirmDelete = async () => {
       if(deletingLoja) {
           try {
-            await apiFetch(`${API_BASE_URL}/markets?id=${deletingLoja.id}&phone=${user.phone}`, {
+            await apiFetch(`${API_BASE_URL}/markets?id=${deletingLoja.id}&email =${user.email}`, {
                 method: 'DELETE',
             });
             await fetchLojas();

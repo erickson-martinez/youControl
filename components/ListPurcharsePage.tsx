@@ -116,9 +116,9 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
     const handleSaveMarket = async (marketData: { name: string }) => {
         try {
             if (editingMarket) {
-                await apiFetch(`${API_BASE_URL}/markets/${editingMarket.id}`, { method: 'PATCH', body: JSON.stringify({ ...marketData, phone: user.phone }) });
+                await apiFetch(`${API_BASE_URL}/markets/${editingMarket.id}`, { method: 'PATCH', body: JSON.stringify({ ...marketData, email: user.email }) });
             } else {
-                await apiFetch(`${API_BASE_URL}/markets`, { method: 'POST', body: JSON.stringify({ ...marketData, phone: user.phone }) });
+                await apiFetch(`${API_BASE_URL}/markets`, { method: 'POST', body: JSON.stringify({ ...marketData, email: user.email }) });
             }
             await fetchData();
             setMarketModalOpen(false);
@@ -128,7 +128,7 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
 
     const handleDeleteMarket = async (id: string) => {
         try {
-            await apiFetch(`${API_BASE_URL}/markets?id=${id}&phone=${user.phone}`, { method: 'DELETE' });
+            await apiFetch(`${API_BASE_URL}/markets?id=${id}&email =${user.email}`, { method: 'DELETE' });
             await fetchData();
         } catch (e) { alert((e as Error).message); }
     };
@@ -263,10 +263,10 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
                 method: 'POST',
                 body: JSON.stringify({
                     idUser: user.id,
-                    sharedWithPhone: sharedUser.phone
+                    sharedWithEmail: sharedUser.email
                 })
             });
-            alert(`Lista compartilhada com sucesso com ${sharedUser.phone}!`);
+            alert(`Lista compartilhada com sucesso com ${sharedUser.email}!`);
             setListToShare(null);
             setShareModalOpen(false);
         } catch (e) {
@@ -540,7 +540,8 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
                 onConfirm={handleConfirmCompleteList}
                 listName={listToComplete?.name || ''}
                 totalAmount={listToComplete?.total || 0}
-                userPhone={user.phone}
+                idEmail={user.idEmail || user.id || ''}
+                userEmail={user.email}
             />
 
             <ConfirmationModal 

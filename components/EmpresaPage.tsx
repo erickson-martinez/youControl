@@ -87,7 +87,6 @@ const EmpresaPage: React.FC<EmpresaPageProps> = ({ empresas, onSave, onUpdate, o
                         {empresa.cnpj && <p className="text-sm text-gray-400">CNPJ: {empresa.cnpj}</p>}
                         {empresa.linkId && <p className="text-sm text-blue-400 font-medium">ID de Agendamento: {empresa.linkId}</p>}
                         {empresa.email && <p className="text-sm text-gray-400">Email: {empresa.email}</p>}
-                        {empresa.phone && <p className="text-sm text-gray-400">Telefone: {empresa.phone}</p>}
                     </div>
                     <div className="flex items-center self-end space-x-2 sm:self-start">
                         <label htmlFor={`status-toggle-${empresa.id}`} className="flex items-center cursor-pointer" title={empresa.status === 'ativo' ? 'Desativar' : 'Ativar'}>

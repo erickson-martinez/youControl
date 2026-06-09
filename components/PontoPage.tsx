@@ -83,7 +83,7 @@ const PontoPage: React.FC<PontoPageProps> = ({ user, empresa, onPontoUpdate }) =
     try {
         const month = currentDate.getMonth() + 1;
         const year = currentDate.getFullYear();
-        const response = await apiFetch(`${API_BASE_URL}/work-records?companyId=${empresa.id}&employeePhone=${user.phone}&month=${month}&year=${year}`);
+        const response = await apiFetch(`${API_BASE_URL}/work-records?companyId=${empresa.id}&employeeEmail=${user.email}&month=${month}&year=${year}`);
         const data = await response.json();
         const mappedRecords: WorkRecord[] = (data.records || []).map((rec: any) => ({ 
             ...rec, 
@@ -133,14 +133,14 @@ const PontoPage: React.FC<PontoPageProps> = ({ user, empresa, onPontoUpdate }) =
         if (activeSession) {
             await apiFetch(`${API_BASE_URL}/work-records/${activeSession.id}/clock-out`, {
                 method: 'PATCH',
-                body: JSON.stringify({ employeePhone: user.phone, exitTime: new Date().toISOString() }),
+                body: JSON.stringify({ employeeEmail: user.email, exitTime: new Date().toISOString() }),
             });
             setActiveSession(null);
             localStorage.removeItem('activeWorkSession');
         } else {
             const response = await apiFetch(`${API_BASE_URL}/work-records/clock-in`, {
                 method: 'POST',
-                body: JSON.stringify({ employeePhone: user.phone, companyId: empresa.id, entryTime: new Date().toISOString() }),
+                body: JSON.stringify({ employeeEmail: user.email, companyId: empresa.id, entryTime: new Date().toISOString() }),
             });
             const data = await response.json();
             if (data.record && data.record._id) {
@@ -165,7 +165,7 @@ const PontoPage: React.FC<PontoPageProps> = ({ user, empresa, onPontoUpdate }) =
     try {
       await apiFetch(`${API_BASE_URL}/work-records/${recordId}`, {
         method: 'DELETE',
-        body: JSON.stringify({ requesterPhone: user.phone })
+        body: JSON.stringify({ requesterEmail: user.email })
       });
       await fetchMyRecords();
       onPontoUpdate();

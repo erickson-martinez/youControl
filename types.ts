@@ -2,7 +2,8 @@
 export interface User {
   id?: string;
   name: string;
-  phone: string;
+  phone?: string;
+  email: string;
   idEmail?: string;
 }
 
@@ -42,7 +43,6 @@ export interface Empresa {
   id: string;
   name: string;
   cnpj?: string;
-  phone?: string;
   email?: string;
   address?: string;
   city?: string;
@@ -56,7 +56,7 @@ export interface Empresa {
 
 export interface UserCompanyLink {
   _id: string;
-  userPhone: string;
+  userEmail: string;
   empresaId: string;
   status: string;
   role?: string;
@@ -71,7 +71,7 @@ export enum PontoStatus {
 
 export interface WorkRecord {
   id: string;
-  employeePhone: string;
+  employeeEmail: string;
   employeeName?: string;
   companyId: string;
   entryTime: string;
@@ -92,7 +92,7 @@ export enum OSStatus {
 
 export interface OrdemServico {
   id: string;
-  openerPhone: string;
+  openerEmail: string;
   empresaId: string;
   title: string;
   description: string;
@@ -122,23 +122,31 @@ export interface Addition {
 
 export interface Transaction {
   id: string;
-  ownerPhone: string;
+  idEmail: string;
+  email?: string;
+  sharedEmail?: string;
   type: TransactionType;
   name: string;
   amount: number;
   date: string;
+  
   isControlled: boolean;
   status: PaymentStatus;
-  counterpartyPhone?: string;
-  controlId?: string;
-  sharerPhone?: string;
   aggregate?: boolean;
   additions?: Addition[];
   paidAmount?: number;
+  paymentRequest?: {
+    requested: boolean;
+    requestedAt: string;
+    requestedBy: string;
+    message?: string;
+    approved: boolean;
+    rejected: boolean;
+  };
 }
 
 export interface SharedUser {
-  phone: string;
+  email: string;
   aggregate: boolean;
 }
 
@@ -149,7 +157,7 @@ export interface Market {
   number?: string;
   zip?: string;
   status: 'active' | 'inactive';
-  phone?: string;
+  email?: string;
   latitude?: number | null;
   longitude?: number | null;
 }
@@ -206,7 +214,7 @@ export interface BurgerOrder {
   id: number;
   time: string;
   name: string;
-  phone?: string;
+  email?: string;
   paymentMethod: string;
   delivery: boolean;
   address?: {
@@ -241,7 +249,7 @@ export interface BurgerConfig {
     GARCOM: string[];
     DELIVERY: string[];
     PERIOD?: { day: string; start: string; end: string }[];
-    phone: string;
+    email: string;
     PAYMENT_METHODS: string[];
     DEBIT_CARD_FEE_RATE: number;
     CREDIT_CARD_FEE_RATE: number;

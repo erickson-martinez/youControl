@@ -38,7 +38,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
   const { registros, addRegistro } = useBarbeariaRegistros(resolvedCompanyId);
   const { servicos, produtos, updateProduto } = useBarbeariaConfig(resolvedCompanyId);
 
-  // Vamos assumir que o barbeiro pode escolher quem ele é na tela, ou se o número de telefone 
+  // Vamos assumir que o barbeiro pode escolher quem ele é na tela, ou se o número de email 
   // dele bater com algum cadastro, pegar automaticamente.
   const [selectedBarbeiroId, setSelectedBarbeiroId] = useState<string>('');
   
@@ -56,8 +56,8 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
   const [isFinalizarCaixaOpen, setIsFinalizarCaixaOpen] = useState(false);
   const [isFinalizando, setIsFinalizando] = useState(false);
 
-  const userPhoneNumbers = user?.phone?.replace(/\D/g, '');
-  const barbeiroLogado = barbeiros.find(b => b.telefone && b.telefone.replace(/\D/g, '') === userPhoneNumbers);
+  const userEmailNumbers = user?.email?.replace(/\D/g, '');
+  const barbeiroLogado = barbeiros.find(b => b.email && b.email.replace(/\D/g, '') === userEmailNumbers);
 
   const [metaBarbeiro, setMetaBarbeiro] = useState(() => {
     return localStorage.getItem('minha_meta_barbeiro') || '';
@@ -72,8 +72,8 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
   }, [metaBarbeiro]);
 
   React.useEffect(() => {
-    if (user && user.phone && barbeiros.length > 0 && !selectedBarbeiroId) {
-      if (isAdmin || (empresa?.phone && user.phone.replace(/\D/g, '') === empresa.phone.replace(/\D/g, ''))) {
+    if (user && user.email && barbeiros.length > 0 && !selectedBarbeiroId) {
+      if (isAdmin || (empresa?.email && user.email.replace(/\D/g, '') === empresa.email.replace(/\D/g, ''))) {
         setSelectedBarbeiroId('todos');
       } else {
         if (barbeiroLogado) {
@@ -243,7 +243,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
     try {
       const barbeiroNome = barbeiros.find(b => b.id === selectedBarbeiroId)?.nome || "Barbeiro";
       const payload = {
-        ownerPhone: user.phone,
+        idEmail: user.idEmail || user.id,
         type: 'revenue',
         name: `Comissões Barbeiro (${barbeiroNome}) - ${selectedDate.split('-').reverse().join('/')}`,
         amount: totalComissaoDia,
@@ -350,7 +350,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
 
   const [isAddClienteModalOpen, setIsAddClienteModalOpen] = useState(false);
   const [addClienteNome, setAddClienteNome] = useState('');
-  const [addClienteTelefone, setAddClienteTelefone] = useState('');
+  const [addClienteEmail, setAddClienteEmail] = useState('');
   const [addClienteServicos, setAddClienteServicos] = useState<string[]>([]);
   const [addClienteProdutos, setAddClienteProdutos] = useState<string[]>([]);
   const [addClienteData, setAddClienteData] = useState<string>(todayStr);
@@ -396,14 +396,14 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
   }, [loadAgendamentos]);
 
   const handleAddClienteSubmit = async (statusFinal: 'atendendo' | 'finalizado') => {
-    if (!addClienteTelefone || !addClienteHora || !addClienteData) {
-      alert("Preencha telefone, data e hora.");
+    if (!addClienteEmail || !addClienteHora || !addClienteData) {
+      alert("Preencha email, data e hora.");
       return;
     }
     
-    const justNumbers = addClienteTelefone.replace(/\D/g, "");
+    const justNumbers = addClienteEmail.replace(/\D/g, "");
     if (justNumbers.length < 10 || justNumbers.length > 11) {
-      alert("Por favor, insira um telefone válido com código de área (DDD) contendo 10 ou 11 dígitos.");
+      alert("Por favor, insira um email válido com código de área (DDD) contendo 10 ou 11 dígitos.");
       return;
     }
 
@@ -414,7 +414,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
 
     const agendamentoData: any = {
       clienteNome: addClienteNome || "Cliente Avulso",
-      clienteTelefone: addClienteTelefone,
+      clienteEmail: addClienteEmail,
       barbeiroId: addClienteBarbeiroId || (selectedBarbeiroId === 'todos' ? '' : selectedBarbeiroId),
       servicosIds: addClienteServicos,
       produtosIds: addClienteProdutos,
@@ -454,7 +454,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
     // Limpar estados
     setIsAddClienteModalOpen(false);
     setAddClienteNome('');
-    setAddClienteTelefone('');
+    setAddClienteEmail('');
     setAddClienteServicos([]);
     setAddClienteProdutos([]);
     setAddClienteData(todayStr);
@@ -631,14 +631,14 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                 </div>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm text-gray-400 mb-1">Telefone / Celular</label>
+                    <label className="block text-sm text-gray-400 mb-1">Email / Celular</label>
                     <input 
-                      type="tel" value={addClienteTelefone} onChange={e => {
+                      type="tel" value={addClienteEmail} onChange={e => {
                         let val = e.target.value.replace(/\D/g, "");
                         if (val.length > 11) val = val.substring(0, 11);
                         if (val.length > 2) val = `(${val.substring(0, 2)}) ${val.substring(2)}`;
                         if (val.length > 9) val = `${val.substring(0, 10)}-${val.substring(10)}`;
-                        setAddClienteTelefone(val);
+                        setAddClienteEmail(val);
                       }}
                       className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-3 text-sm focus:border-blue-500 focus:outline-none"
                       placeholder="(DD) 99999-9999"
@@ -954,7 +954,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                               </h3>
 
                               <p className="text-xs text-gray-400 font-mono tracking-tight bg-gray-800/80 w-fit px-2 py-1 rounded-md border border-gray-700/50">
-                                {a.telefone}
+                                {a.email}
                               </p>
 
                               {isAdmin ? (
