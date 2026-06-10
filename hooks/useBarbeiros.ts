@@ -104,14 +104,17 @@ export const useBarbeiros = (empresaId?: string) => {
       });
       if (response.ok) {
         reloadBarbeiros();
+        return true;
       } else {
         const errorText = await response.text();
         console.error('Erro ao atualizar barbeiro via API:', errorText);
         alert(`Erro ao atualizar: ${errorText}`);
+        return false;
       }
     } catch (e) {
       console.error('Erro ao comunicar atualização do barbeiro', e);
       alert('Erro de conexão ao atualizar barbeiro.');
+      return false;
     }
   };
 

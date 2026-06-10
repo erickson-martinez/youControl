@@ -160,7 +160,7 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
   const handleEdit = (barbeiro: any) => {
     setEditingId(barbeiro.id);
     setNome(barbeiro.nome);
-    setEmail(barbeiro.email || '');
+    setEmail(barbeiro.idEmail || barbeiro.email || barbeiro.telefone || '');
     setComissao(barbeiro.comissao?.toString() || '');
     setCorte(barbeiro.corte?.toString() || '');
     setDias(barbeiro.diasTrabalhados || []);
@@ -196,6 +196,7 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
         nome,
         email,
         telefone: email,
+        idEmail: email,
         comissao: cargo === 'caixa' ? 0 : (Number(comissao) || 0),
         corte: cargo === 'caixa' ? 0 : (Number(corte) || 0),
         diasTrabalhados: dias,
@@ -204,14 +205,19 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
     };
 
     if (editingId && editingId !== 'new_owner') {
-        if (updateBarbeiro) await updateBarbeiro(editingId, payload);
-        alert("Configurações do membro atualizadas com sucesso!");
+        const success = updateBarbeiro ? await updateBarbeiro(editingId, payload) : false;
+        if (success) {
+            alert("Configurações do membro atualizadas com sucesso!");
+            cancelEdit();
+        }
     } else if (editingId === 'new_owner') {
-        if (addBarbeiro) await addBarbeiro(payload);
-        alert("Proprietário configurado como barbeiro!");
+        const success = addBarbeiro ? await addBarbeiro(payload) : false;
+        if (success) {
+            alert("Proprietário configurado como barbeiro!");
+            cancelEdit();
+        }
     }
     
-    cancelEdit();
     setLoading(false);
   };
 
@@ -362,7 +368,7 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
                 <button 
                   onClick={() => {
                     setNome(user.name || '');
-                    setEmail(user.email || '');
+                    setEmail(user.idEmail || user.email || user.id || '');
                     setEditingId('new_owner');
                   }}
                   className="w-10 h-6 bg-gray-700 rounded-full relative transition-colors duration-200 focus:outline-none"
