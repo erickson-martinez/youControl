@@ -8,6 +8,7 @@ import { API_BASE_URL } from '../constants';
 import { CustomDatePicker } from './CustomDatePicker';
 import MonthNavigator from './MonthNavigator';
 import ConfirmationModal from './ConfirmationModal';
+import BarbeiroAgendaPage from './BarbeiroAgendaPage';
 
 const DIAS_SEMANA = [
   'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'
@@ -19,7 +20,7 @@ interface BarbeirosPageProps {
 }
 
 const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user, empresa }) => {
-  const [activeTab, setActiveTab] = useState<'barbeiros' | 'produtos' | 'servicos' | 'custos' | 'metas' | 'registros'>('barbeiros');
+  const [activeTab, setActiveTab] = useState<'agenda' | 'barbeiros' | 'produtos' | 'servicos' | 'custos' | 'metas' | 'registros'>('agenda');
   const tabsRef = useRef<HTMLDivElement>(null);
 
   const scrollTabs = (direction: 'left' | 'right') => {
@@ -69,6 +70,14 @@ const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user, empresa }) => {
           ref={tabsRef}
           className="flex overflow-x-auto gap-2 bg-gray-900 border border-gray-800 p-2 rounded-2xl scroll-smooth [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] mx-4 md:mx-6"
         >
+          <button
+            onClick={() => setActiveTab('agenda')}
+            className={`flex items-center justify-center gap-2 py-3 px-6 text-sm font-semibold rounded-xl transition-all whitespace-nowrap ${
+              activeTab === 'agenda' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-gray-800'
+            }`}
+          >
+            <ClipboardListIcon className="w-4 h-4" /> Agenda Geral
+          </button>
           <button
             onClick={() => setActiveTab('barbeiros')}
             className={`flex items-center justify-center gap-2 py-3 px-6 text-sm font-semibold rounded-xl transition-all whitespace-nowrap ${
@@ -127,6 +136,11 @@ const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user, empresa }) => {
         </button>
       </div>
 
+      {activeTab === 'agenda' && (
+        <div className="-mx-4 md:-mx-8 -mt-4">
+          <BarbeiroAgendaPage user={user} empresa={empresa} isAdmin={true} linkId={empresa?.id} />
+        </div>
+      )}
       {activeTab === 'barbeiros' && <TabBarbeiros empresa={empresa} user={user} empresaId={empresa?.id} />}
       {activeTab === 'produtos' && <TabProdutos empresaId={empresa?.id} />}
       {activeTab === 'servicos' && <TabServicos empresaId={empresa?.id} />}

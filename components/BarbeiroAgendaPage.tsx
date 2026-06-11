@@ -72,11 +72,13 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
   }, [metaBarbeiro]);
 
   React.useEffect(() => {
-    if (user && user.email && barbeiros.length > 0 && !selectedBarbeiroId) {
-      if (isAdmin || (empresa?.email && user.email.replace(/\D/g, '') === empresa.email.replace(/\D/g, ''))) {
+    if (!selectedBarbeiroId) {
+      if (isAdmin) {
         setSelectedBarbeiroId('todos');
-      } else {
-        if (barbeiroLogado) {
+      } else if (user && barbeiros.length > 0) {
+        if (empresa?.email && user.email?.replace(/\D/g, '') === empresa.email.replace(/\D/g, '')) {
+          setSelectedBarbeiroId('todos');
+        } else if (barbeiroLogado) {
           setSelectedBarbeiroId(barbeiroLogado.id);
         }
       }
@@ -415,6 +417,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
     const agendamentoData: any = {
       clienteNome: addClienteNome || "Cliente Avulso",
       clienteEmail: addClienteEmail,
+      clienteTelefone: addClienteEmail,
       barbeiroId: addClienteBarbeiroId || (selectedBarbeiroId === 'todos' ? '' : selectedBarbeiroId),
       servicosIds: addClienteServicos,
       produtosIds: addClienteProdutos,

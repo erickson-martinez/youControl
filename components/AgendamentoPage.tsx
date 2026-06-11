@@ -175,6 +175,7 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
     const payload = {
       clienteNome: nome,
       clienteEmail: email,
+      clienteTelefone: email,
       barbeiroId: barbeiroId || "",
       servicosIds: servicosSelecionados,
       produtosIds: produtosSelecionados,
