@@ -7,8 +7,10 @@ export const exportYearlyPDF = async (idEmail: string, email: string, year: numb
     try {
         const promises = [];
         for (let month = 1; month <= 12; month++) {
+            const params = new URLSearchParams({ idEmail, month: month.toString(), year: year.toString(), includeShared: 'true' });
+            if (email) { params.append('sharedEmailOrPhone', email); params.append('targetEmailOrPhone', email); }
             promises.push(
-                fetch(`${API_BASE_URL}/transactions?idEmail=${idEmail}${email ? `&email=${encodeURIComponent(email)}` : ''}&includeShared=true&month=${month}&year=${year}`, {
+                fetch(`${API_BASE_URL}/transactions?${params.toString()}`, {
                     headers: { 'Content-Type': 'application/json' },
                     cache: 'no-store'
                 }).then(res => res.json()).catch(() => ({ transactions: [] }))

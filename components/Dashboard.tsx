@@ -154,7 +154,20 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
         if (transactionsCache.current[cacheKey]) {
             data = transactionsCache.current[cacheKey];
         } else {           
-            const response = await apiFetch(`${API_BASE_URL}/transactions?idEmail=${user.idEmail || user.id}${user.email ? `&email=${encodeURIComponent(user.email)}` : ''}&month=${month}&year=${year}`);
+            const queryParams = new URLSearchParams({
+                idEmail: user.idEmail || user.id,
+                month: month.toString(),
+                year: year.toString(),
+            });
+            if (user.email) {
+                queryParams.append('sharedEmailOrPhone', user.email);
+                queryParams.append('targetEmailOrPhone', user.email);
+            }
+            if (user.phone) {
+                // If the user has a phone mapped properly, we might also want to search by it, but the backend currently takes a single token for each. Usually the user.email is used as identifier.
+                // We'll append it again, the backend might handle it, or we just send email if it's the primary. Let's just use email since the previous was email.
+            }
+            const response = await apiFetch(`${API_BASE_URL}/transactions?${queryParams.toString()}`);
           
             if (!response.ok) {
                 const errData = await response.json().catch(() => ({ message: 'Falha ao buscar transações.' }));
@@ -231,7 +244,9 @@ setTransactions(mappedTransactions);
                  if (transactionsCache.current[cmKey]) {
                      currentMonthData = transactionsCache.current[cmKey];
                  } else {
-                     const cmResponse = await apiFetch(`${API_BASE_URL}/transactions?idEmail=${user.idEmail || user.id}${user.email ? `&email=${encodeURIComponent(user.email)}` : ''}&includeShared=true&month=${today.getMonth() + 1}&year=${today.getFullYear()}`);
+                     const params = new URLSearchParams({ idEmail: user.idEmail || user.id, month: (today.getMonth() + 1).toString(), year: today.getFullYear().toString(), includeShared: 'true' });
+                     if (user.email) { params.append('sharedEmailOrPhone', user.email); params.append('targetEmailOrPhone', user.email); }
+                     const cmResponse = await apiFetch(`${API_BASE_URL}/transactions?${params.toString()}`);
                      if (cmResponse.ok) {
                          currentMonthData = await cmResponse.json();
                          transactionsCache.current[cmKey] = currentMonthData;
@@ -264,7 +279,9 @@ setTransactions(mappedTransactions);
                     loopData = transactionsCache.current[loopKey];
                 } else {
                     // Fetch and Cache
-                    const loopResponse = await apiFetch(`${API_BASE_URL}/transactions?email =${user.email}&includeShared=true&month=${loopMonth}&year=${loopYear}`);
+                    const params = new URLSearchParams({ idEmail: user.idEmail || user.id, month: loopMonth.toString(), year: loopYear.toString(), includeShared: 'true' });
+                    if (user.email) { params.append('sharedEmailOrPhone', user.email); params.append('targetEmailOrPhone', user.email); }
+                    const loopResponse = await apiFetch(`${API_BASE_URL}/transactions?${params.toString()}`);
                     if (loopResponse.ok) {
                         loopData = await loopResponse.json();
                         transactionsCache.current[loopKey] = loopData;
@@ -530,7 +547,8 @@ setTransactions(mappedTransactions);
             method: 'PATCH',
             body: JSON.stringify({
                 idEmail: user.idEmail || user.id, 
-                sharedEmailOrPhone: shareeEmail
+                sharedEmailOrPhone: shareeEmail,
+                aggregate
             })
         });
 
