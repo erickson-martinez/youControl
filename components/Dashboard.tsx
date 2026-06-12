@@ -129,7 +129,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
           const amt = Number(tx.amount || 0);
           const isMine = tx.idEmail === currentUserId;
           // Include if mine OR (shared with me AND aggregate is true)
-          const isSharedWithMe = (tx.sharedEmailOrPhone === user.email || (user.phone && tx.sharedEmailOrPhone === user.phone)) && tx.idEmail !== currentUserId;
+          const targetOrShared = tx.sharedEmailOrPhone || tx.targetEmailOrPhone;
+          const isSharedWithMe = (targetOrShared === user.email || (user.phone && targetOrShared === user.phone)) && tx.idEmail !== currentUserId;
           
           if (isMine || (isSharedWithMe && tx.aggregate === true)) {
               if (tx.type === TransactionType.REVENUE) r += amt;
@@ -177,6 +178,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
             isControlled: tx.isControlled,
             status: tx.status,
             sharedEmailOrPhone: tx.sharedEmailOrPhone || '',
+            targetEmailOrPhone: tx.targetEmailOrPhone || '',
             aggregate: tx.aggregate,
             paymentRequest: tx.paymentRequest,
             additions: (tx.additions || []).map((add: any) => ({
@@ -199,9 +201,10 @@ setTransactions(mappedTransactions);
         const sharedInfoMap = new Map<string, SharedUser>();
         const currentUserId = user.idEmail || user.id;
         mappedTransactions.forEach((tx: Transaction) => {
-            const isSharedWithMe = (tx.sharedEmailOrPhone === user.email || (user.phone && tx.sharedEmailOrPhone === user.phone)) && tx.idEmail !== currentUserId;
-            if (isSharedWithMe) {
-                sharedInfoMap.set(tx.idEmail, { email: tx.sharedEmailOrPhone, aggregate: !!tx.aggregate });
+            const targetOrShared = tx.sharedEmailOrPhone || tx.targetEmailOrPhone;
+            const isSharedWithMe = (targetOrShared === user.email || (user.phone && targetOrShared === user.phone)) && tx.idEmail !== currentUserId;
+            if (isSharedWithMe && targetOrShared) {
+                sharedInfoMap.set(tx.idEmail, { email: targetOrShared, aggregate: !!tx.aggregate });
             }
         });
         setSharedUsersInfo(Array.from(sharedInfoMap.values()));
@@ -300,7 +303,7 @@ setTransactions(mappedTransactions);
         return { 
           idEmail: user.idEmail || user.id, 
           email: user.email,
-          sharedEmailOrPhone: data.sharedEmailOrPhone,
+          targetEmailOrPhone: data.sharedEmailOrPhone,
           name: data.name, 
           amount: data.amount, 
           date: data.date,
@@ -524,11 +527,10 @@ setTransactions(mappedTransactions);
   const onShare = async (shareeEmail: string, aggregate: boolean) => {
     try {
         const response = await apiFetch(`${API_BASE_URL}/transactions/follow`, {
-            method: 'POST',
+            method: 'PATCH',
             body: JSON.stringify({
-                myEmail: user.email, 
-                targetEmail: shareeEmail,
-                aggregate
+                idEmail: user.idEmail || user.id, 
+                sharedEmailOrPhone: shareeEmail
             })
         });
 
@@ -619,9 +621,12 @@ setTransactions(mappedTransactions);
   const { personalTransactions, sharedTransactions } = useMemo(() => {
     const currentUserId = user.idEmail || user.id;
     const personal = transactions.filter(t => t.idEmail === currentUserId);
-    const shared = transactions.filter(t => (t.sharedEmailOrPhone === user.email || (user.phone && t.sharedEmailOrPhone === user.phone)) && t.idEmail !== currentUserId);
+    const shared = transactions.filter(t => {
+      const targetOrShared = t.sharedEmailOrPhone || t.targetEmailOrPhone;
+      return (targetOrShared === user.email || (user.phone && targetOrShared === user.phone)) && t.idEmail !== currentUserId;
+    });
     return { personalTransactions: personal, sharedTransactions: shared };
-  }, [transactions, user.email, user.id, user.idEmail]);
+  }, [transactions, user.email, user.id, user.idEmail, user.phone]);
 
   const overdueTransactions = useMemo(() => {
     const today = new Date();

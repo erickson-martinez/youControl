@@ -24,7 +24,7 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, onShare, showA
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) {
-        alert("Por favor, insira um número de email.");
+        alert("Por favor, insira um email ou telefone.");
         return;
     }
     
@@ -46,22 +46,21 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, onShare, showA
       <div className="w-full max-w-lg p-6 mx-4 bg-gray-800 rounded-lg shadow-xl">
         <h2 className="mb-4 text-2xl font-bold text-white">Compartilhar Suas Finanças</h2>
         <p className="mb-4 text-sm text-gray-400">
-            Digite o email da pessoa que poderá <strong>visualizar</strong> suas transações no painel dela.
+            Digite o email ou telefone da pessoa que poderá <strong>visualizar</strong> suas transações no painel dela.
         </p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="share-email" className="block mb-1 text-sm font-medium text-gray-300">Email do Visualizador</label>
+            <label htmlFor="share-email" className="block mb-1 text-sm font-medium text-gray-300">Email ou Telefone do Visualizador</label>
             <input 
-                type="tel" 
+                type="text" 
                 name="email" 
                 id="share-email" 
                 value={email} 
                 onChange={(e) => setEmail(e.target.value)} 
                 required 
-                maxLength={11}
                 disabled={isSharing}
                 className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500 disabled:opacity-50" 
-                placeholder="Ex: 11987654321"
+                placeholder="Ex: usuario@email.com ou 11987654321"
             />
           </div>
 

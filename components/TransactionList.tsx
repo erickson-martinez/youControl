@@ -62,7 +62,8 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
     
     // Logic for shared transactions aggregation visualization
     const isOwner = transaction.idEmail === currentUserId;
-    const isSharedWithMe = !isOwner && (transaction.sharedEmailOrPhone === currentUserEmail);
+    const targetOrShared = transaction.sharedEmailOrPhone || transaction.targetEmailOrPhone;
+    const isSharedWithMe = !isOwner && (targetOrShared === currentUserEmail);
     const isAggregated = transaction.aggregate === true;
 
     // True when I am the owner and the status is PENDING
@@ -204,12 +205,12 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
                                         <BellIcon className="w-5 h-5 text-yellow-accent animate-pulse" />
                                     </span>
                                 )}
-                                {transaction.sharedEmailOrPhone && (
+                                {(transaction.sharedEmailOrPhone || transaction.targetEmailOrPhone) && (
                                     <span className="inline-flex items-center flex-shrink-0 px-2 py-0.5 text-xs text-purple-300 bg-purple-800 rounded-full" title={`Compartilhamento`}>
                                         <ShareIcon className="w-3 h-3 mr-1.5" />
                                         <span className="truncate max-w-[150px]">
                                             {transaction.idEmail === currentUserId 
-                                                ? `Com: ${transaction.sharedEmailOrPhone}` 
+                                                ? `${transaction.sharedEmailOrPhone || transaction.targetEmailOrPhone}` 
                                                 : (transaction.email ? `De: ${transaction.email}` : "Compartilhado com você")}
                                         </span>
                                     </span>

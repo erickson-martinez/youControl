@@ -125,6 +125,7 @@ export interface Transaction {
   idEmail: string;
   email?: string;
   sharedEmailOrPhone?: string;
+  targetEmailOrPhone?: string;
   type: TransactionType;
   name: string;
   amount: number;

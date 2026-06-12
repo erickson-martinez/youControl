@@ -160,10 +160,6 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
                 <input type="checkbox" name="paid" id="paid" checked={formData.paid} onChange={handleChange} disabled={formData.isControlled || isSubmitting} className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50" />
                 <label htmlFor="paid" className={`ml-2 text-sm text-gray-300 ${(formData.isControlled || isSubmitting) ? 'opacity-50' : ''}`}>Pago</label>
             </div>
-            <div className="flex items-center">
-              <input type="checkbox" name="isControlled" id="isControlled" checked={formData.isControlled} onChange={handleChange} disabled={isEditing || isSubmitting} className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50" />
-              <label htmlFor="isControlled" className={`ml-2 text-sm text-gray-300 ${(isEditing || isSubmitting) ? 'opacity-50' : ''}`}>{controlLabel}</label>
-            </div>
              {!isEditing && (
               <div className="flex items-center">
                 <input type="checkbox" name="repeat" id="repeat" checked={formData.repeat} onChange={handleChange} disabled={isSubmitting} className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50" />
@@ -172,12 +168,10 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
             )}
           </div>
 
-          {formData.isControlled && (
-            <div>
-              <label htmlFor="sharedEmailOrPhone" className="block mb-1 text-sm font-medium text-gray-300">Email ou Telefone</label>
-              <input type="text" name="sharedEmailOrPhone" id="sharedEmailOrPhone" value={formData.sharedEmailOrPhone} onChange={handleChange} required disabled={isEditing || isSubmitting} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500 disabled:opacity-50" placeholder="usuario@email.com ou 11999999999" />
-            </div>
-          )}
+          <div>
+            <label htmlFor="sharedEmailOrPhone" className="block mb-1 text-sm font-medium text-gray-300">{controlLabel} (Email ou Telefone opcional)</label>
+            <input type="text" name="sharedEmailOrPhone" id="sharedEmailOrPhone" value={formData.sharedEmailOrPhone} onChange={(e) => setFormData({...formData, sharedEmailOrPhone: e.target.value, isControlled: !!e.target.value.trim()})} disabled={isEditing || isSubmitting} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500 disabled:opacity-50" placeholder="Deixe em branco para transação local" />
+          </div>
 
           {!isEditing && formData.repeat && (
             <div>
