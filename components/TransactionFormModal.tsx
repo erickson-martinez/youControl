@@ -8,7 +8,7 @@ type FormDataType = {
   date: string;
   paid: boolean;
   isControlled: boolean;
-  sharedEmail: string;
+  sharedEmailOrPhone: string;
   repeat: boolean;
   repeatCount: string;
 };
@@ -30,7 +30,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
     date: new Date().toISOString().split('T')[0],
     paid: true,
     isControlled: false,
-    sharedEmail: '',
+    sharedEmailOrPhone: '',
     repeat: false,
     repeatCount: '1',
   });
@@ -47,7 +47,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
         date: transactionToEdit.date,
         paid: transactionToEdit.status === PaymentStatus.PAID,
         isControlled: transactionToEdit.isControlled,
-        sharedEmail: transactionToEdit.sharedEmail || '',
+        sharedEmailOrPhone: transactionToEdit.sharedEmailOrPhone || '',
         repeat: false,
         repeatCount: '1',
       });
@@ -63,7 +63,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
         date: `${year}-${month}-${day}`,
         paid: false,
         isControlled: false,
-        sharedEmail: '',
+        sharedEmailOrPhone: '',
         repeat: false,
         repeatCount: '1',
       });
@@ -83,7 +83,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
     setIsSubmitting(true);
     
     // Validação Client-Side: Impedir criação para o mesmo usuário
-    if (formData.isControlled && currentUserEmail && formData.sharedEmail === currentUserEmail) {
+    if (formData.isControlled && currentUserEmail && formData.sharedEmailOrPhone === currentUserEmail) {
         alert("Não é permitido criar cobrança para o mesmo usuário.");
         setIsSubmitting(false);
         return;
@@ -108,7 +108,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
                 date: formData.date,
                 type,
                 isControlled: formData.isControlled,
-                sharedEmail: formData.sharedEmail || undefined,
+                sharedEmailOrPhone: formData.sharedEmailOrPhone || undefined,
                 status: formData.isControlled ? PaymentStatus.UNPAID : (formData.paid ? PaymentStatus.PAID : PaymentStatus.UNPAID),
                 repeatCount: repeatCount > 0 ? repeatCount : undefined,
             };
@@ -174,8 +174,8 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
 
           {formData.isControlled && (
             <div>
-              <label htmlFor="sharedEmail" className="block mb-1 text-sm font-medium text-gray-300">Email</label>
-              <input type="email" name="sharedEmail" id="sharedEmail" value={formData.sharedEmail} onChange={handleChange} required disabled={isEditing || isSubmitting} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500 disabled:opacity-50" placeholder="usuario@email.com" />
+              <label htmlFor="sharedEmailOrPhone" className="block mb-1 text-sm font-medium text-gray-300">Email ou Telefone</label>
+              <input type="text" name="sharedEmailOrPhone" id="sharedEmailOrPhone" value={formData.sharedEmailOrPhone} onChange={handleChange} required disabled={isEditing || isSubmitting} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500 disabled:opacity-50" placeholder="usuario@email.com ou 11999999999" />
             </div>
           )}
 

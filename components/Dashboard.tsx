@@ -129,7 +129,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
           const amt = Number(tx.amount || 0);
           const isMine = tx.idEmail === currentUserId;
           // Include if mine OR (shared with me AND aggregate is true)
-          const isSharedWithMe = tx.sharedEmail === user.email && tx.idEmail !== currentUserId;
+          const isSharedWithMe = (tx.sharedEmailOrPhone === user.email || (user.phone && tx.sharedEmailOrPhone === user.phone)) && tx.idEmail !== currentUserId;
           
           if (isMine || (isSharedWithMe && tx.aggregate === true)) {
               if (tx.type === TransactionType.REVENUE) r += amt;
@@ -176,7 +176,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
             date: new Date(tx.date).toISOString().split('T')[0],
             isControlled: tx.isControlled,
             status: tx.status,
-            sharedEmail: tx.sharedEmail || '',
+            sharedEmailOrPhone: tx.sharedEmailOrPhone || '',
             aggregate: tx.aggregate,
             paymentRequest: tx.paymentRequest,
             additions: (tx.additions || []).map((add: any) => ({
@@ -199,8 +199,9 @@ setTransactions(mappedTransactions);
         const sharedInfoMap = new Map<string, SharedUser>();
         const currentUserId = user.idEmail || user.id;
         mappedTransactions.forEach((tx: Transaction) => {
-            if (tx.sharedEmail === user.email && tx.idEmail !== currentUserId) {
-                sharedInfoMap.set(tx.idEmail, { email: tx.sharedEmail, aggregate: !!tx.aggregate });
+            const isSharedWithMe = (tx.sharedEmailOrPhone === user.email || (user.phone && tx.sharedEmailOrPhone === user.phone)) && tx.idEmail !== currentUserId;
+            if (isSharedWithMe) {
+                sharedInfoMap.set(tx.idEmail, { email: tx.sharedEmailOrPhone, aggregate: !!tx.aggregate });
             }
         });
         setSharedUsersInfo(Array.from(sharedInfoMap.values()));
@@ -299,7 +300,7 @@ setTransactions(mappedTransactions);
         return { 
           idEmail: user.idEmail || user.id, 
           email: user.email,
-          sharedEmail: data.sharedEmail,
+          sharedEmailOrPhone: data.sharedEmailOrPhone,
           name: data.name, 
           amount: data.amount, 
           date: data.date,
@@ -618,7 +619,7 @@ setTransactions(mappedTransactions);
   const { personalTransactions, sharedTransactions } = useMemo(() => {
     const currentUserId = user.idEmail || user.id;
     const personal = transactions.filter(t => t.idEmail === currentUserId);
-    const shared = transactions.filter(t => t.sharedEmail === user.email && t.idEmail !== currentUserId);
+    const shared = transactions.filter(t => (t.sharedEmailOrPhone === user.email || (user.phone && t.sharedEmailOrPhone === user.phone)) && t.idEmail !== currentUserId);
     return { personalTransactions: personal, sharedTransactions: shared };
   }, [transactions, user.email, user.id, user.idEmail]);
 
