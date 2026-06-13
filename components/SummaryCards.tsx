@@ -30,7 +30,7 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({ revenue, expenses, balance,
   const totalTitle = isFutureMonth ? 'Previsão Total' : 'Total';
 
   return (
-    <div className="grid grid-cols-2 gap-4 mb-6">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
         <SummaryCard 
             title="Receitas"
             value={revenue}

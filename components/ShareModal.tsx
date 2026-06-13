@@ -42,9 +42,9 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, onShare, showA
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75">
-      <div className="w-full max-w-lg p-6 mx-4 bg-gray-800 rounded-lg shadow-xl">
-        <h2 className="mb-4 text-2xl font-bold text-white">Compartilhar Suas Finanças</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
+      <div className="w-full max-w-lg p-5 sm:p-6 bg-gray-800 rounded-xl shadow-xl max-h-[90vh] overflow-y-auto">
+        <h2 className="mb-3 text-xl sm:text-2xl font-bold text-white">Compartilhar Suas Finanças</h2>
         <p className="mb-4 text-sm text-gray-400">
             Digite o email ou telefone da pessoa que poderá <strong>visualizar</strong> suas transações no painel dela.
         </p>
@@ -73,15 +73,15 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, onShare, showA
                     checked={aggregate} 
                     onChange={(e) => setAggregate(e.target.checked)} 
                     disabled={isSharing}
-                    className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50" 
+                    className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50 shrink-0" 
                 />
                 <label htmlFor="aggregate" className={`ml-2 text-sm text-gray-300 ${isSharing ? 'opacity-50' : ''}`}>Permitir que ela some seus valores ao total dela</label>
             </div>
           )}
 
-          <div className="flex justify-end pt-4 space-x-3">
-            <button type="button" onClick={onClose} disabled={isSharing} className="px-4 py-2 font-medium text-gray-300 bg-gray-600 rounded-md hover:bg-gray-700 disabled:opacity-50">Cancelar</button>
-            <button type="submit" disabled={isSharing} className="px-4 py-2 font-medium text-white rounded-md bg-blue-accent hover:bg-blue-accent/90 disabled:bg-gray-500 disabled:cursor-wait">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-4 sm:space-x-3">
+            <button type="button" onClick={onClose} disabled={isSharing} className="w-full sm:w-auto px-4 py-2 font-medium text-gray-300 bg-gray-600 rounded-md hover:bg-gray-700 disabled:opacity-50">Cancelar</button>
+            <button type="submit" disabled={isSharing} className="w-full sm:w-auto px-4 py-2 font-medium text-white rounded-md bg-blue-accent hover:bg-blue-accent/90 disabled:bg-gray-500 disabled:cursor-wait">
                 {isSharing ? 'Compartilhando...' : 'Conceder Acesso'}
             </button>
           </div>

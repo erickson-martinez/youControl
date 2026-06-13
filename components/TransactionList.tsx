@@ -212,7 +212,7 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
 
     return (
         <li className="p-3 bg-gray-700 rounded-lg">
-            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                 {/* LEFT SIDE */}
                 <div className="flex items-center justify-between flex-grow min-w-0">
                     <div className="flex items-center min-w-0 space-x-3">
@@ -226,9 +226,9 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
                                     </span>
                                 )}
                                 {(transaction.sharedEmail || transaction.sharedPhone || (transaction.isControlled && isOwner && (transaction.targetEmail || transaction.targetPhone))) && !isTarget && (
-                                    <span className="inline-flex items-center flex-shrink-0 px-2 py-0.5 text-xs text-purple-300 bg-purple-800 rounded-full" title={`Compartilhamento`}>
-                                        <ShareIcon className="w-3 h-3 mr-1.5" />
-                                        <span className="truncate max-w-[150px]">
+                                    <span className="inline-flex items-center flex-shrink-0 px-2 py-0.5 text-[10px] sm:text-xs text-purple-300 bg-purple-800 rounded-full" title={`Compartilhamento`}>
+                                        <ShareIcon className="w-3 h-3 md:mr-1.5" />
+                                        <span className="truncate max-w-[150px] hidden md:inline">
                                             {transaction.idEmail === currentUserId 
                                                 ? `${transaction.sharedEmail || transaction.sharedPhone || transaction.targetEmail || transaction.targetPhone}` 
                                                 : (transaction.email ? `De: ${transaction.email}` : "Compartilhado com você")}
@@ -236,7 +236,7 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
                                     </span>
                                 )}
                             </div>
-                            <p className="flex items-center mt-1 text-sm text-gray-400 truncate">
+                            <p className="flex items-center mt-1 text-xs sm:text-sm text-gray-400 truncate">
                                 <span>{new Date(transaction.date).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
                             </p>
                         </div>
@@ -244,7 +244,7 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
                     {isOwner && !isPendingApprovalFromMe && (
                          <button 
                             onClick={handleDelete}
-                            className="p-1.5 text-gray-400 transition-colors rounded-md hover:bg-gray-600 hover:text-red-accent"
+                            className="p-1.5 text-gray-400 transition-colors rounded-md hover:bg-gray-600 hover:text-red-accent ml-2 sm:hidden"
                             title="Excluir"
                             aria-label="Excluir transação"
                         >
@@ -253,11 +253,11 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
                     )}
                 </div>
 
-                {/* RIGHT SIDE - Mobile: space-between, Desktop: justify-end */}
-                <div className="flex flex-wrap items-center justify-between w-full gap-x-4 gap-y-2 sm:w-auto sm:justify-end">
+                {/* RIGHT SIDE */}
+                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 shrink-0">
                     
                     {/* Amount Display with Aggregation Info */}
-                    <div className="flex flex-col items-end">
+                    <div className="flex flex-col items-start sm:items-end">
                         <p className={`font-bold text-base whitespace-nowrap ${amountClass}`}>
                             {formatCurrency(transaction.amount)}
                         </p>
@@ -265,27 +265,27 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
                             <div className="mt-1">
                                 {isAggregated ? (
                                     <span title="Soma no Total" className="inline-flex items-center text-blue-400 bg-blue-900/40 p-1 rounded-full border border-blue-500/30 cursor-help">
-                                        <PlusIcon className="w-4 h-4" />
+                                        <PlusIcon className="w-3 h-3 sm:w-4 sm:h-4" />
                                     </span>
                                 ) : (
                                     <span title="Apenas Visão" className="inline-flex items-center text-gray-400 bg-gray-800/50 p-1 rounded-full border border-gray-600 cursor-help">
-                                        <EyeIcon className="w-4 h-4" />
+                                        <EyeIcon className="w-3 h-3 sm:w-4 sm:h-4" />
                                     </span>
                                 )}
                             </div>
                         )}
                     </div>
                     
-                    <div className="flex items-center flex-wrap justify-end gap-x-3 gap-y-2">
+                    <div className="flex items-center flex-wrap justify-end gap-x-2 sm:gap-x-3 gap-y-2">
                         {/* If I am the debtor, and the bill is UNPAID, I can click "Inform payment" */}
                         {isEffectivelyControlled && (isOwner || isTarget) && isDebtor && transaction.status === PaymentStatus.UNPAID && !isPaymentRequested && (
-                            <button onClick={() => onRequestPayment(transaction)} className="px-2 py-1 text-xs text-white transition-colors bg-blue-accent rounded-md hover:bg-blue-accent/90">Informar Pagamento</button>
+                            <button onClick={() => onRequestPayment(transaction)} className="px-2 py-1 text-[10px] sm:text-xs text-white transition-colors bg-blue-accent rounded-md hover:bg-blue-accent/90">Informar Pagamento</button>
                         )}
                         {/* If I am the receiver, and status is PENDING, I can Approve/Reject */}
                         {isPendingApprovalFromMe && (
                             <>
-                            <button onClick={() => onApprovePayment(transaction)} className="px-2 py-1 text-xs text-white transition-colors bg-green-accent rounded-md hover:bg-green-600">Aprovar</button>
-                            <button onClick={() => onRejectPayment(transaction)} className="px-2 py-1 text-xs text-white transition-colors bg-red-600 rounded-md hover:bg-red-700">Recusar</button>
+                            <button onClick={() => onApprovePayment(transaction)} className="px-2 py-1 text-[10px] sm:text-xs text-white transition-colors bg-green-accent rounded-md hover:bg-green-600">Aprovar</button>
+                            <button onClick={() => onRejectPayment(transaction)} className="px-2 py-1 text-[10px] sm:text-xs text-white transition-colors bg-red-600 rounded-md hover:bg-red-700">Recusar</button>
                             </>
                         )}
 
@@ -294,7 +294,7 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
                             <button
                                 onClick={() => onOpenAddValueModal(transaction)}
                                 disabled={isPastMonth || isPaid}
-                                className={`flex items-center justify-center px-2 py-1 text-xs font-bold text-white rounded-md transition-colors ${
+                                className={`flex items-center justify-center px-2 py-1 text-[10px] sm:text-xs font-bold text-white rounded-md transition-colors ${
                                     isRevenue
                                         ? 'bg-green-accent/90 hover:bg-green-accent'
                                         : 'bg-red-accent/90 hover:bg-red-accent'
@@ -302,7 +302,7 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
                                 title={addValueTitle}
                                 aria-label={addValueTitle}
                             >
-                                {isRevenue ? <PlusIcon className="w-4 h-4" /> : <MinusIcon className="w-4 h-4" />}
+                                {isRevenue ? <PlusIcon className="w-3 h-3 sm:w-4 sm:h-4" /> : <MinusIcon className="w-3 h-3 sm:w-4 sm:h-4" />}
                                 <span className="ml-1">$</span>
                             </button>
                             <button 
@@ -313,6 +313,14 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
                                 aria-label="Editar transação"
                             >
                                 <PencilIcon className="w-4 h-4" />
+                            </button>
+                            <button 
+                                onClick={handleDelete}
+                                className="p-1.5 text-gray-400 transition-colors rounded-md hover:bg-gray-600 hover:text-red-accent hidden sm:block"
+                                title="Excluir"
+                                aria-label="Excluir transação"
+                            >
+                                <TrashIcon className="w-4 h-4" />
                             </button>
                             </>
                         )}
@@ -386,9 +394,9 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, tabSumm
 
   return (
     <div className="space-y-4">
-        <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-                <h2 className="text-xl font-bold text-white">Transações do Mês</h2>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2 sm:space-x-4">
+                <h2 className="text-base sm:text-lg font-bold text-white">Transações do Mês</h2>
                 {tabSummary && <div className="text-sm font-medium">{tabSummary}</div>}
             </div>
             {listActions && <div>{listActions}</div>}

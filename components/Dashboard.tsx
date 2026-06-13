@@ -858,13 +858,13 @@ setTransactions(mappedTransactions);
   const tabSummaryNode = useMemo(() => {
       switch(activeTab) {
           case 'transactions':
-              return <span className={`px-2 py-1 rounded-md bg-gray-700/50 text-gray-300 border border-gray-600`}>Saldo: <span className={totalMinhasReceitas - totalMinhasDespesas >= 0 ? "text-green-accent" : "text-red-accent"}>{formatCurrency(totalMinhasReceitas - totalMinhasDespesas)}</span></span>;
+              return <span className={`px-2 py-1 rounded-md bg-gray-700/50 text-gray-300 border border-gray-600`}><span className={totalMinhasReceitas - totalMinhasDespesas >= 0 ? "text-green-accent" : "text-red-accent"}>{formatCurrency(totalMinhasReceitas - totalMinhasDespesas)}</span></span>;
           case 'shared':
-              return <span className={`px-2 py-1 rounded-md bg-purple-900/40 text-purple-300 border border-purple-500/30`}>Total: {formatCurrency(totalShared)}</span>;
+              return <span className={`px-2 py-1 rounded-md bg-purple-900/40 text-purple-300 border border-purple-500/30`}>{formatCurrency(totalShared)}</span>;
           case 'receitas':
-              return <span className={`px-2 py-1 rounded-md bg-green-900/40 text-green-300 border border-green-500/30`}>Total Receitas: {formatCurrency(totalMinhasReceitas)}</span>;
+              return <span className={`px-2 py-1 rounded-md bg-green-900/40 text-green-300 border border-green-500/30`}>{formatCurrency(totalMinhasReceitas)}</span>;
           case 'despesas':
-              return <span className={`px-2 py-1 rounded-md bg-red-900/40 text-red-300 border border-red-500/30`}>Total Despesas: {formatCurrency(totalMinhasDespesas)}</span>;
+              return <span className={`px-2 py-1 rounded-md bg-red-900/40 text-red-300 border border-red-500/30`}>{formatCurrency(totalMinhasDespesas)}</span>;
           default:
               return null;
       }
@@ -941,12 +941,12 @@ setTransactions(mappedTransactions);
       />
       
       <div className="p-4 bg-gray-800 rounded-lg">
-        <div className="border-b border-gray-700 overflow-x-auto">
-          <nav className="flex space-x-4 min-w-max">
-            <button onClick={() => setActiveTab('transactions')} className={`px-3 py-2 font-medium text-sm rounded-t-md whitespace-nowrap ${activeTab === 'transactions' ? 'border-b-2 border-blue-accent text-white' : 'text-gray-400 hover:text-white border-b-2 border-transparent'}`}>Minhas Transações ({personalTransactions.length})</button>
-            <button onClick={() => setActiveTab('shared')} className={`px-3 py-2 font-medium text-sm rounded-t-md whitespace-nowrap ${activeTab === 'shared' ? 'border-b-2 border-blue-accent text-white' : 'text-gray-400 hover:text-white border-b-2 border-transparent'}`}>Compartilhados Comigo ({sharedTransactions.length})</button>
-            <button onClick={() => setActiveTab('receitas')} className={`px-3 py-2 font-medium text-sm rounded-t-md whitespace-nowrap ${activeTab === 'receitas' ? 'border-b-2 border-green-accent text-white' : 'text-gray-400 hover:text-white border-b-2 border-transparent'}`}>Receitas ({receitasTransactions.length})</button>
-            <button onClick={() => setActiveTab('despesas')} className={`px-3 py-2 font-medium text-sm rounded-t-md whitespace-nowrap ${activeTab === 'despesas' ? 'border-b-2 border-red-accent text-white' : 'text-gray-400 hover:text-white border-b-2 border-transparent'}`}>Despesas ({despesasTransactions.length})</button>
+        <div className="border-b-0 md:border-b border-gray-700 overflow-x-auto snap-x snap-mandatory pb-2 md:pb-0 custom-scrollbar-hide">
+          <nav className="flex space-x-2 md:space-x-4 min-w-max px-1">
+            <button onClick={() => setActiveTab('transactions')} className={`snap-start px-4 md:px-3 py-2 font-medium text-sm rounded-full md:rounded-bl-none md:rounded-br-none md:rounded-t-md whitespace-nowrap transition-colors ${activeTab === 'transactions' ? 'bg-blue-600 md:bg-transparent md:border-b-2 border-blue-accent text-white' : 'bg-gray-700 md:bg-transparent text-gray-300 md:text-gray-400 hover:text-white md:border-b-2 border-transparent hover:bg-gray-600 md:hover:bg-transparent'}`}>Minhas Transações ({personalTransactions.length})</button>
+            <button onClick={() => setActiveTab('shared')} className={`snap-start px-4 md:px-3 py-2 font-medium text-sm rounded-full md:rounded-bl-none md:rounded-br-none md:rounded-t-md whitespace-nowrap transition-colors ${activeTab === 'shared' ? 'bg-purple-600 md:bg-transparent md:border-b-2 border-purple-accent md:border-blue-accent text-white' : 'bg-gray-700 md:bg-transparent text-gray-300 md:text-gray-400 hover:text-white md:border-b-2 border-transparent hover:bg-gray-600 md:hover:bg-transparent'}`}>Compartilhados ({sharedTransactions.length})</button>
+            <button onClick={() => setActiveTab('receitas')} className={`snap-start px-4 md:px-3 py-2 font-medium text-sm rounded-full md:rounded-bl-none md:rounded-br-none md:rounded-t-md whitespace-nowrap transition-colors ${activeTab === 'receitas' ? 'bg-green-600 md:bg-transparent md:border-b-2 border-green-accent text-white' : 'bg-gray-700 md:bg-transparent text-gray-300 md:text-gray-400 hover:text-white md:border-b-2 border-transparent hover:bg-gray-600 md:hover:bg-transparent'}`}>Receitas ({receitasTransactions.length})</button>
+            <button onClick={() => setActiveTab('despesas')} className={`snap-start px-4 md:px-3 py-2 font-medium text-sm rounded-full md:rounded-bl-none md:rounded-br-none md:rounded-t-md whitespace-nowrap transition-colors ${activeTab === 'despesas' ? 'bg-red-600 md:bg-transparent md:border-b-2 border-red-accent text-white' : 'bg-gray-700 md:bg-transparent text-gray-300 md:text-gray-400 hover:text-white md:border-b-2 border-transparent hover:bg-gray-600 md:hover:bg-transparent'}`}>Despesas ({despesasTransactions.length})</button>
           </nav>
         </div>
         <div className="pt-4">
