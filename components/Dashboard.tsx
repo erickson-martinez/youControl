@@ -47,7 +47,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
     if (isExporting) return;
     setIsExporting(true);
     try {
-        await exportYearlyPDF(user.idEmail || user.id || '', user.email, currentDate.getFullYear());
+        await exportYearlyPDF(user.idEmail || user.id || '', user.email, user.phone, currentDate.getFullYear());
     } catch (err) {
         alert('Falha ao exportar PDF. Tente novamente.');
     } finally {
@@ -128,17 +128,21 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
       transactionsList.forEach((tx: any) => {
           const amt = Number(tx.amount || 0);
           const isMine = tx.idEmail === currentUserId;
-          // Include if mine OR (shared with me AND aggregate is true)
-          const targetOrShared = tx.sharedEmailOrPhone || tx.targetEmailOrPhone;
-          const isSharedWithMe = (targetOrShared === user.email || (user.phone && targetOrShared === user.phone)) && tx.idEmail !== currentUserId;
+          const isTarget = tx.isControlled && tx.idEmail !== currentUserId && ((tx.targetEmail && user.email && tx.targetEmail === user.email) || (tx.targetPhone && user.phone && tx.targetPhone === user.phone));
+          const isSharedWithMe = tx.idEmail !== currentUserId && !isTarget && ((tx.sharedEmail && user.email && tx.sharedEmail === user.email) || (tx.sharedPhone && user.phone && tx.sharedPhone === user.phone));
           
-          if (isMine || (isSharedWithMe && tx.aggregate === true)) {
-              if (tx.type === TransactionType.REVENUE) r += amt;
-              else if (tx.type === TransactionType.EXPENSE) e += amt;
+          let displayType = tx.type;
+          if (isTarget) {
+            displayType = tx.type === TransactionType.REVENUE ? TransactionType.EXPENSE : TransactionType.REVENUE;
+          }
+
+          if (isMine || isTarget || (isSharedWithMe && tx.aggregate === true)) {
+              if (displayType === TransactionType.REVENUE) r += amt;
+              else if (displayType === TransactionType.EXPENSE) e += amt;
           }
       });
       return { revenue: r, expenses: e };
-  }, [user.email, user.id, user.idEmail]);
+  }, [user.email, user.id, user.idEmail, user.phone]);
 
   const fetchTransactions = useCallback(async () => {
     setIsLoading(true);
@@ -160,12 +164,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
                 year: year.toString(),
             });
             if (user.email) {
-                queryParams.append('sharedEmailOrPhone', user.email);
-                queryParams.append('targetEmailOrPhone', user.email);
+                queryParams.append('sharedEmail', user.email);
+                queryParams.append('targetEmail', user.email);
             }
             if (user.phone) {
-                // If the user has a phone mapped properly, we might also want to search by it, but the backend currently takes a single token for each. Usually the user.email is used as identifier.
-                // We'll append it again, the backend might handle it, or we just send email if it's the primary. Let's just use email since the previous was email.
+                queryParams.append('sharedPhone', user.phone);
+                queryParams.append('targetPhone', user.phone);
             }
             const response = await apiFetch(`${API_BASE_URL}/transactions?${queryParams.toString()}`);
           
@@ -179,19 +183,28 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
             transactionsCache.current[cacheKey] = data;
         }
         
+        const currentUserId = user.idEmail || user.id;
         const mappedTransactions: Transaction[] = (data.transactions || []).map(
-          (tx: any) => ({
+          (tx: any) => {
+            const isTarget = tx.idEmail !== currentUserId && ((tx.targetEmail && user.email && tx.targetEmail === user.email) || (tx.targetPhone && user.phone && tx.targetPhone === user.phone));
+            let displayType = tx.type;
+            if (isTarget) {
+               displayType = tx.type === TransactionType.REVENUE ? TransactionType.EXPENSE : TransactionType.REVENUE;
+            }
+            return {
             id: tx._id,
             idEmail: tx.idEmail,
             email: tx.email,
-            type: tx.type,
+            type: displayType,
             name: tx.name,
             amount: tx.amount,
             date: new Date(tx.date).toISOString().split('T')[0],
             isControlled: tx.isControlled,
             status: tx.status,
-            sharedEmailOrPhone: tx.sharedEmailOrPhone || '',
-            targetEmailOrPhone: tx.targetEmailOrPhone || '',
+            sharedEmail: tx.sharedEmail || '',
+            sharedPhone: tx.sharedPhone || '',
+            targetEmail: tx.targetEmail || '',
+            targetPhone: tx.targetPhone || '',
             aggregate: tx.aggregate,
             paymentRequest: tx.paymentRequest,
             additions: (tx.additions || []).map((add: any) => ({
@@ -201,7 +214,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
               removed: add.removed,
             })),
             paidAmount: tx.paidAmount ?? 0,
-          })
+            };
+          }
         );
  console.log("mappedTransactions", mappedTransactions)
 
@@ -212,9 +226,8 @@ setTransactions(mappedTransactions);
         
         // Extract shared users info from transactions shared WITH me
         const sharedInfoMap = new Map<string, SharedUser>();
-        const currentUserId = user.idEmail || user.id;
         mappedTransactions.forEach((tx: Transaction) => {
-            const targetOrShared = tx.sharedEmailOrPhone || tx.targetEmailOrPhone;
+            const targetOrShared = tx.sharedEmail || tx.sharedPhone || tx.targetEmail || tx.targetPhone;
             const isSharedWithMe = (targetOrShared === user.email || (user.phone && targetOrShared === user.phone)) && tx.idEmail !== currentUserId;
             if (isSharedWithMe && targetOrShared) {
                 sharedInfoMap.set(tx.idEmail, { email: targetOrShared, aggregate: !!tx.aggregate });
@@ -245,7 +258,8 @@ setTransactions(mappedTransactions);
                      currentMonthData = transactionsCache.current[cmKey];
                  } else {
                      const params = new URLSearchParams({ idEmail: user.idEmail || user.id, month: (today.getMonth() + 1).toString(), year: today.getFullYear().toString(), includeShared: 'true' });
-                     if (user.email) { params.append('sharedEmailOrPhone', user.email); params.append('targetEmailOrPhone', user.email); }
+                     if (user.email) { params.append('sharedEmail', user.email); params.append('targetEmail', user.email); }
+                     if (user.phone) { params.append('sharedPhone', user.phone); params.append('targetPhone', user.phone); }
                      const cmResponse = await apiFetch(`${API_BASE_URL}/transactions?${params.toString()}`);
                      if (cmResponse.ok) {
                          currentMonthData = await cmResponse.json();
@@ -280,7 +294,8 @@ setTransactions(mappedTransactions);
                 } else {
                     // Fetch and Cache
                     const params = new URLSearchParams({ idEmail: user.idEmail || user.id, month: loopMonth.toString(), year: loopYear.toString(), includeShared: 'true' });
-                    if (user.email) { params.append('sharedEmailOrPhone', user.email); params.append('targetEmailOrPhone', user.email); }
+                    if (user.email) { params.append('sharedEmail', user.email); params.append('targetEmail', user.email); }
+                    if (user.phone) { params.append('sharedPhone', user.phone); params.append('targetPhone', user.phone); }
                     const loopResponse = await apiFetch(`${API_BASE_URL}/transactions?${params.toString()}`);
                     if (loopResponse.ok) {
                         loopData = await loopResponse.json();
@@ -317,10 +332,14 @@ setTransactions(mappedTransactions);
 
     const createTransactionPayload = (data: typeof baseTransactionData) => {
       if (isControlled) {
+        const input = data.sharedEmailOrPhone || '';
+        const targetEmail = input.includes('@') ? input : '';
+        const targetPhone = input.includes('@') ? '' : input.replace(/\D/g, '');
         return { 
           idEmail: user.idEmail || user.id, 
           email: user.email,
-          targetEmailOrPhone: data.sharedEmailOrPhone,
+          targetEmail,
+          targetPhone,
           name: data.name, 
           amount: data.amount, 
           date: data.date,
@@ -426,9 +445,26 @@ setTransactions(mappedTransactions);
   
   const onRequestPayment = async (transaction: Transaction, message: string = 'Pagamento informado') => {
     try {
+      const currentUserId = user.idEmail || user.id;
+      const isOwner = transaction.idEmail === currentUserId;
+      const isTargetPhone = transaction.targetPhone && user.phone && transaction.targetPhone === user.phone;
+      const isTargetEmail = transaction.targetEmail && user.email && transaction.targetEmail === user.email;
+
+      const payload: any = { transactionId: transaction.id, message };
+      
+      if (isOwner) {
+          payload.idEmail = currentUserId;
+      } else if (isTargetPhone) {
+          payload.targetPhone = user.phone;
+      } else if (isTargetEmail) {
+          payload.targetEmail = user.email;
+      } else {
+          payload.idEmail = transaction.idEmail;
+      }
+
       const response = await apiFetch(`${API_BASE_URL}/transactions/request-payment`, {
         method: 'PATCH',
-        body: JSON.stringify({ transactionId: transaction.id, email: user.email, message }),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -443,9 +479,26 @@ setTransactions(mappedTransactions);
 
   const onApprovePayment = async (transaction: Transaction) => {
     try {
+      const currentUserId = user.idEmail || user.id;
+      const isOwner = transaction.idEmail === currentUserId;
+      const isTargetPhone = transaction.targetPhone && user.phone && transaction.targetPhone === user.phone;
+      const isTargetEmail = transaction.targetEmail && user.email && transaction.targetEmail === user.email;
+
+      const payload: any = { transactionId: transaction.id };
+      
+      if (isOwner) {
+          payload.idEmail = currentUserId;
+      } else if (isTargetPhone) {
+          payload.targetPhone = user.phone;
+      } else if (isTargetEmail) {
+          payload.targetEmail = user.email;
+      } else {
+          payload.idEmail = transaction.idEmail;
+      }
+
       const response = await apiFetch(`${API_BASE_URL}/transactions/approve-payment`, {
         method: 'PATCH',
-        body: JSON.stringify({ transactionId: transaction.id, idEmail: transaction.idEmail }),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -460,9 +513,26 @@ setTransactions(mappedTransactions);
 
   const onRejectPayment = async (transaction: Transaction, reason: string = 'Pagamento não localizado') => {
     try {
+      const currentUserId = user.idEmail || user.id;
+      const isOwner = transaction.idEmail === currentUserId;
+      const isTargetPhone = transaction.targetPhone && user.phone && transaction.targetPhone === user.phone;
+      const isTargetEmail = transaction.targetEmail && user.email && transaction.targetEmail === user.email;
+
+      const payload: any = { transactionId: transaction.id, reason };
+      
+      if (isOwner) {
+          payload.idEmail = currentUserId;
+      } else if (isTargetPhone) {
+          payload.targetPhone = user.phone;
+      } else if (isTargetEmail) {
+          payload.targetEmail = user.email;
+      } else {
+          payload.idEmail = transaction.idEmail;
+      }
+
       const response = await apiFetch(`${API_BASE_URL}/transactions/reject-payment`, {
         method: 'PATCH',
-        body: JSON.stringify({ transactionId: transaction.id, idEmail: transaction.idEmail, reason }),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -477,9 +547,26 @@ setTransactions(mappedTransactions);
 
   const onUpdateTransactionStatus = async (transaction: Transaction, newStatus: PaymentStatus) => {
     try {
+      const currentUserId = user.idEmail || user.id;
+      const isOwner = transaction.idEmail === currentUserId;
+      const isTargetPhone = transaction.targetPhone && user.phone && transaction.targetPhone === user.phone;
+      const isTargetEmail = transaction.targetEmail && user.email && transaction.targetEmail === user.email;
+
+      const payload: any = { transactionId: transaction.id, status: newStatus };
+      
+      if (isOwner) {
+          payload.idEmail = currentUserId;
+      } else if (isTargetPhone) {
+          payload.targetPhone = user.phone;
+      } else if (isTargetEmail) {
+          payload.targetEmail = user.email;
+      } else {
+          payload.idEmail = transaction.idEmail;
+      }
+
       const response = await apiFetch(`${API_BASE_URL}/transactions/status`, {
         method: 'PATCH',
-        body: JSON.stringify({ transactionId: transaction.id, idEmail: transaction.idEmail, status: newStatus }),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: 'Falha ao atualizar status. O servidor não respondeu com detalhes.' }));
@@ -499,9 +586,26 @@ setTransactions(mappedTransactions);
     if (!transaction) return;
     const newStatus = transaction.status === PaymentStatus.PAID ? PaymentStatus.UNPAID : PaymentStatus.PAID;
     try {
+      const currentUserId = user.idEmail || user.id;
+      const isOwner = transaction.idEmail === currentUserId;
+      const isTargetPhone = transaction.targetPhone && user.phone && transaction.targetPhone === user.phone;
+      const isTargetEmail = transaction.targetEmail && user.email && transaction.targetEmail === user.email;
+
+      const payload: any = { transactionId: transaction.id, status: newStatus };
+      
+      if (isOwner) {
+          payload.idEmail = currentUserId;
+      } else if (isTargetPhone) {
+          payload.targetPhone = user.phone;
+      } else if (isTargetEmail) {
+          payload.targetEmail = user.email;
+      } else {
+          payload.idEmail = transaction.idEmail;
+      }
+
       const response = await apiFetch(`${API_BASE_URL}/transactions/status`, {
         method: 'PATCH',
-        body: JSON.stringify({ transactionId: transaction.id, idEmail: transaction.idEmail, status: newStatus }),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: 'Falha ao atualizar o status da transação.' }));
@@ -543,11 +647,14 @@ setTransactions(mappedTransactions);
 
   const onShare = async (shareeEmail: string, aggregate: boolean) => {
     try {
+        const sharedEmail = shareeEmail.includes('@') ? shareeEmail : '';
+        const sharedPhone = shareeEmail.includes('@') ? '' : shareeEmail.replace(/\D/g, '');
         const response = await apiFetch(`${API_BASE_URL}/transactions/follow`, {
             method: 'PATCH',
             body: JSON.stringify({
                 idEmail: user.idEmail || user.id, 
-                sharedEmailOrPhone: shareeEmail,
+                sharedEmail,
+                sharedPhone,
                 aggregate
             })
         });
@@ -638,10 +745,22 @@ setTransactions(mappedTransactions);
 
   const { personalTransactions, sharedTransactions } = useMemo(() => {
     const currentUserId = user.idEmail || user.id;
-    const personal = transactions.filter(t => t.idEmail === currentUserId);
+    const personal = transactions.filter(t => {
+      if (t.idEmail === currentUserId) return true;
+      if (t.isControlled) {
+        const isTarget = (t.targetEmail && user.email && t.targetEmail === user.email) || (t.targetPhone && user.phone && t.targetPhone === user.phone);
+        if (isTarget) return true;
+      }
+      return false;
+    });
     const shared = transactions.filter(t => {
-      const targetOrShared = t.sharedEmailOrPhone || t.targetEmailOrPhone;
-      return (targetOrShared === user.email || (user.phone && targetOrShared === user.phone)) && t.idEmail !== currentUserId;
+      if (t.idEmail === currentUserId) return false;
+      if (t.isControlled) {
+        const isTarget = (t.targetEmail && user.email && t.targetEmail === user.email) || (t.targetPhone && user.phone && t.targetPhone === user.phone);
+        if (isTarget) return false;
+      }
+      const isShared = (t.sharedEmail && user.email && t.sharedEmail === user.email) || (t.sharedPhone && user.phone && t.sharedPhone === user.phone);
+      return isShared;
     });
     return { personalTransactions: personal, sharedTransactions: shared };
   }, [transactions, user.email, user.id, user.idEmail, user.phone]);
@@ -669,13 +788,23 @@ setTransactions(mappedTransactions);
   
   const pendingApprovalTransactions = useMemo(() => {
     const currentUserId = user.idEmail || user.id;
-    return transactions.filter(t =>
-      t.isControlled &&
-      t.status === PaymentStatus.PENDING &&
-      t.idEmail === currentUserId && 
-      t.type === TransactionType.REVENUE
-    );
-  }, [transactions, user.id, user.idEmail]);
+    return transactions.filter(t => {
+      const isPaymentRequested = t.paymentRequest?.requested === true && !t.paymentRequest?.approved && !t.paymentRequest?.rejected;
+      if (!t.isControlled || (t.status !== PaymentStatus.PENDING && !isPaymentRequested)) return false;
+      
+      const isOwner = t.idEmail === currentUserId;
+      const isTarget = !isOwner && ((t.targetEmail && user.email && t.targetEmail === user.email) || (t.targetPhone && user.phone && t.targetPhone === user.phone));
+      
+      if (!isOwner && !isTarget) return false;
+
+      let displayType = t.type;
+      if (isTarget) {
+          displayType = t.type === TransactionType.REVENUE ? TransactionType.EXPENSE : TransactionType.REVENUE;
+      }
+
+      return displayType === TransactionType.REVENUE;
+    });
+  }, [transactions, user.id, user.idEmail, user.email, user.phone]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -690,14 +819,14 @@ setTransactions(mappedTransactions);
   const handleApprovePending = async (transactionId: string) => {
     const tx = transactions.find(t => t.id === transactionId);
     if (tx) {
-        await onUpdateTransactionStatus(tx, PaymentStatus.PAID);
+        await onApprovePayment(tx);
     }
   };
 
   const handleRejectPending = async (transactionId: string) => {
       const tx = transactions.find(t => t.id === transactionId);
       if (tx) {
-          await onUpdateTransactionStatus(tx, PaymentStatus.UNPAID);
+          await onRejectPayment(tx);
       }
   };
 
@@ -764,6 +893,7 @@ setTransactions(mappedTransactions);
             <TransactionList 
               transactions={transactionsForCurrentTab} 
               currentUserEmail={user.email}
+              currentUserPhone={user.phone}
               currentUserId={user.idEmail || user.id}
               onUpdateStatus={onUpdateTransactionStatus}
               onToggleSimplePaid={onToggleSimpleTransactionPaid}

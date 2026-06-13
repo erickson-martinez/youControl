@@ -165,7 +165,8 @@ const GraphicsPage: React.FC<GraphicsPageProps> = ({ user }) => {
             const month = currentDate.getMonth() + 1;
             const year = currentDate.getFullYear();
             const params = new URLSearchParams({ idEmail: user.idEmail || user.id, month: month.toString(), year: year.toString(), includeShared: 'true' });
-            if (user.email) { params.append('sharedEmailOrPhone', user.email); params.append('targetEmailOrPhone', user.email); }
+            if (user.email) { params.append('sharedEmail', user.email); params.append('targetEmail', user.email); }
+            if (user.phone) { params.append('sharedPhone', user.phone); params.append('targetPhone', user.phone); }
             const response = await apiFetch(`${API_BASE_URL}/transactions?${params.toString()}`);
             const data = await response.json();
 

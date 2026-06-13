@@ -29,7 +29,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, initialRegist
   const [loading, setLoading] = useState(false);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
-  const syncUserWithBackend = async (user: User, pass: string = '1234dummy') => {
+  const syncUserWithBackend = async (user: User, pass: string = '1234dummy'): Promise<User> => {
+    let syncedUser = { ...user };
     try {
       const response = await fetch(`${API_BASE_URL}/users`);
       if (response.ok) {
@@ -43,16 +44,28 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, initialRegist
             body: JSON.stringify({
               name: user.name,
               email: user.email,
-              phone: '00000000000',
+              phone: '',
               pass: pass,
               idEmail: user.id || ''
             })
           });
+        } else {
+          // Se encontrou o usuário, atualiza a prop de telefone e/ou o idEmail / email para manter consistência
+          if (exists.phone && exists.phone !== '00000000000') {
+              syncedUser.phone = exists.phone;
+          }
+          if (exists.email) {
+              syncedUser.email = exists.email;
+          }
+          if (exists.idEmail) {
+              syncedUser.idEmail = exists.idEmail;
+          }
         }
       }
     } catch (err) {
       console.warn("Falha ao sincronizar usuário com o backend", err);
     }
+    return syncedUser;
   };
 
   const handleModeToggle = () => {
@@ -94,13 +107,14 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, initialRegist
       const userCredential = await signInWithPopup(auth, provider);
       const firebaseUser = userCredential.user;
       
-      const user: User = {
+      let user: User = {
         email: firebaseUser.email || '',
         name: firebaseUser.displayName || `Usuário Google`,
-        id: firebaseUser.uid
+        id: firebaseUser.uid,
+        idEmail: firebaseUser.uid
       };
 
-      await syncUserWithBackend(user);
+      user = await syncUserWithBackend(user);
 
       localStorage.setItem('currentUser', JSON.stringify(user));
       onLoginSuccess(user);
@@ -175,7 +189,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, initialRegist
           email: data.user?.email || '',
           name: data.user?.name || name.trim(),
           id: data.user?.idEmail || data.user?._id || '',
-          idEmail: data.user?.idEmail || data.user?._id || ''
+          idEmail: data.user?.idEmail || data.user?._id || '',
+          phone: data.user?.phone || email.trim()
         };
 
         localStorage.setItem('currentUser', JSON.stringify(user));
@@ -214,7 +229,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, initialRegist
           email: data.email || data.user?.email || '',
           name: data.name || data.user?.name || `Usuário`,
           id: data.idEmail || data._id || data.user?.idEmail || data.user?._id || '',
-          idEmail: data.idEmail || data._id || data.user?.idEmail || data.user?._id || ''
+          idEmail: data.idEmail || data._id || data.user?.idEmail || data.user?._id || '',
+          phone: data.phone || data.user?.phone || ''
         };
 
         localStorage.setItem('currentUser', JSON.stringify(user));

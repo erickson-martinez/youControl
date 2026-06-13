@@ -47,7 +47,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
         date: transactionToEdit.date,
         paid: transactionToEdit.status === PaymentStatus.PAID,
         isControlled: transactionToEdit.isControlled,
-        sharedEmailOrPhone: transactionToEdit.sharedEmailOrPhone || '',
+        sharedEmailOrPhone: transactionToEdit.targetEmail || transactionToEdit.targetPhone || transactionToEdit.sharedEmail || transactionToEdit.sharedPhone || '',
         repeat: false,
         repeatCount: '1',
       });
