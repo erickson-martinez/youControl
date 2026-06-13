@@ -12,7 +12,7 @@ import ConfirmationModal from './ConfirmationModal';
 import AddValueModal from './AddValueModal';
 import OverdueNoticeModal from './OverdueNoticeModal';
 import PendingApprovalModal from './PendingApprovalModal';
-import { XCircleIcon, ChartBarIcon } from './icons';
+import { XCircleIcon, ChartBarIcon, UsersIcon } from './icons';
 import { API_BASE_URL } from '../constants';
 import { exportYearlyPDF } from './exportPDF';
 
@@ -21,19 +21,24 @@ interface DashboardProps {
   onNavigate: (page: ActivePage) => void;
 }
 
+const formatCurrency = (value: number) => {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+};
+
 const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<TransactionType>(TransactionType.REVENUE);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'transactions' | 'shared'>('transactions');
+  const [activeTab, setActiveTab] = useState<'transactions' | 'shared' | 'receitas' | 'despesas'>('transactions');
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [transactionToDelete, setTransactionToDelete] = useState<Transaction | null>(null);
   const [isAddValueModalOpen, setIsAddValueModalOpen] = useState(false);
   const [transactionToAddValueTo, setTransactionToAddValueTo] = useState<Transaction | null>(null);
   const [isOverdueModalOpen, setIsOverdueModalOpen] = useState(false);
   const [isPendingApprovalModalOpen, setIsPendingApprovalModalOpen] = useState(false);
+  const [isSharedUsersPopoverOpen, setIsSharedUsersPopoverOpen] = useState(false);
   
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [summary, setSummary] = useState({ revenue: 0, expenses: 0, balance: 0, total: 0 });
@@ -830,8 +835,86 @@ setTransactions(mappedTransactions);
       }
   };
 
+  const receitasTransactions = useMemo(() => {
+     return personalTransactions.filter(t => t.type === TransactionType.REVENUE);
+  }, [personalTransactions]);
 
-  const transactionsForCurrentTab = activeTab === 'transactions' ? personalTransactions : sharedTransactions;
+  const despesasTransactions = useMemo(() => {
+     return personalTransactions.filter(t => t.type === TransactionType.EXPENSE);
+  }, [personalTransactions]);
+
+  const totalAReceber = useMemo(() => {
+     return receitasTransactions.filter(t => t.status === PaymentStatus.UNPAID || t.status === PaymentStatus.PENDING).reduce((acc, t) => acc + Number(t.amount), 0);
+  }, [receitasTransactions]);
+
+  const totalAPagar = useMemo(() => {
+     return despesasTransactions.filter(t => t.status === PaymentStatus.UNPAID || t.status === PaymentStatus.PENDING).reduce((acc, t) => acc + Number(t.amount), 0);
+  }, [despesasTransactions]);
+
+  const totalMinhasReceitas = useMemo(() => receitasTransactions.reduce((acc, t) => acc + Number(t.amount), 0), [receitasTransactions]);
+  const totalMinhasDespesas = useMemo(() => despesasTransactions.reduce((acc, t) => acc + Number(t.amount), 0), [despesasTransactions]);
+  const totalShared = useMemo(() => sharedTransactions.reduce((acc, t) => acc + Number(t.amount), 0), [sharedTransactions]);
+
+  const tabSummaryNode = useMemo(() => {
+      switch(activeTab) {
+          case 'transactions':
+              return <span className={`px-2 py-1 rounded-md bg-gray-700/50 text-gray-300 border border-gray-600`}>Saldo: <span className={totalMinhasReceitas - totalMinhasDespesas >= 0 ? "text-green-accent" : "text-red-accent"}>{formatCurrency(totalMinhasReceitas - totalMinhasDespesas)}</span></span>;
+          case 'shared':
+              return <span className={`px-2 py-1 rounded-md bg-purple-900/40 text-purple-300 border border-purple-500/30`}>Total: {formatCurrency(totalShared)}</span>;
+          case 'receitas':
+              return <span className={`px-2 py-1 rounded-md bg-green-900/40 text-green-300 border border-green-500/30`}>Total Receitas: {formatCurrency(totalMinhasReceitas)}</span>;
+          case 'despesas':
+              return <span className={`px-2 py-1 rounded-md bg-red-900/40 text-red-300 border border-red-500/30`}>Total Despesas: {formatCurrency(totalMinhasDespesas)}</span>;
+          default:
+              return null;
+      }
+  }, [activeTab, totalMinhasReceitas, totalMinhasDespesas, totalShared]);
+
+  const transactionsForCurrentTab = 
+    activeTab === 'transactions' ? personalTransactions : 
+    activeTab === 'shared' ? sharedTransactions :
+    activeTab === 'receitas' ? receitasTransactions :
+    despesasTransactions;
+
+  const sharedUsersActionButton = activeTab === 'shared' && sharedUsersInfo.length > 0 ? (
+    <div className="relative">
+      <button 
+        onClick={() => setIsSharedUsersPopoverOpen(!isSharedUsersPopoverOpen)}
+        className="p-2 text-gray-400 hover:text-white bg-gray-800 border border-gray-700 hover:bg-gray-700 rounded-md transition-colors"
+        title="Quem você segue"
+      >
+        <UsersIcon className="w-5 h-5" />
+      </button>
+      {isSharedUsersPopoverOpen && (
+        <div className="absolute right-0 mt-2 w-72 bg-gray-800 rounded-lg shadow-xl border border-gray-600 z-50">
+            <div className="p-3 border-b border-gray-700 font-semibold text-white text-sm">
+                Compartilhado Comigo (Você segue):
+            </div>
+            <ul className="max-h-60 overflow-y-auto p-2 space-y-1">
+                {sharedUsersInfo.map(sharedUser => (
+                    <li key={sharedUser.email} className="flex items-center justify-between p-2 text-sm bg-gray-700/50 rounded-md">
+                        <div className="overflow-hidden flex-1 mr-2">
+                          <span className="font-medium text-white truncate block">{userMap[sharedUser.email] || sharedUser.email}</span>
+                          {sharedUser.aggregate && <span className="text-[10px] text-blue-300">(Somando valores)</span>}
+                        </div>
+                        <button 
+                          onClick={() => {
+                            onUnshare(sharedUser.email);
+                          }} 
+                          className="text-red-400 transition-colors hover:text-red-300 shrink-0" 
+                          aria-label={`Parar de compartilhar com ${sharedUser.email}`}
+                          title="Parar de seguir"
+                        >
+                          <XCircleIcon className="w-5 h-5" />
+                        </button>
+                    </li>
+                ))}
+            </ul>
+        </div>
+      )}
+    </div>
+  ) : null;
+
   return (
     <>
       <MonthNavigator 
@@ -857,35 +940,13 @@ setTransactions(mappedTransactions);
         onExportPDF={handleExportPDF}
       />
       
-      {sharedUsersInfo.length > 0 && (
-          <div className="p-4 mb-6 bg-gray-800 rounded-lg">
-              <h3 className="mb-2 text-sm font-semibold text-white">Compartilhado Comigo (Você segue):</h3>
-              <ul className="space-y-2">
-                  {sharedUsersInfo.map(sharedUser => (
-                      <li key={sharedUser.email} className="flex items-center justify-between p-2 text-sm bg-gray-700 rounded-md">
-                          <div>
-                            <span className="font-medium text-white">{userMap[sharedUser.email] || sharedUser.email}</span>
-                            {sharedUser.aggregate && <span className="ml-2 text-xs text-blue-300">(Somando valores)</span>}
-                          </div>
-                          <button 
-                            onClick={() => onUnshare(sharedUser.email)} 
-                            className="text-red-400 transition-colors hover:text-red-300" 
-                            aria-label={`Parar de compartilhar com ${sharedUser.email}`}
-                            title="Parar de seguir"
-                          >
-                            <XCircleIcon className="w-5 h-5" />
-                          </button>
-                      </li>
-                  ))}
-              </ul>
-          </div>
-      )}
-      
       <div className="p-4 bg-gray-800 rounded-lg">
-        <div className="border-b border-gray-700">
-          <nav className="flex -mb-px space-x-6">
-            <button onClick={() => setActiveTab('transactions')} className={`px-3 py-2 font-medium text-sm rounded-t-md ${activeTab === 'transactions' ? 'border-b-2 border-blue-accent text-white' : 'text-gray-400 hover:text-white'}`}>Minhas Transações ({personalTransactions.length})</button>
-            <button onClick={() => setActiveTab('shared')} className={`px-3 py-2 font-medium text-sm rounded-t-md ${activeTab === 'shared' ? 'border-b-2 border-blue-accent text-white' : 'text-gray-400 hover:text-white'}`}>Compartilhados Comigo ({sharedTransactions.length})</button>
+        <div className="border-b border-gray-700 overflow-x-auto">
+          <nav className="flex space-x-4 min-w-max">
+            <button onClick={() => setActiveTab('transactions')} className={`px-3 py-2 font-medium text-sm rounded-t-md whitespace-nowrap ${activeTab === 'transactions' ? 'border-b-2 border-blue-accent text-white' : 'text-gray-400 hover:text-white border-b-2 border-transparent'}`}>Minhas Transações ({personalTransactions.length})</button>
+            <button onClick={() => setActiveTab('shared')} className={`px-3 py-2 font-medium text-sm rounded-t-md whitespace-nowrap ${activeTab === 'shared' ? 'border-b-2 border-blue-accent text-white' : 'text-gray-400 hover:text-white border-b-2 border-transparent'}`}>Compartilhados Comigo ({sharedTransactions.length})</button>
+            <button onClick={() => setActiveTab('receitas')} className={`px-3 py-2 font-medium text-sm rounded-t-md whitespace-nowrap ${activeTab === 'receitas' ? 'border-b-2 border-green-accent text-white' : 'text-gray-400 hover:text-white border-b-2 border-transparent'}`}>Receitas ({receitasTransactions.length})</button>
+            <button onClick={() => setActiveTab('despesas')} className={`px-3 py-2 font-medium text-sm rounded-t-md whitespace-nowrap ${activeTab === 'despesas' ? 'border-b-2 border-red-accent text-white' : 'text-gray-400 hover:text-white border-b-2 border-transparent'}`}>Despesas ({despesasTransactions.length})</button>
           </nav>
         </div>
         <div className="pt-4">
@@ -905,6 +966,8 @@ setTransactions(mappedTransactions);
               onApprovePayment={onApprovePayment}
               onRejectPayment={onRejectPayment}
               isPastMonth={isPastMonth}
+              tabSummary={tabSummaryNode}
+              listActions={sharedUsersActionButton}
             />
           )}
         </div>

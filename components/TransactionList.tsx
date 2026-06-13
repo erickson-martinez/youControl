@@ -21,6 +21,8 @@ interface TransactionListProps {
   onApprovePayment: (transaction: Transaction) => void;
   onRejectPayment: (transaction: Transaction) => void;
   isPastMonth: boolean;
+  tabSummary?: React.ReactNode;
+  listActions?: React.ReactNode;
 }
 
 interface TransactionItemProps {
@@ -74,6 +76,9 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
     const isAggregated = isTarget || transaction.aggregate === true;
     
     const isSharedWithMe = isTarget || isSharedViewer;
+    
+    // Determine if it really acts as a controlled transaction (meaning it involves targeting someone as debtor/creditor)
+    const isEffectivelyControlled = transaction.isControlled && (!!transaction.targetEmail || !!transaction.targetPhone);
 
     // Determine if user owes money or receives money based on displayed type
     const isReceiver = transaction.type === TransactionType.REVENUE;
@@ -82,10 +87,10 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
     const isPaymentRequested = transaction.paymentRequest?.requested === true && !transaction.paymentRequest?.approved && !transaction.paymentRequest?.rejected;
 
     // True when the user receives money and the status is PENDING or requested
-    const isPendingApprovalFromMe = transaction.isControlled && (isOwner || isTarget) && (transaction.status === PaymentStatus.PENDING || isPaymentRequested) && isReceiver;
+    const isPendingApprovalFromMe = isEffectivelyControlled && (isOwner || isTarget) && (transaction.status === PaymentStatus.PENDING || isPaymentRequested) && isReceiver;
     
     // True when I am the owner of a controlled transaction
-    const isOwnerOfControlled = transaction.isControlled && isOwner;
+    const isOwnerOfControlled = isEffectivelyControlled && isOwner;
     
     const addValueTitle = isPastMonth
         ? "Não é possível adicionar valores em meses anteriores"
@@ -146,7 +151,7 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
         }
 
         // Case 2: Receiver of a controlled transaction (PAID/UNPAID states) has direct control
-        if (transaction.isControlled && isReceiver && (isOwner || isTarget)) {
+        if (isEffectivelyControlled && isReceiver && (isOwner || isTarget)) {
             const isDisabled = isPastMonth && isPaid;
             const title = isDisabled 
                 ? "Não é possível alterar o status em meses anteriores." 
@@ -171,18 +176,18 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
         }
         
         // Case 3: Other controlled transactions (e.g., expenses from debtor's POV)
-        if (transaction.isControlled) {
+        if (isEffectivelyControlled) {
             return <StatusBadge status={transaction.status} />;
         }
         
         // Case 4: Default for simple (non-controlled) transactions
-        // Disable if past month and paid, OR if shared and not aggregated (view only)
-        const isSimpleToggleDisabled = (isPastMonth && isPaid) || (isSharedWithMe && !isAggregated);
+        // Disable if past month and paid, OR if user is just a shared viewer
+        const isSimpleToggleDisabled = (isPastMonth && isPaid) || isSharedViewer;
         
         let simpleTitle = isPaid ? "Marcar como Não Pago" : "Marcar como Pago";
         if (isPastMonth && isPaid) {
             simpleTitle = "Não é possível alterar o status em meses anteriores.";
-        } else if (isSharedWithMe && !isAggregated) {
+        } else if (isSharedViewer) {
             simpleTitle = "Apenas visualização. Não é possível alterar o status.";
         }
 
@@ -259,12 +264,12 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
                         {isSharedViewer && (
                             <div className="mt-1">
                                 {isAggregated ? (
-                                    <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-blue-300 bg-blue-900/40 px-1.5 py-0.5 rounded border border-blue-500/30">
-                                        <PlusIcon className="w-3 h-3" /> Soma no Total
+                                    <span title="Soma no Total" className="inline-flex items-center text-blue-400 bg-blue-900/40 p-1 rounded-full border border-blue-500/30 cursor-help">
+                                        <PlusIcon className="w-4 h-4" />
                                     </span>
                                 ) : (
-                                    <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-gray-400 bg-gray-800/50 px-1.5 py-0.5 rounded border border-gray-600">
-                                        <EyeIcon className="w-3 h-3" /> Apenas Visão
+                                    <span title="Apenas Visão" className="inline-flex items-center text-gray-400 bg-gray-800/50 p-1 rounded-full border border-gray-600 cursor-help">
+                                        <EyeIcon className="w-4 h-4" />
                                     </span>
                                 )}
                             </div>
@@ -273,7 +278,7 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
                     
                     <div className="flex items-center flex-wrap justify-end gap-x-3 gap-y-2">
                         {/* If I am the debtor, and the bill is UNPAID, I can click "Inform payment" */}
-                        {transaction.isControlled && (isOwner || isTarget) && isDebtor && transaction.status === PaymentStatus.UNPAID && !isPaymentRequested && (
+                        {isEffectivelyControlled && (isOwner || isTarget) && isDebtor && transaction.status === PaymentStatus.UNPAID && !isPaymentRequested && (
                             <button onClick={() => onRequestPayment(transaction)} className="px-2 py-1 text-xs text-white transition-colors bg-blue-accent rounded-md hover:bg-blue-accent/90">Informar Pagamento</button>
                         )}
                         {/* If I am the receiver, and status is PENDING, I can Approve/Reject */}
@@ -302,9 +307,9 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
                             </button>
                             <button 
                                 onClick={() => onStartEdit(transaction)}
-                                disabled={transaction.isControlled || isPastMonth}
+                                disabled={isEffectivelyControlled || isPastMonth}
                                 className="p-1.5 text-gray-400 transition-colors rounded-md hover:bg-gray-600 disabled:text-gray-600 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                                title={transaction.isControlled ? "Não é possível editar transações controladas" : (isPastMonth ? "Não é possível editar em meses anteriores" : "Editar")}
+                                title={isEffectivelyControlled ? "Não é possível editar transações controladas" : (isPastMonth ? "Não é possível editar em meses anteriores" : "Editar")}
                                 aria-label="Editar transação"
                             >
                                 <PencilIcon className="w-4 h-4" />
@@ -369,12 +374,25 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
     );
 });
 
-const TransactionList: React.FC<TransactionListProps> = ({ transactions, ...rest }) => {
-    const sortedTransactions = [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+const TransactionList: React.FC<TransactionListProps> = ({ transactions, tabSummary, listActions, ...rest }) => {
+    const sortedTransactions = [...transactions].sort((a, b) => {
+        const weightA = a.status === PaymentStatus.PAID ? 1 : 0;
+        const weightB = b.status === PaymentStatus.PAID ? 1 : 0;
+        if (weightA !== weightB) {
+            return weightA - weightB;
+        }
+        return new Date(a.date).getTime() - new Date(b.date).getTime();
+    });
 
   return (
     <div className="space-y-4">
-        <h2 className="text-xl font-bold text-white">Transações do Mês</h2>
+        <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+                <h2 className="text-xl font-bold text-white">Transações do Mês</h2>
+                {tabSummary && <div className="text-sm font-medium">{tabSummary}</div>}
+            </div>
+            {listActions && <div>{listActions}</div>}
+        </div>
       {sortedTransactions.length > 0 ? (
         <ul className="space-y-3">
           {sortedTransactions.map((transaction) => (
