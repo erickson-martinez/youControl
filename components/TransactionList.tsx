@@ -211,120 +211,111 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
     };
 
     return (
-        <li className="p-3 bg-gray-700 rounded-lg">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-                {/* LEFT SIDE */}
-                <div className="flex items-center justify-between flex-grow min-w-0">
-                    <div className="flex items-center min-w-0 space-x-3">
-                        {isRevenue ? <ArrowUpCircleIcon className="flex-shrink-0 w-6 h-6 text-green-accent" /> : <ArrowDownCircleIcon className="flex-shrink-0 w-6 h-6 text-red-accent" />}
-                        <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                                <p className="font-semibold text-white truncate">{transaction.name}</p>
-                                {isPendingApprovalFromMe && (
-                                    <span title="Aguardando sua confirmação de recebimento">
-                                        <BellIcon className="w-5 h-5 text-yellow-accent animate-pulse" />
+        <li className="p-3 sm:p-4 bg-gray-800 rounded-lg shadow-sm border border-gray-700/50">
+            <div className="flex items-start justify-between gap-3">
+                {/* LEFT SIDE: Info & Actions */}
+                <div className="flex items-start gap-3 flex-grow min-w-0">
+                    <div className="mt-0.5 flex-shrink-0">
+                        {isRevenue ? <ArrowUpCircleIcon className="w-5 h-5 sm:w-6 sm:h-6 text-green-accent" /> : <ArrowDownCircleIcon className="w-5 h-5 sm:w-6 sm:h-6 text-red-accent" />}
+                    </div>
+                    
+                    <div className="flex flex-col min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-semibold text-white truncate text-sm sm:text-base leading-tight">{transaction.name}</p>
+                            {isPendingApprovalFromMe && (
+                                <span title="Aguardando sua confirmação de recebimento">
+                                    <BellIcon className="w-4 h-4 text-yellow-accent animate-pulse" />
+                                </span>
+                            )}
+                            {(transaction.sharedEmail || transaction.sharedPhone || (transaction.isControlled && isOwner && (transaction.targetEmail || transaction.targetPhone))) && !isTarget && (
+                                <span className="inline-flex items-center flex-shrink-0 px-2 py-0.5 text-[10px] text-purple-300 bg-purple-900/40 border border-purple-500/30 rounded-full" title={`Compartilhamento`}>
+                                    <ShareIcon className="w-3 h-3 mr-1" />
+                                    <span className="truncate max-w-[100px] sm:max-w-[150px]">
+                                        {transaction.idEmail === currentUserId 
+                                            ? `${transaction.sharedEmail || transaction.sharedPhone || transaction.targetEmail || transaction.targetPhone}` 
+                                            : (transaction.email ? `De: ${transaction.email}` : "Compartilhado com você")}
                                     </span>
-                                )}
-                                {(transaction.sharedEmail || transaction.sharedPhone || (transaction.isControlled && isOwner && (transaction.targetEmail || transaction.targetPhone))) && !isTarget && (
-                                    <span className="inline-flex items-center flex-shrink-0 px-2 py-0.5 text-[10px] sm:text-xs text-purple-300 bg-purple-800 rounded-full" title={`Compartilhamento`}>
-                                        <ShareIcon className="w-3 h-3 md:mr-1.5" />
-                                        <span className="truncate max-w-[150px] hidden md:inline">
-                                            {transaction.idEmail === currentUserId 
-                                                ? `${transaction.sharedEmail || transaction.sharedPhone || transaction.targetEmail || transaction.targetPhone}` 
-                                                : (transaction.email ? `De: ${transaction.email}` : "Compartilhado com você")}
-                                        </span>
-                                    </span>
-                                )}
-                            </div>
-                            <p className="flex items-center mt-1 text-xs sm:text-sm text-gray-400 truncate">
-                                <span>{new Date(transaction.date).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
-                            </p>
+                                </span>
+                            )}
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">
+                            {new Date(transaction.date).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}
+                        </p>
+
+                        {/* Actions neatly tucked under the text */}
+                        <div className="flex items-center gap-2 mt-2 sm:mt-3 flex-wrap">
+                            {/* Payment request actions */}
+                            {isEffectivelyControlled && (isOwner || isTarget) && isDebtor && transaction.status === PaymentStatus.UNPAID && !isPaymentRequested && (
+                                <button onClick={() => onRequestPayment(transaction)} className="px-2 py-1 text-[10px] sm:text-xs text-white transition-colors bg-blue-accent rounded-md hover:bg-blue-accent/90">Informar Pagamento</button>
+                            )}
+                            {isPendingApprovalFromMe && (
+                                <>
+                                <button onClick={() => onApprovePayment(transaction)} className="px-2 py-1 text-[10px] sm:text-xs text-white transition-colors bg-green-accent rounded-md hover:bg-green-600">Aprovar</button>
+                                <button onClick={() => onRejectPayment(transaction)} className="px-2 py-1 text-[10px] sm:text-xs text-white transition-colors bg-red-600 rounded-md hover:bg-red-700">Recusar</button>
+                                </>
+                            )}
+
+                            {/* Standard actions */}
+                            {isOwner && !isPendingApprovalFromMe && (
+                                <>
+                                <button
+                                    onClick={() => onOpenAddValueModal(transaction)}
+                                    disabled={isPastMonth || isPaid}
+                                    className={`flex items-center justify-center p-1.5 px-2 text-xs font-bold text-white rounded-md transition-colors ${
+                                        isRevenue
+                                            ? 'bg-green-900/40 text-green-300 border border-green-500/30 hover:bg-green-900/60'
+                                            : 'bg-red-900/40 text-red-300 border border-red-500/30 hover:bg-red-900/60'
+                                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                    title={addValueTitle}
+                                    aria-label={addValueTitle}
+                                >
+                                    {isRevenue ? <PlusIcon className="w-3.5 h-3.5" /> : <MinusIcon className="w-3.5 h-3.5" />}
+                                </button>
+                                <button 
+                                    onClick={() => onStartEdit(transaction)}
+                                    disabled={isEffectivelyControlled || isPastMonth}
+                                    className="p-1.5 px-2 text-gray-400 bg-gray-700/50 border border-gray-600 transition-colors rounded-md hover:bg-gray-700 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title={isEffectivelyControlled ? "Não é possível editar transações controladas" : (isPastMonth ? "Não é possível editar em meses anteriores" : "Editar")}
+                                    aria-label="Editar transação"
+                                >
+                                    <PencilIcon className="w-3.5 h-3.5" />
+                                </button>
+                                <button 
+                                    onClick={handleDelete}
+                                    className="p-1.5 px-2 text-gray-400 bg-gray-700/50 border border-gray-600 transition-colors rounded-md hover:bg-red-900/40 hover:text-red-400 hover:border-red-500/30"
+                                    title="Excluir"
+                                    aria-label="Excluir transação"
+                                >
+                                    <TrashIcon className="w-3.5 h-3.5" />
+                                </button>
+                                </>
+                            )}
                         </div>
                     </div>
-                    {isOwner && !isPendingApprovalFromMe && (
-                         <button 
-                            onClick={handleDelete}
-                            className="p-1.5 text-gray-400 transition-colors rounded-md hover:bg-gray-600 hover:text-red-accent ml-2 sm:hidden"
-                            title="Excluir"
-                            aria-label="Excluir transação"
-                        >
-                            <TrashIcon className="w-4 h-4" />
-                        </button>
-                    )}
                 </div>
 
-                {/* RIGHT SIDE */}
-                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 shrink-0">
-                    
-                    {/* Amount Display with Aggregation Info */}
-                    <div className="flex flex-col items-start sm:items-end">
-                        <p className={`font-bold text-base whitespace-nowrap ${amountClass}`}>
+                {/* RIGHT SIDE: Amount & Status */}
+                <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-1.5">
+                        <p className={`font-bold text-sm md:text-base whitespace-nowrap ${amountClass}`}>
                             {formatCurrency(transaction.amount)}
                         </p>
                         {isSharedViewer && (
-                            <div className="mt-1">
+                            <div>
                                 {isAggregated ? (
                                     <span title="Soma no Total" className="inline-flex items-center text-blue-400 bg-blue-900/40 p-1 rounded-full border border-blue-500/30 cursor-help">
-                                        <PlusIcon className="w-3 h-3 sm:w-4 sm:h-4" />
+                                        <PlusIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                                     </span>
                                 ) : (
                                     <span title="Apenas Visão" className="inline-flex items-center text-gray-400 bg-gray-800/50 p-1 rounded-full border border-gray-600 cursor-help">
-                                        <EyeIcon className="w-3 h-3 sm:w-4 sm:h-4" />
+                                        <EyeIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                                     </span>
                                 )}
                             </div>
                         )}
                     </div>
-                    
-                    <div className="flex items-center flex-wrap justify-end gap-x-2 sm:gap-x-3 gap-y-2">
-                        {/* If I am the debtor, and the bill is UNPAID, I can click "Inform payment" */}
-                        {isEffectivelyControlled && (isOwner || isTarget) && isDebtor && transaction.status === PaymentStatus.UNPAID && !isPaymentRequested && (
-                            <button onClick={() => onRequestPayment(transaction)} className="px-2 py-1 text-[10px] sm:text-xs text-white transition-colors bg-blue-accent rounded-md hover:bg-blue-accent/90">Informar Pagamento</button>
-                        )}
-                        {/* If I am the receiver, and status is PENDING, I can Approve/Reject */}
-                        {isPendingApprovalFromMe && (
-                            <>
-                            <button onClick={() => onApprovePayment(transaction)} className="px-2 py-1 text-[10px] sm:text-xs text-white transition-colors bg-green-accent rounded-md hover:bg-green-600">Aprovar</button>
-                            <button onClick={() => onRejectPayment(transaction)} className="px-2 py-1 text-[10px] sm:text-xs text-white transition-colors bg-red-600 rounded-md hover:bg-red-700">Recusar</button>
-                            </>
-                        )}
-
-                        {isOwner && !isPendingApprovalFromMe && (
-                            <>
-                            <button
-                                onClick={() => onOpenAddValueModal(transaction)}
-                                disabled={isPastMonth || isPaid}
-                                className={`flex items-center justify-center px-2 py-1 text-[10px] sm:text-xs font-bold text-white rounded-md transition-colors ${
-                                    isRevenue
-                                        ? 'bg-green-accent/90 hover:bg-green-accent'
-                                        : 'bg-red-accent/90 hover:bg-red-accent'
-                                } disabled:bg-gray-600 disabled:cursor-not-allowed`}
-                                title={addValueTitle}
-                                aria-label={addValueTitle}
-                            >
-                                {isRevenue ? <PlusIcon className="w-3 h-3 sm:w-4 sm:h-4" /> : <MinusIcon className="w-3 h-3 sm:w-4 sm:h-4" />}
-                                <span className="ml-1">$</span>
-                            </button>
-                            <button 
-                                onClick={() => onStartEdit(transaction)}
-                                disabled={isEffectivelyControlled || isPastMonth}
-                                className="p-1.5 text-gray-400 transition-colors rounded-md hover:bg-gray-600 disabled:text-gray-600 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                                title={isEffectivelyControlled ? "Não é possível editar transações controladas" : (isPastMonth ? "Não é possível editar em meses anteriores" : "Editar")}
-                                aria-label="Editar transação"
-                            >
-                                <PencilIcon className="w-4 h-4" />
-                            </button>
-                            <button 
-                                onClick={handleDelete}
-                                className="p-1.5 text-gray-400 transition-colors rounded-md hover:bg-gray-600 hover:text-red-accent hidden sm:block"
-                                title="Excluir"
-                                aria-label="Excluir transação"
-                            >
-                                <TrashIcon className="w-4 h-4" />
-                            </button>
-                            </>
-                        )}
-                        
+                    {/* Status Label/Toggle */}
+                    <div>
                         {renderStatusDisplay()}
                     </div>
                 </div>

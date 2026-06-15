@@ -12,7 +12,7 @@ import ConfirmationModal from './ConfirmationModal';
 import AddValueModal from './AddValueModal';
 import OverdueNoticeModal from './OverdueNoticeModal';
 import PendingApprovalModal from './PendingApprovalModal';
-import { XCircleIcon, ChartBarIcon, UsersIcon } from './icons';
+import { XCircleIcon, ChartBarIcon, UsersIcon, ChevronLeftIcon, ChevronRightIcon } from './icons';
 import { API_BASE_URL } from '../constants';
 import { exportYearlyPDF } from './exportPDF';
 
@@ -858,17 +858,26 @@ setTransactions(mappedTransactions);
   const tabSummaryNode = useMemo(() => {
       switch(activeTab) {
           case 'transactions':
-              return <span className={`px-2 py-1 rounded-md bg-gray-700/50 text-gray-300 border border-gray-600`}><span className={totalMinhasReceitas - totalMinhasDespesas >= 0 ? "text-green-accent" : "text-red-accent"}>{formatCurrency(totalMinhasReceitas - totalMinhasDespesas)}</span></span>;
+              return (
+                  <span 
+                      className={`px-2 py-1 rounded-md bg-gray-700/50 text-gray-300 border border-gray-600 cursor-help`}
+                      title={`Receitas (${formatCurrency(summary.revenue)}) - Despesas (${formatCurrency(summary.expenses)})`}
+                  >
+                      <span className={summary.balance >= 0 ? "text-green-accent" : "text-red-accent"}>
+                          {formatCurrency(summary.balance)}
+                      </span>
+                  </span>
+              );
           case 'shared':
-              return <span className={`px-2 py-1 rounded-md bg-purple-900/40 text-purple-300 border border-purple-500/30`}>{formatCurrency(totalShared)}</span>;
+              return <span title="Soma de transações compartilhadas" className={`px-2 py-1 rounded-md bg-purple-900/40 text-purple-300 border border-purple-500/30 cursor-help`}>{formatCurrency(totalShared)}</span>;
           case 'receitas':
-              return <span className={`px-2 py-1 rounded-md bg-green-900/40 text-green-300 border border-green-500/30`}>{formatCurrency(totalMinhasReceitas)}</span>;
+              return <span title={`Soma de todas as receitas do mês (${formatCurrency(summary.revenue)})`} className={`px-2 py-1 rounded-md bg-green-900/40 text-green-300 border border-green-500/30 cursor-help`}>{formatCurrency(summary.revenue)}</span>;
           case 'despesas':
-              return <span className={`px-2 py-1 rounded-md bg-red-900/40 text-red-300 border border-red-500/30`}>{formatCurrency(totalMinhasDespesas)}</span>;
+              return <span title={`Soma de todas as despesas do mês (${formatCurrency(summary.expenses)})`} className={`px-2 py-1 rounded-md bg-red-900/40 text-red-300 border border-red-500/30 cursor-help`}>{formatCurrency(summary.expenses)}</span>;
           default:
               return null;
       }
-  }, [activeTab, totalMinhasReceitas, totalMinhasDespesas, totalShared]);
+  }, [activeTab, totalMinhasReceitas, totalMinhasDespesas, totalShared, summary]);
 
   const transactionsForCurrentTab = 
     activeTab === 'transactions' ? personalTransactions : 
@@ -941,13 +950,33 @@ setTransactions(mappedTransactions);
       />
       
       <div className="p-4 bg-gray-800 rounded-lg">
-        <div className="border-b-0 md:border-b border-gray-700 overflow-x-auto snap-x snap-mandatory pb-2 md:pb-0 custom-scrollbar-hide">
-          <nav className="flex space-x-2 md:space-x-4 min-w-max px-1">
-            <button onClick={() => setActiveTab('transactions')} className={`snap-start px-4 md:px-3 py-2 font-medium text-sm rounded-full md:rounded-bl-none md:rounded-br-none md:rounded-t-md whitespace-nowrap transition-colors ${activeTab === 'transactions' ? 'bg-blue-600 md:bg-transparent md:border-b-2 border-blue-accent text-white' : 'bg-gray-700 md:bg-transparent text-gray-300 md:text-gray-400 hover:text-white md:border-b-2 border-transparent hover:bg-gray-600 md:hover:bg-transparent'}`}>Minhas Transações ({personalTransactions.length})</button>
-            <button onClick={() => setActiveTab('shared')} className={`snap-start px-4 md:px-3 py-2 font-medium text-sm rounded-full md:rounded-bl-none md:rounded-br-none md:rounded-t-md whitespace-nowrap transition-colors ${activeTab === 'shared' ? 'bg-purple-600 md:bg-transparent md:border-b-2 border-purple-accent md:border-blue-accent text-white' : 'bg-gray-700 md:bg-transparent text-gray-300 md:text-gray-400 hover:text-white md:border-b-2 border-transparent hover:bg-gray-600 md:hover:bg-transparent'}`}>Compartilhados ({sharedTransactions.length})</button>
-            <button onClick={() => setActiveTab('receitas')} className={`snap-start px-4 md:px-3 py-2 font-medium text-sm rounded-full md:rounded-bl-none md:rounded-br-none md:rounded-t-md whitespace-nowrap transition-colors ${activeTab === 'receitas' ? 'bg-green-600 md:bg-transparent md:border-b-2 border-green-accent text-white' : 'bg-gray-700 md:bg-transparent text-gray-300 md:text-gray-400 hover:text-white md:border-b-2 border-transparent hover:bg-gray-600 md:hover:bg-transparent'}`}>Receitas ({receitasTransactions.length})</button>
-            <button onClick={() => setActiveTab('despesas')} className={`snap-start px-4 md:px-3 py-2 font-medium text-sm rounded-full md:rounded-bl-none md:rounded-br-none md:rounded-t-md whitespace-nowrap transition-colors ${activeTab === 'despesas' ? 'bg-red-600 md:bg-transparent md:border-b-2 border-red-accent text-white' : 'bg-gray-700 md:bg-transparent text-gray-300 md:text-gray-400 hover:text-white md:border-b-2 border-transparent hover:bg-gray-600 md:hover:bg-transparent'}`}>Despesas ({despesasTransactions.length})</button>
-          </nav>
+        <div className="flex items-center justify-between px-2 sm:px-4 py-2 border border-gray-700/50 bg-gray-900 rounded-lg shadow-sm">
+          <button 
+            onClick={() => {
+               const map = { transactions: 'despesas', shared: 'transactions', receitas: 'shared', despesas: 'receitas' } as const;
+               setActiveTab(map[activeTab]);
+            }} 
+            className="p-2 text-gray-400 transition-colors rounded-lg hover:bg-gray-700 hover:text-white"
+          >
+             <ChevronLeftIcon className="w-5 h-5" />
+          </button>
+          
+          <div className="flex-1 text-center font-bold text-sm sm:text-base">
+            {activeTab === 'transactions' && <span className="text-blue-300">Minhas Transações <span className="text-gray-500 font-normal">({personalTransactions.length})</span></span>}
+            {activeTab === 'shared' && <span className="text-purple-300">Compartilhados <span className="text-gray-500 font-normal">({sharedTransactions.length})</span></span>}
+            {activeTab === 'receitas' && <span className="text-green-300">Receitas <span className="text-gray-500 font-normal">({receitasTransactions.length})</span></span>}
+            {activeTab === 'despesas' && <span className="text-red-300">Despesas <span className="text-gray-500 font-normal">({despesasTransactions.length})</span></span>}
+          </div>
+
+          <button 
+            onClick={() => {
+               const map = { transactions: 'shared', shared: 'receitas', receitas: 'despesas', despesas: 'transactions' } as const;
+               setActiveTab(map[activeTab]);
+            }} 
+            className="p-2 text-gray-400 transition-colors rounded-lg hover:bg-gray-700 hover:text-white"
+          >
+             <ChevronRightIcon className="w-5 h-5" />
+          </button>
         </div>
         <div className="pt-4">
           {isLoading ? <p>Carregando...</p> : error ? <p className="text-red-accent">{error}</p> : (

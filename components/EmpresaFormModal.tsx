@@ -13,7 +13,6 @@ const initialState = {
     name: '',
     cnpj: '',
     email: '',
-    email: '',
     address: '',
     city: '',
     state: '',
@@ -31,7 +30,6 @@ const EmpresaFormModal: React.FC<EmpresaFormModalProps> = ({ isOpen, onClose, on
             setFormData({
                 name: empresaToEdit.name || '',
                 cnpj: empresaToEdit.cnpj || '',
-                email: empresaToEdit.email || '',
                 email: empresaToEdit.email || '',
                 address: empresaToEdit.address || '',
                 city: empresaToEdit.city || '',
