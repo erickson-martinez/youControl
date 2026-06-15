@@ -530,7 +530,7 @@ const App: React.FC = () => {
       <div className="transition-all md:ml-64">
          <header className="flex items-center justify-between p-2 mb-2 md:p-4 md:justify-end relative min-h-[64px] gap-2">
             <button onClick={() => setSidebarOpen(true)} className="p-2 text-gray-400 rounded-lg md:hidden hover:bg-gray-700 focus:outline-none z-20 shrink-0" aria-controls="default-sidebar" aria-label="Open sidebar"><span className="sr-only">Open sidebar</span><MenuIcon className="w-6 h-6" /></button>
-            <div id="top-header-portal" className="flex-1 min-w-0 flex justify-end z-10 w-full overflow-hidden"></div>
+            <div id="top-header-portal" className="flex-1 min-w-0 flex justify-end md:justify-center z-10 w-full overflow-hidden"></div>
         </header>
         
         <main className={`max-w-4xl pt-0 mx-auto md:pt-0 ${activePage === 'jornada' ? 'p-0' : 'p-4 md:p-8'}`}>

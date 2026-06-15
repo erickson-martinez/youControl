@@ -942,7 +942,7 @@ setTransactions(mappedTransactions);
   return (
     <>
       {portalNode ? createPortal(
-        <div className="flex-1 w-full max-w-sm md:max-w-xs z-10 pointer-events-auto shrink-0">
+        <div className="flex-1 w-full max-w-sm md:max-w-4xl px-0 md:px-8 z-10 pointer-events-auto shrink-0 mx-auto">
           <MonthNavigator 
             currentDate={currentDate} 
             setCurrentDate={setCurrentDate}
