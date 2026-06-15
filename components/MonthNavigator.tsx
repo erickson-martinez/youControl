@@ -8,9 +8,10 @@ interface MonthNavigatorProps {
   disablePrev?: boolean;
   disableNext?: boolean;
   rightAction?: React.ReactNode;
+  className?: string;
 }
 
-const MonthNavigator: React.FC<MonthNavigatorProps> = ({ currentDate, setCurrentDate, disablePrev = false, disableNext = false, rightAction }) => {
+const MonthNavigator: React.FC<MonthNavigatorProps> = ({ currentDate, setCurrentDate, disablePrev = false, disableNext = false, rightAction, className = '' }) => {
   const changeMonth = (amount: number) => {
     const newDate = new Date(currentDate.getTime());
     newDate.setDate(1); // Set to the first of the month to avoid day overflow issues
@@ -22,7 +23,7 @@ const MonthNavigator: React.FC<MonthNavigatorProps> = ({ currentDate, setCurrent
   const year = currentDate.getFullYear();
 
   return (
-    <div className="flex items-center justify-between px-4 py-2 mb-4 bg-gray-800 rounded-lg shadow-sm border border-gray-700/50">
+    <div className={`flex items-center justify-between px-3 md:px-4 py-2 bg-gray-800 rounded-lg shadow-sm border border-gray-700/50 ${className}`}>
       <button
         onClick={() => changeMonth(-1)}
         disabled={disablePrev}

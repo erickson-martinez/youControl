@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import type { User, Transaction, SharedUser, Addition, ActivePage } from '../types';
 import { TransactionType, PaymentStatus } from '../types';
 import MonthNavigator from './MonthNavigator';
@@ -41,12 +42,17 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   const [isSharedUsersPopoverOpen, setIsSharedUsersPopoverOpen] = useState(false);
   
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [summary, setSummary] = useState({ revenue: 0, expenses: 0, balance: 0, total: 0 });
+  const [summary, setSummary] = useState({ revenue: 0, expenses: 0, balance: 0, total: 0, paid: 0 });
   const [sharedUsersInfo, setSharedUsersInfo] = useState<SharedUser[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setPortalNode(document.getElementById('top-header-portal'));
+  }, []);
 
   const handleExportPDF = async () => {
     if (isExporting) return;
@@ -129,6 +135,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   const calculateMonthlyTotals = useCallback((transactionsList: any[]) => {
       let r = 0;
       let e = 0;
+      let p = 0;
       const currentUserId = user.idEmail || user.id;
       transactionsList.forEach((tx: any) => {
           const amt = Number(tx.amount || 0);
@@ -142,11 +149,18 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
           }
 
           if (isMine || isTarget || (isSharedWithMe && tx.aggregate === true)) {
-              if (displayType === TransactionType.REVENUE) r += amt;
-              else if (displayType === TransactionType.EXPENSE) e += amt;
+              if (displayType === TransactionType.REVENUE) {
+                  r += amt;
+              }
+              else if (displayType === TransactionType.EXPENSE) {
+                  e += amt;
+                  if (tx.status === PaymentStatus.PAID) {
+                      p += amt;
+                  }
+              }
           }
       });
-      return { revenue: r, expenses: e };
+      return { revenue: r, expenses: e, paid: p };
   }, [user.email, user.id, user.idEmail, user.phone]);
 
   const fetchTransactions = useCallback(async () => {
@@ -241,12 +255,13 @@ setTransactions(mappedTransactions);
         setSharedUsersInfo(Array.from(sharedInfoMap.values()));
         
         // Calculate totals manually to respect 'aggregate' flag strictly
-        const { revenue, expenses } = calculateMonthlyTotals(data.transactions || []);
+        const { revenue, expenses, paid } = calculateMonthlyTotals(data.transactions || []);
         
         if (isPastMonth) {
             setSummary({
                 revenue,
                 expenses,
+                paid,
                 balance: revenue - expenses,
                 // accumulatedBalance from backend might include non-aggregated data, 
                 // but we can't easily re-calc history. Using it as best effort baseline.
@@ -314,7 +329,7 @@ setTransactions(mappedTransactions);
                 }
             }
             
-            setSummary({ revenue, expenses, balance: revenue - expenses, total: forecastTotal });
+            setSummary({ revenue, expenses, paid, balance: revenue - expenses, total: forecastTotal });
         }
     } catch (err) {
         setError(err instanceof Error ? err.message : 'Ocorreu um erro desconhecido.');
@@ -926,12 +941,24 @@ setTransactions(mappedTransactions);
 
   return (
     <>
-      <MonthNavigator 
-        currentDate={currentDate} 
-        setCurrentDate={setCurrentDate}
-      />
+      {portalNode ? createPortal(
+        <div className="flex-1 max-w-sm mr-2 md:mr-0 z-10 pointer-events-auto w-full max-w-[250px] sm:max-w-xs">
+          <MonthNavigator 
+            currentDate={currentDate} 
+            setCurrentDate={setCurrentDate}
+            className="!mb-0"
+          />
+        </div>,
+        portalNode
+      ) : (
+        <MonthNavigator 
+          currentDate={currentDate} 
+          setCurrentDate={setCurrentDate}
+          className="mb-4"
+        />
+      )}
 
-      <SummaryCards revenue={summary.revenue} expenses={summary.expenses} balance={summary.balance} total={summary.total} isFutureMonth={isFutureMonth} />
+      <SummaryCards revenue={summary.revenue} expenses={summary.expenses} balance={summary.balance} total={summary.total} paid={summary.paid} isFutureMonth={isFutureMonth} />
       
       {isExporting && (
         <div className="flex items-center justify-center mb-4 p-3 bg-blue-900/50 rounded-lg border border-blue-500/30">

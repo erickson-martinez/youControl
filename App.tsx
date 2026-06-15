@@ -528,8 +528,9 @@ const App: React.FC = () => {
     <div className="min-h-screen font-sans bg-gray-900 text-gray-100">
       <Sidebar user={user} onLogout={handleLogout} isOpen={isSidebarOpen} onClose={() => setSidebarOpen(false)} permissions={userPermissions || FALLBACK_PERMISSIONS} activePage={activePage} onNavigate={handleNavigate} canClockIn={canUserClockIn}/>
       <div className="transition-all md:ml-64">
-         <header className="flex items-center justify-between p-4 mb-2 md:justify-end">
-            <button onClick={() => setSidebarOpen(true)} className="p-2 text-gray-400 rounded-lg md:hidden hover:bg-gray-700 focus:outline-none" aria-controls="default-sidebar" aria-label="Open sidebar"><span className="sr-only">Open sidebar</span><MenuIcon className="w-6 h-6" /></button>
+         <header className="flex items-center justify-between p-2 mb-2 md:p-4 md:justify-end relative min-h-[64px]">
+            <button onClick={() => setSidebarOpen(true)} className="p-2 text-gray-400 rounded-lg md:hidden hover:bg-gray-700 focus:outline-none z-20 relative mr-2" aria-controls="default-sidebar" aria-label="Open sidebar"><span className="sr-only">Open sidebar</span><MenuIcon className="w-6 h-6" /></button>
+            <div id="top-header-portal" className="flex-1 w-full flex justify-end md:justify-end z-10 w-full sm:w-auto overflow-hidden"></div>
         </header>
         
         <main className={`max-w-4xl pt-0 mx-auto md:pt-0 ${activePage === 'jornada' ? 'p-0' : 'p-4 md:p-8'}`}>

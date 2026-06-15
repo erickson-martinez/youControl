@@ -1,12 +1,13 @@
 
 import React from 'react';
-import { ArrowUpCircleIcon, ArrowDownCircleIcon, CheckCircleIcon, CashIcon } from './icons';
+import { ArrowUpCircleIcon, ArrowDownCircleIcon, CheckCircleIcon, CashIcon, ClipboardCheckIcon } from './icons';
 
 interface SummaryCardsProps {
   revenue: number;
   expenses: number;
   balance: number;
   total: number;
+  paid: number;
   isFutureMonth?: boolean;
 }
 
@@ -20,17 +21,17 @@ const SummaryCard: React.FC<{ title: string; value: number; icon: React.ReactNod
             {icon}
             <p className="text-sm font-medium text-gray-400">{title}</p>
         </div>
-        <p className="mt-2 text-2xl font-bold text-white">{formatNumber(value)}</p>
+        <p className="mt-2 text-lg md:text-2xl font-bold text-white">{formatNumber(value)}</p>
     </div>
 );
 
 
-const SummaryCards: React.FC<SummaryCardsProps> = ({ revenue, expenses, balance, total, isFutureMonth = false }) => {
+const SummaryCards: React.FC<SummaryCardsProps> = ({ revenue, expenses, balance, total, paid, isFutureMonth = false }) => {
   const balanceTitle = isFutureMonth ? 'Previsão Saldo' : 'Saldo do Mês';
   const totalTitle = isFutureMonth ? 'Previsão Total' : 'Total';
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4 mb-6">
         <SummaryCard 
             title="Receitas"
             value={revenue}
@@ -42,6 +43,12 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({ revenue, expenses, balance,
             value={expenses}
             icon={<ArrowDownCircleIcon className="w-5 h-5 text-red-accent" />}
             colorclass="border-red-accent"
+        />
+        <SummaryCard 
+            title="Pagas"
+            value={paid}
+            icon={<ClipboardCheckIcon className="w-5 h-5 text-teal-400" />}
+            colorclass="border-teal-400"
         />
         <SummaryCard 
             title={balanceTitle}
