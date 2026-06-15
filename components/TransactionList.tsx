@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import type { Transaction, Addition } from '../types';
 import { TransactionType, PaymentStatus } from '../types';
-import { CheckCircleIcon, ClockIcon, ArrowUpCircleIcon, ArrowDownCircleIcon, XCircleIcon, ShareIcon, PencilIcon, TrashIcon, ChevronDownIcon, PlusIcon, MinusIcon, BellIcon, EyeIcon } from './icons';
+import { CheckCircleIcon, ClockIcon, XCircleIcon, ShareIcon, PencilIcon, TrashIcon, ChevronDownIcon, PlusIcon, MinusIcon, BellIcon, EyeIcon } from './icons';
 import ConfirmationModal from './ConfirmationModal';
 
 interface TransactionListProps {
@@ -211,13 +211,10 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
     };
 
     return (
-        <li className="p-3 sm:p-4 bg-gray-800 rounded-lg shadow-sm border border-gray-700/50">
+        <li className={`p-3 sm:p-4 bg-gray-800 rounded-lg shadow-sm border-y border-r border-gray-700/50 border-l-4 ${isRevenue ? 'border-l-green-accent' : 'border-l-red-accent'}`}>
             <div className="flex items-start justify-between gap-3">
                 {/* LEFT SIDE: Info & Actions */}
                 <div className="flex items-start gap-3 flex-grow min-w-0">
-                    <div className="mt-0.5 flex-shrink-0">
-                        {isRevenue ? <ArrowUpCircleIcon className="w-5 h-5 sm:w-6 sm:h-6 text-green-accent" /> : <ArrowDownCircleIcon className="w-5 h-5 sm:w-6 sm:h-6 text-red-accent" />}
-                    </div>
                     
                     <div className="flex flex-col min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
