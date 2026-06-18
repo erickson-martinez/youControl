@@ -116,7 +116,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
                 name: formData.name,
                 amount: parseFloat(formData.amount),
                 date: formData.date,
-                status: formData.paid ? PaymentStatus.PAID : PaymentStatus.UNPAID,
+                status: isInvestment && !formData.paid ? 'investimento' : (formData.paid ? PaymentStatus.PAID : PaymentStatus.UNPAID),
                 ...(isInvestment ? { investment: investmentData } : {}),
             };
         } else {
@@ -127,7 +127,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
                 type,
                 isControlled: formData.isControlled,
                 sharedEmailOrPhone: formData.sharedEmailOrPhone || undefined,
-                status: formData.isControlled ? PaymentStatus.UNPAID : (formData.paid ? PaymentStatus.PAID : PaymentStatus.UNPAID),
+                status: isInvestment && !formData.paid ? 'investimento' : (formData.isControlled ? PaymentStatus.UNPAID : (formData.paid ? PaymentStatus.PAID : PaymentStatus.UNPAID)),
                 repeatCount: repeatCount > 0 ? repeatCount : undefined,
                 ...(isInvestment ? { investment: investmentData } : {}),
             };

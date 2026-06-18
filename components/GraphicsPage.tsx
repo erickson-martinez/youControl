@@ -4,6 +4,7 @@ import type { User, Transaction } from '../types';
 import MonthNavigator from './MonthNavigator';
 import { API_BASE_URL } from '../constants';
 import { ChartBarIcon, ArrowUpCircleIcon, ArrowDownCircleIcon } from './icons';
+import InvestmentReport from './InvestmentReport';
 
 interface GraphicsPageProps {
     user: User;
@@ -214,7 +215,9 @@ const GraphicsPage: React.FC<GraphicsPageProps> = ({ user }) => {
             const mappedTransactions = (data.transactions || []).map((tx: any) => ({
                 id: tx._id, idEmail: tx.idEmail, type: tx.type, name: tx.name, amount: tx.amount,
                 date: new Date(tx.date).toISOString().split('T')[0],
-                status: tx.status
+                status: tx.status,
+                investment: tx.investment,
+                updatedAt: tx.updatedAt
             }));
             
             setTransactions(mappedTransactions);
@@ -298,6 +301,10 @@ const GraphicsPage: React.FC<GraphicsPageProps> = ({ user }) => {
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value)
             .slice(0, 5); // Top 5
+    }, [transactions]);
+
+    const investmentTransactions = useMemo(() => {
+        return transactions.filter(t => t.type === 'investimento' || t.type === 'INVESTMENT' || t.type === 'investment');
     }, [transactions]);
 
     return (
@@ -387,6 +394,16 @@ const GraphicsPage: React.FC<GraphicsPageProps> = ({ user }) => {
                         </div>
                         <TransactionColumnChart dailyData={dailyMovement} />
                     </div>
+
+                    {/* Gráfico 4: Evolução de Investimentos */}
+                    {investmentTransactions.length > 0 && (
+                        <div className="md:col-span-2">
+                             <InvestmentReport 
+                                transactions={investmentTransactions} 
+                                currentDate={currentDate} 
+                            />
+                        </div>
+                    )}
                 </div>
             )}
         </div>

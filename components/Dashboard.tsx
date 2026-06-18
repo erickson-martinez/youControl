@@ -154,6 +154,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
 
       let businessDays = 0;
       let curDate = new Date(startDate);
+      curDate.setDate(curDate.getDate() + 1);
       while (curDate <= end) {
           const dayOfWeek = curDate.getDay();
           if (dayOfWeek !== 0 && dayOfWeek !== 6) businessDays++;
@@ -162,7 +163,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
 
       if (businessDays === 0) return amount;
 
-      let renderDay = Number(tx.investment.renderDay);
+      let renderDay = tx.investment.renderDay ? Number(tx.investment.renderDay) : 0;
       if (!renderDay || renderDay <= 0) {
           if (tx.investment.percentage) {
               const pct = Number(tx.investment.percentage);
@@ -203,7 +204,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
                   if (tx.status === PaymentStatus.PAID) {
                       p += amt;
                   }
-              } else if (displayType === TransactionType.INVESTMENT) {
+              } else if (displayType === TransactionType.INVESTMENT || displayType === 'INVESTMENT' || displayType === 'investimento') {
                   const invValue = calculateInvestmentValue(tx, targetDate);
                   if (tx.status === PaymentStatus.PAID) {
                       redeemedInvestments += invValue;
@@ -287,9 +288,22 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
                 }
             }
             if (mData && mData.transactions) {
-                const invs = mData.transactions.filter((t: any) => 
-                    (t.type === TransactionType.INVESTMENT || t.type === 'INVESTMENT' || t.type === 'investimento')
-                );
+                const invs = mData.transactions.filter((t: any) => {
+                    if (t.type !== TransactionType.INVESTMENT && t.type !== 'INVESTMENT' && t.type !== 'investimento') return false;
+                    
+                    const isPaid = t.status === PaymentStatus.PAID || t.status === 'pago';
+                    if (!isPaid) return true;
+                    
+                    const pDate = t.updatedAt ? new Date(t.updatedAt) : new Date(t.date);
+                    const pMonth = pDate.getMonth() + 1;
+                    const pYear = pDate.getFullYear();
+                    
+                    // Do not carry over if it was already paid in a previous month
+                    if (pYear < year || (pYear === year && pMonth < month)) {
+                        return false;
+                    }
+                    return true;
+                });
                 invs.forEach((t: any) => pastInvestmentsMap.set(t._id || t.id, t));
             }
         }
@@ -724,7 +738,11 @@ setTransactions(mappedTransactions);
   const onToggleSimpleTransactionPaid = async (id: string) => {
     const transaction = transactions.find((t) => t.id === id);
     if (!transaction) return;
-    const newStatus = transaction.status === PaymentStatus.PAID ? PaymentStatus.UNPAID : PaymentStatus.PAID;
+    let newStatus = transaction.status === PaymentStatus.PAID ? PaymentStatus.UNPAID : PaymentStatus.PAID;
+    if ((transaction.type === TransactionType.INVESTMENT || transaction.type === 'INVESTMENT' || transaction.type === 'investimento') && transaction.status === PaymentStatus.PAID) {
+         newStatus = 'investimento' as PaymentStatus;
+    }
+    
     try {
       const currentUserId = user.idEmail || user.id;
       const isOwner = transaction.idEmail === currentUserId;
@@ -909,8 +927,9 @@ setTransactions(mappedTransactions);
     const today = new Date();
     today.setHours(0, 0, 0, 0); 
     return personalTransactions.filter(t => {
+      if (t.type === TransactionType.INVESTMENT || t.type === 'INVESTMENT' || t.type === 'investimento') return false;
       if (t.status !== PaymentStatus.UNPAID) return false;
-      const parts = t.date.split('-').map(p => parseInt(p, 10));
+      const parts = t.date.split('T')[0].split('-').map(p => parseInt(p, 10));
       const dueDate = new Date(parts[0], parts[1] - 1, parts[2]);
       return dueDate < today;
     });
@@ -979,7 +998,7 @@ setTransactions(mappedTransactions);
   }, [personalTransactions]);
 
   const investimentosTransactions = useMemo(() => {
-     return personalTransactions.filter(t => t.type === TransactionType.INVESTMENT && t.status !== PaymentStatus.PAID);
+     return personalTransactions.filter(t => (t.type === TransactionType.INVESTMENT || t.type === 'INVESTMENT' || t.type === 'investimento'));
   }, [personalTransactions]);
 
   const totalAReceber = useMemo(() => {
@@ -1018,8 +1037,22 @@ setTransactions(mappedTransactions);
       }
   }, [activeTab, totalMinhasReceitas, totalMinhasDespesas, totalShared, summary]);
 
+  const minhasTransactions = useMemo(() => {
+    return personalTransactions.filter(t => {
+      if (t.type === TransactionType.INVESTMENT || t.type === 'INVESTMENT' || t.type === 'investimento') {
+        const parts = String(t.date).split('T')[0].split('-');
+        const tYear = parseInt(parts[0], 10);
+        const tMonth = parseInt(parts[1], 10) - 1;
+        if (tYear !== currentDate.getFullYear() || tMonth !== currentDate.getMonth()) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [personalTransactions, currentDate]);
+
   const transactionsForCurrentTab = 
-    activeTab === 'transactions' ? personalTransactions : 
+    activeTab === 'transactions' ? minhasTransactions : 
     activeTab === 'shared' ? sharedTransactions :
     activeTab === 'receitas' ? receitasTransactions :
     activeTab === 'investimentos' ? investimentosTransactions :
@@ -1115,7 +1148,7 @@ setTransactions(mappedTransactions);
           </button>
           
           <div className="flex-1 text-center font-bold text-sm sm:text-base">
-            {activeTab === 'transactions' && <span className="text-blue-300">Minhas Transações <span className="text-gray-500 font-normal">({personalTransactions.length})</span></span>}
+            {activeTab === 'transactions' && <span className="text-blue-300">Minhas Transações <span className="text-gray-500 font-normal">({minhasTransactions.length})</span></span>}
             {activeTab === 'shared' && <span className="text-purple-300">Compartilhados <span className="text-gray-500 font-normal">({sharedTransactions.length})</span></span>}
             {activeTab === 'receitas' && <span className="text-green-300">Receitas <span className="text-gray-500 font-normal">({receitasTransactions.length})</span></span>}
             {activeTab === 'despesas' && <span className="text-red-300">Despesas <span className="text-gray-500 font-normal">({despesasTransactions.length})</span></span>}

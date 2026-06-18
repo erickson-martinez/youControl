@@ -12,7 +12,14 @@ const calculateInvestmentValue = (tx: any, targetDate: Date = new Date()): numbe
     const amount = Number(tx.amount || 0);
     const safeDateStr = tx.date.includes('T') ? tx.date.split('T')[0] : tx.date;
     const startDate = new Date(safeDateStr + "T00:00:00");
-    const end = new Date(targetDate);
+    let end = new Date(targetDate);
+    
+    if (tx.status === PaymentStatus.PAID && tx.updatedAt) {
+        const updatedDate = new Date(tx.updatedAt);
+        if (updatedDate < end) {
+            end = updatedDate;
+        }
+    }
     
     startDate.setHours(0,0,0,0);
     end.setHours(23,59,59,999);
@@ -21,6 +28,7 @@ const calculateInvestmentValue = (tx: any, targetDate: Date = new Date()): numbe
 
     let businessDays = 0;
     let curDate = new Date(startDate);
+    curDate.setDate(curDate.getDate() + 1);
     while (curDate <= end) {
         const dayOfWeek = curDate.getDay();
         if (dayOfWeek !== 0 && dayOfWeek !== 6) businessDays++;
@@ -29,7 +37,7 @@ const calculateInvestmentValue = (tx: any, targetDate: Date = new Date()): numbe
 
     if (businessDays === 0) return amount;
 
-    let renderDay = Number(tx.investment.renderDay);
+    let renderDay = tx.investment.renderDay ? Number(tx.investment.renderDay) : 0;
     if (!renderDay || renderDay <= 0) {
         if (tx.investment.percentage) {
             const pct = Number(tx.investment.percentage);
@@ -37,7 +45,7 @@ const calculateInvestmentValue = (tx: any, targetDate: Date = new Date()): numbe
         }
         if (!renderDay || renderDay <= 0) renderDay = 0.01;
     }
-
+    
     const dailyRate = renderDay / amount;
     return amount * Math.pow(1 + dailyRate, businessDays);
 };
@@ -84,11 +92,12 @@ const formatCurrency = (value: number) => {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 };
 
-const StatusBadge: React.FC<{ status: PaymentStatus }> = ({ status }) => {
-    const statusMap = {
+const StatusBadge: React.FC<{ status: PaymentStatus | string }> = ({ status }) => {
+    const statusMap: any = {
         [PaymentStatus.PAID]: { text: 'Pago', icon: <CheckCircleIcon className="w-4 h-4" />, color: 'text-green-accent' },
         [PaymentStatus.UNPAID]: { text: 'Não Pago', icon: <XCircleIcon className="w-4 h-4" />, color: 'text-red-accent' },
         [PaymentStatus.PENDING]: { text: 'Pendente', icon: <ClockIcon className="w-4 h-4" />, color: 'text-yellow-accent' },
+        'investimento': { text: 'Rendendo', icon: <CheckCircleIcon className="w-4 h-4" />, color: 'text-yellow-300' },
     };
     const { text, icon, color } = statusMap[status] || statusMap[PaymentStatus.UNPAID];
     return <div className={`flex items-center flex-shrink-0 space-x-1 text-xs font-medium px-2 py-1 rounded-full ${color} bg-gray-700`}>{icon}<span>{text}</span></div>;
@@ -205,7 +214,10 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
                         type="checkbox"
                         id={`paid-toggle-${transaction.id}`}
                         checked={isPaid}
-                        onChange={() => onUpdateStatus(transaction, isPaid ? PaymentStatus.UNPAID : PaymentStatus.PAID)}
+                        onChange={() => {
+                            const unpayStatus = (isInvestment || transaction.type === 'investimento') ? 'investimento' as PaymentStatus : PaymentStatus.UNPAID;
+                            onUpdateStatus(transaction, isPaid ? unpayStatus : PaymentStatus.PAID);
+                        }}
                         disabled={isDisabled}
                         className="w-5 h-5 text-green-accent bg-gray-600 border-gray-500 rounded focus:ring-green-accent focus:ring-offset-gray-800 disabled:cursor-not-allowed"
                     />
