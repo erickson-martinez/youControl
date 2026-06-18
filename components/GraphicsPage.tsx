@@ -14,8 +14,8 @@ const formatCurrency = (value: number) => {
 };
 
 // Componente de Gráfico de Rosca (Donut) usando CSS conic-gradient
-const DonutChart: React.FC<{ revenue: number; expense: number }> = ({ revenue, expense }) => {
-    const total = revenue + expense;
+const DonutChart: React.FC<{ revenue: number; expense: number; investment: number }> = ({ revenue, expense, investment }) => {
+    const total = revenue + expense + investment;
     
     // Fallback se não houver dados
     if (total === 0) {
@@ -29,6 +29,8 @@ const DonutChart: React.FC<{ revenue: number; expense: number }> = ({ revenue, e
     }
 
     const revenuePercent = (revenue / total) * 100;
+    const expensePercent = (expense / total) * 100;
+    const investmentPercent = (investment / total) * 100;
     const balance = revenue - expense;
     
     return (
@@ -38,7 +40,7 @@ const DonutChart: React.FC<{ revenue: number; expense: number }> = ({ revenue, e
                 <div 
                     className="w-full h-full rounded-full shadow-2xl transition-all duration-1000 ease-out"
                     style={{
-                        background: `conic-gradient(#22c55e 0% ${revenuePercent}%, #ef4444 ${revenuePercent}% 100%)`
+                        background: `conic-gradient(#22c55e 0% ${revenuePercent}%, #ef4444 ${revenuePercent}% ${revenuePercent + expensePercent}%, #eab308 ${revenuePercent + expensePercent}% 100%)`
                     }}
                 ></div>
                 {/* Buraco do Donut (Centro) */}
@@ -51,16 +53,7 @@ const DonutChart: React.FC<{ revenue: number; expense: number }> = ({ revenue, e
             </div>
 
             {/* Legenda */}
-            <div className="flex justify-center gap-8 mt-8 w-full">
-                <div className="flex flex-col items-center">
-                    <div className="flex items-center gap-2 mb-1">
-                        <div className="w-3 h-3 rounded-full bg-red-accent shadow-[0_0_8px_rgba(239,68,68,0.6)]"></div>
-                        <span className="text-xs font-bold text-red-400 uppercase tracking-wide">Despesas</span>
-                    </div>
-                    <span className="text-lg font-bold text-white">{formatCurrency(expense)}</span>
-                    <span className="text-xs text-gray-500">{(100 - revenuePercent).toFixed(1)}%</span>
-                </div>
-                <div className="w-px bg-gray-700 h-12"></div>
+            <div className="flex justify-center gap-4 mt-8 w-full flex-wrap">
                 <div className="flex flex-col items-center">
                     <div className="flex items-center gap-2 mb-1">
                         <div className="w-3 h-3 rounded-full bg-green-accent shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
@@ -69,19 +62,38 @@ const DonutChart: React.FC<{ revenue: number; expense: number }> = ({ revenue, e
                     <span className="text-lg font-bold text-white">{formatCurrency(revenue)}</span>
                     <span className="text-xs text-gray-500">{(revenuePercent).toFixed(1)}%</span>
                 </div>
+                <div className="w-px bg-gray-700 h-12"></div>
+                <div className="flex flex-col items-center">
+                    <div className="flex items-center gap-2 mb-1">
+                        <div className="w-3 h-3 rounded-full bg-red-accent shadow-[0_0_8px_rgba(239,68,68,0.6)]"></div>
+                        <span className="text-xs font-bold text-red-400 uppercase tracking-wide">Despesas</span>
+                    </div>
+                    <span className="text-lg font-bold text-white">{formatCurrency(expense)}</span>
+                    <span className="text-xs text-gray-500">{(expensePercent).toFixed(1)}%</span>
+                </div>
+                <div className="w-px bg-gray-700 h-12"></div>
+                <div className="flex flex-col items-center">
+                    <div className="flex items-center gap-2 mb-1">
+                        <div className="w-3 h-3 rounded-full bg-yellow-400 shadow-[0_0_8px_rgba(234,179,8,0.6)]"></div>
+                        <span className="text-xs font-bold text-yellow-400 uppercase tracking-wide">Invest.</span>
+                    </div>
+                    <span className="text-lg font-bold text-white">{formatCurrency(investment)}</span>
+                    <span className="text-xs text-gray-500">{(investmentPercent).toFixed(1)}%</span>
+                </div>
             </div>
         </div>
     );
 };
 
 // Componente para Gráfico de Colunas de Transações Diárias (SVG)
-const TransactionColumnChart: React.FC<{ dailyData: { day: number, value: number }[] }> = ({ dailyData }) => {
+const TransactionColumnChart: React.FC<{ dailyData: { day: number, revenue: number, expense: number, investment: number }[] }> = ({ dailyData }) => {
     if (dailyData.length === 0) return <p className="text-center text-gray-500 py-8">Sem dados suficientes.</p>;
 
     const height = 250;
-    const values = dailyData.map(d => d.value);
-    const maxVal = Math.max(...values, 0);
-    const minVal = Math.min(...values, 0);
+    const maxVals = dailyData.map(d => d.revenue);
+    const minVals = dailyData.map(d => - (d.expense + d.investment));
+    const maxVal = Math.max(...maxVals, 0);
+    const minVal = Math.min(...minVals, 0);
     
     // Total range with padding
     const range = (maxVal - minVal) * 1.1; 
@@ -104,9 +116,14 @@ const TransactionColumnChart: React.FC<{ dailyData: { day: number, value: number
                     <line x1="0" y1={zeroY} x2={dailyData.length * 12} y2={zeroY} stroke="#4B5563" strokeWidth="1" strokeDasharray="4" />
                     
                     {dailyData.map((d, i) => {
-                        const barHeight = (Math.abs(d.value) / effectiveRange) * height;
-                        const y = d.value >= 0 ? zeroY - barHeight : zeroY;
-                        const color = d.value >= 0 ? '#22c55e' : '#ef4444';
+                        const revHeight = (d.revenue / effectiveRange) * height;
+                        const expHeight = (d.expense / effectiveRange) * height;
+                        const invHeight = (d.investment / effectiveRange) * height;
+
+                        const revY = zeroY - revHeight;
+                        const expY = zeroY;
+                        const invY = zeroY + expHeight;
+                        
                         // Width calculation: 12 units per day, bar width 8, spacing 4
                         const x = i * 12 + 2; 
                         
@@ -115,16 +132,40 @@ const TransactionColumnChart: React.FC<{ dailyData: { day: number, value: number
                                 {/* Invisible hover target for easier tooltip access */}
                                 <rect x={x - 2} y="0" width="12" height={height} fill="transparent" />
                                 
-                                <rect
-                                    x={x}
-                                    y={y}
-                                    width={8}
-                                    height={Math.max(barHeight, 2)} 
-                                    fill={color}
-                                    rx="2"
-                                    className="opacity-80 group-hover:opacity-100 transition-all duration-300 ease-out"
-                                />
-                                <title>{`Dia ${d.day}: ${formatCurrency(d.value)}`}</title>
+                                {d.revenue > 0 && (
+                                    <rect
+                                        x={x}
+                                        y={revY}
+                                        width={8}
+                                        height={Math.max(revHeight, 2)} 
+                                        fill="#22c55e"
+                                        rx="1"
+                                        className="opacity-80 group-hover:opacity-100 transition-all duration-300 ease-out"
+                                    />
+                                )}
+                                {d.expense > 0 && (
+                                    <rect
+                                        x={x}
+                                        y={expY}
+                                        width={8}
+                                        height={Math.max(expHeight, 2)} 
+                                        fill="#ef4444"
+                                        rx="1"
+                                        className="opacity-80 group-hover:opacity-100 transition-all duration-300 ease-out"
+                                    />
+                                )}
+                                {d.investment > 0 && (
+                                    <rect
+                                        x={x}
+                                        y={invY}
+                                        width={8}
+                                        height={Math.max(invHeight, 2)} 
+                                        fill="#eab308"
+                                        rx="1"
+                                        className="opacity-80 group-hover:opacity-100 transition-all duration-300 ease-out"
+                                    />
+                                )}
+                                <title>{`Dia ${d.day}\nReceitas: ${formatCurrency(d.revenue)}\nDespesas: ${formatCurrency(d.expense)}\nInvestimentos: ${formatCurrency(d.investment)}`}</title>
                             </g>
                         );
                     })}
@@ -143,7 +184,7 @@ const TransactionColumnChart: React.FC<{ dailyData: { day: number, value: number
 const GraphicsPage: React.FC<GraphicsPageProps> = ({ user }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [transactions, setTransactions] = useState<Transaction[]>([]);
-    const [summary, setSummary] = useState({ revenue: 0, expenses: 0, balance: 0 });
+    const [summary, setSummary] = useState({ revenue: 0, expenses: 0, investment: 0, balance: 0 });
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -180,14 +221,25 @@ const GraphicsPage: React.FC<GraphicsPageProps> = ({ user }) => {
             
             let rev = 0;
             let exp = 0;
+            let inv = 0;
             mappedTransactions.forEach((t: Transaction) => {
-                if (t.type === 'revenue') rev += t.amount;
-                else exp += t.amount;
+                if (t.type === 'revenue') {
+                    rev += t.amount;
+                } else if (t.type === 'expense') {
+                    exp += t.amount;
+                } else if (t.type === 'investimento' || t.type === 'INVESTMENT' || t.type === 'investment') {
+                    if (t.status === 'pago' || t.status === 'PAID') {
+                        rev += t.amount; // Resgatado vira receita/previsão
+                    } else {
+                        inv += t.amount; // Pendente vai pra investimento
+                    }
+                }
             });
             
             setSummary({
                 revenue: rev,
                 expenses: exp,
+                investment: inv,
                 balance: rev - exp
             });
 
@@ -204,22 +256,33 @@ const GraphicsPage: React.FC<GraphicsPageProps> = ({ user }) => {
 
     // Dados Processados
     const dailyMovement = useMemo(() => {
-        const daysMap: Record<number, number> = {};
+        const daysMap: Record<number, { revenue: number, expense: number, investment: number }> = {};
         const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
         
-        for (let i = 1; i <= daysInMonth; i++) daysMap[i] = 0;
+        for (let i = 1; i <= daysInMonth; i++) {
+            daysMap[i] = { revenue: 0, expense: 0, investment: 0 };
+        }
 
         transactions.forEach(t => {
             const day = parseInt(t.date.split('-')[2]);
-            const val = t.type === 'revenue' ? t.amount : -t.amount;
             if (daysMap[day] !== undefined) {
-                daysMap[day] += val;
+                if (t.type === 'revenue') {
+                    daysMap[day].revenue += t.amount;
+                } else if (t.type === 'expense') {
+                    daysMap[day].expense += t.amount;
+                } else if (t.type === 'investimento' || t.type === 'INVESTMENT' || t.type === 'investment') {
+                    if (t.status === 'pago' || t.status === 'PAID') {
+                        daysMap[day].revenue += t.amount;
+                    } else {
+                        daysMap[day].investment += t.amount;
+                    }
+                }
             }
         });
 
         const result = [];
         for (let i = 1; i <= daysInMonth; i++) {
-            result.push({ day: i, value: daysMap[i] });
+            result.push({ day: i, ...daysMap[i] });
         }
         return result;
     }, [transactions, currentDate]);
@@ -269,7 +332,7 @@ const GraphicsPage: React.FC<GraphicsPageProps> = ({ user }) => {
                     <div className="p-6 bg-gray-800 rounded-lg shadow-lg border border-gray-700/50">
                         <h3 className="text-lg font-bold text-white mb-2 text-center">Visão Geral</h3>
                         <p className="text-xs text-center text-gray-500 mb-4">Distribuição de Receitas e Despesas</p>
-                        <DonutChart revenue={summary.revenue} expense={summary.expenses} />
+                        <DonutChart revenue={summary.revenue} expense={summary.expenses} investment={summary.investment} />
                     </div>
 
                     {/* Gráfico 2: Top Despesas (Barras Horizontais) */}
@@ -317,8 +380,9 @@ const GraphicsPage: React.FC<GraphicsPageProps> = ({ user }) => {
                                 <p className="text-xs text-gray-500">Saldo do dia (Entradas - Saídas)</p>
                             </div>
                             <div className="flex gap-4 text-xs">
-                                <div className="flex items-center gap-1"><div className="w-2 h-2 bg-green-500 rounded-full"></div>Positivo</div>
-                                <div className="flex items-center gap-1"><div className="w-2 h-2 bg-red-500 rounded-full"></div>Negativo</div>
+                                <div className="flex items-center gap-1"><div className="w-2 h-2 bg-green-500 rounded-full"></div>Receita</div>
+                                <div className="flex items-center gap-1"><div className="w-2 h-2 bg-red-500 rounded-full"></div>Despesa</div>
+                                <div className="flex items-center gap-1"><div className="w-2 h-2 bg-yellow-400 rounded-full"></div>Investimento</div>
                             </div>
                         </div>
                         <TransactionColumnChart dailyData={dailyMovement} />

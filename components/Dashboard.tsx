@@ -138,7 +138,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
       const amount = Number(tx.amount || 0);
       const safeDateStr = tx.date.includes('T') ? tx.date.split('T')[0] : tx.date;
       const startDate = new Date(safeDateStr + "T00:00:00");
-      const end = new Date(targetDate);
+      let end = new Date(targetDate);
+      
+      if (tx.status === PaymentStatus.PAID && tx.updatedAt) {
+          const updatedDate = new Date(tx.updatedAt);
+          if (updatedDate < end) {
+              end = updatedDate;
+          }
+      }
       
       startDate.setHours(0,0,0,0);
       end.setHours(23,59,59,999);
@@ -249,7 +256,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
         }
 
         // --- MANUALLY CARRY OVER PAST INVESTMENTS ---
-        let pastInvestments: any[] = [];
+        let pastInvestmentsMap = new Map();
         for (let m = 1; m < month; m++) {
             const mKey = `${m}-${year}`;
             let mData;
@@ -280,10 +287,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
                 }
             }
             if (mData && mData.transactions) {
-                const invs = mData.transactions.filter((t: any) => t.type === TransactionType.INVESTMENT);
-                pastInvestments.push(...invs);
+                const invs = mData.transactions.filter((t: any) => 
+                    (t.type === TransactionType.INVESTMENT || t.type === 'INVESTMENT' || t.type === 'investimento')
+                );
+                invs.forEach((t: any) => pastInvestmentsMap.set(t._id || t.id, t));
             }
         }
+        
+        let pastInvestments = Array.from(pastInvestmentsMap.values());
         
         if (data && data.transactions) {
             const currentIds = new Set(data.transactions.map((t: any) => t._id || t.id));
@@ -420,10 +431,13 @@ setTransactions(mappedTransactions);
                 
                 if (loopData) {
                     const endOfLoopMonth = new Date(loopYear, loopMonth, 0, 23, 59, 59);
-                    const { revenue: mRev, expenses: mExp, investments: mInv, redeemedInvestments: mRed } = calculateMonthlyTotals(loopData.transactions || [], endOfLoopMonth);
-                    forecastTotal += (mRev - mExp + (mInv || 0) + (mRed || 0));
+                    const { revenue: mRev, expenses: mExp } = calculateMonthlyTotals(loopData.transactions || [], endOfLoopMonth);
+                    forecastTotal += (mRev - mExp);
                 }
             }
+            
+            // Add the absolute values of investments and redeemed investments at the target month
+            forecastTotal += (investments + redeemedInvestments);
             
             setSummary({ revenue, expenses, paid, investments, balance: revenue - expenses, total: forecastTotal });
         }
