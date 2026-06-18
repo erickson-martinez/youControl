@@ -8,6 +8,7 @@ interface SummaryCardsProps {
   balance: number;
   total: number;
   paid: number;
+  investments: number;
   isFutureMonth?: boolean;
 }
 
@@ -25,12 +26,12 @@ const SummaryCard: React.FC<{ title: string; value: number; colorclass: string, 
 );
 
 
-const SummaryCards: React.FC<SummaryCardsProps> = ({ revenue, expenses, balance, total, paid, isFutureMonth = false }) => {
+const SummaryCards: React.FC<SummaryCardsProps> = ({ revenue, expenses, balance, total, paid, investments, isFutureMonth = false }) => {
   const balanceTitle = isFutureMonth ? 'Previsão Saldo' : 'Saldo do Mês';
-  const totalTitle = isFutureMonth ? 'Previsão Total' : 'Total';
+  const totalTitle = isFutureMonth ? 'Previsão Total' : 'Total Geral';
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4 mb-6">
+    <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4 mb-6">
         <SummaryCard 
             title="Receitas"
             value={revenue}
@@ -55,6 +56,12 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({ revenue, expenses, balance,
             title={totalTitle}
             value={total}
             colorclass="border-yellow-accent"
+        />
+        <SummaryCard 
+            title="Investimentos"
+            value={investments}
+            colorclass="border-purple-400 text-purple-100"
+            classname="bg-purple-900/20"
         />
     </div>
   );

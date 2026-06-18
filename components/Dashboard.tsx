@@ -42,7 +42,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   const [isSharedUsersPopoverOpen, setIsSharedUsersPopoverOpen] = useState(false);
   
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [summary, setSummary] = useState({ revenue: 0, expenses: 0, balance: 0, total: 0, paid: 0 });
+  const [summary, setSummary] = useState({ revenue: 0, expenses: 0, balance: 0, total: 0, paid: 0, investments: 0 });
   const [sharedUsersInfo, setSharedUsersInfo] = useState<SharedUser[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -132,11 +132,50 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
     }, {} as Record<string, string>);
   }, [allUsers]);
 
-  const calculateMonthlyTotals = useCallback((transactionsList: any[]) => {
+  const calculateInvestmentValue = useCallback((tx: any, targetDate: Date = new Date()): number => {
+      if (!tx.investment) return Number(tx.amount || 0);
+
+      const amount = Number(tx.amount || 0);
+      const safeDateStr = tx.date.includes('T') ? tx.date.split('T')[0] : tx.date;
+      const startDate = new Date(safeDateStr + "T00:00:00");
+      const end = new Date(targetDate);
+      
+      startDate.setHours(0,0,0,0);
+      end.setHours(23,59,59,999);
+
+      if (startDate > end) return amount;
+
+      let businessDays = 0;
+      let curDate = new Date(startDate);
+      while (curDate <= end) {
+          const dayOfWeek = curDate.getDay();
+          if (dayOfWeek !== 0 && dayOfWeek !== 6) businessDays++;
+          curDate.setDate(curDate.getDate() + 1);
+      }
+
+      if (businessDays === 0) return amount;
+
+      let renderDay = Number(tx.investment.renderDay);
+      if (!renderDay || renderDay <= 0) {
+          if (tx.investment.percentage) {
+              const pct = Number(tx.investment.percentage);
+              renderDay = amount * 0.00034 * (pct / 100);
+          }
+          if (!renderDay || renderDay <= 0) renderDay = 0.01;
+      }
+      
+      const dailyRate = renderDay / amount;
+      return amount * Math.pow(1 + dailyRate, businessDays);
+  }, []);
+
+  const calculateMonthlyTotals = useCallback((transactionsList: any[], targetDate?: Date) => {
       let r = 0;
       let e = 0;
       let p = 0;
+      let i = 0;
+      let redeemedInvestments = 0;
       const currentUserId = user.idEmail || user.id;
+      
       transactionsList.forEach((tx: any) => {
           const amt = Number(tx.amount || 0);
           const isMine = tx.idEmail === currentUserId;
@@ -144,7 +183,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
           const isSharedWithMe = tx.idEmail !== currentUserId && !isTarget && ((tx.sharedEmail && user.email && tx.sharedEmail === user.email) || (tx.sharedPhone && user.phone && tx.sharedPhone === user.phone));
           
           let displayType = tx.type;
-          if (isTarget) {
+          if (isTarget && (tx.type === TransactionType.REVENUE || tx.type === TransactionType.EXPENSE)) {
             displayType = tx.type === TransactionType.REVENUE ? TransactionType.EXPENSE : TransactionType.REVENUE;
           }
 
@@ -157,11 +196,18 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
                   if (tx.status === PaymentStatus.PAID) {
                       p += amt;
                   }
+              } else if (displayType === TransactionType.INVESTMENT) {
+                  const invValue = calculateInvestmentValue(tx, targetDate);
+                  if (tx.status === PaymentStatus.PAID) {
+                      redeemedInvestments += invValue;
+                  } else {
+                      i += invValue; // remains as pending investment KPI
+                  }
               }
           }
       });
-      return { revenue: r, expenses: e, paid: p };
-  }, [user.email, user.id, user.idEmail, user.phone]);
+      return { revenue: r, expenses: e, paid: p, investments: i, redeemedInvestments };
+  }, [user.email, user.id, user.idEmail, user.phone, calculateInvestmentValue]);
 
   const fetchTransactions = useCallback(async () => {
     setIsLoading(true);
@@ -201,6 +247,53 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
             // Salva no cache
             transactionsCache.current[cacheKey] = data;
         }
+
+        // --- MANUALLY CARRY OVER PAST INVESTMENTS ---
+        let pastInvestments: any[] = [];
+        for (let m = 1; m < month; m++) {
+            const mKey = `${m}-${year}`;
+            let mData;
+            if (transactionsCache.current[mKey]) {
+                mData = transactionsCache.current[mKey];
+            } else {
+                const queryParams = new URLSearchParams({
+                    idEmail: user.idEmail || user.id,
+                    month: m.toString(),
+                    year: year.toString(),
+                });
+                if (user.email) {
+                    queryParams.append('sharedEmail', user.email);
+                    queryParams.append('targetEmail', user.email);
+                }
+                if (user.phone) {
+                    queryParams.append('sharedPhone', user.phone);
+                    queryParams.append('targetPhone', user.phone);
+                }
+                try {
+                    const mRes = await apiFetch(`${API_BASE_URL}/transactions?${queryParams.toString()}`);
+                    if (mRes.ok) {
+                        mData = await mRes.json();
+                        transactionsCache.current[mKey] = mData;
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch past month for investments", e);
+                }
+            }
+            if (mData && mData.transactions) {
+                const invs = mData.transactions.filter((t: any) => t.type === TransactionType.INVESTMENT);
+                pastInvestments.push(...invs);
+            }
+        }
+        
+        if (data && data.transactions) {
+            const currentIds = new Set(data.transactions.map((t: any) => t._id || t.id));
+            const uniquePastInvestments = pastInvestments.filter(t => !currentIds.has(t._id || t.id));
+            data = {
+                ...data,
+                transactions: [...data.transactions, ...uniquePastInvestments]
+            };
+        }
+        // ---------------------------------------------
         
         const currentUserId = user.idEmail || user.id;
         const mappedTransactions: Transaction[] = (data.transactions || []).map(
@@ -233,10 +326,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
               removed: add.removed,
             })),
             paidAmount: tx.paidAmount ?? 0,
+            investment: tx.investment,
             };
           }
         );
- console.log("mappedTransactions", mappedTransactions)
 
 setTransactions(mappedTransactions);
        
@@ -255,17 +348,19 @@ setTransactions(mappedTransactions);
         setSharedUsersInfo(Array.from(sharedInfoMap.values()));
         
         // Calculate totals manually to respect 'aggregate' flag strictly
-        const { revenue, expenses, paid } = calculateMonthlyTotals(data.transactions || []);
+        const endOfViewedMonth = new Date(year, month, 0, 23, 59, 59);
+        const { revenue, expenses, paid, investments, redeemedInvestments } = calculateMonthlyTotals(data.transactions || [], endOfViewedMonth);
         
         if (isPastMonth) {
             setSummary({
                 revenue,
                 expenses,
                 paid,
+                investments,
                 balance: revenue - expenses,
                 // accumulatedBalance from backend might include non-aggregated data, 
                 // but we can't easily re-calc history. Using it as best effort baseline.
-                total: data.summary?.accumulatedBalance || 0,
+                total: (data.summary?.accumulatedBalance || 0) + investments + redeemedInvestments,
             });
         } else {
             const today = new Date();
@@ -324,12 +419,13 @@ setTransactions(mappedTransactions);
                 }
                 
                 if (loopData) {
-                    const { revenue: mRev, expenses: mExp } = calculateMonthlyTotals(loopData.transactions || []);
-                    forecastTotal += (mRev - mExp);
+                    const endOfLoopMonth = new Date(loopYear, loopMonth, 0, 23, 59, 59);
+                    const { revenue: mRev, expenses: mExp, investments: mInv, redeemedInvestments: mRed } = calculateMonthlyTotals(loopData.transactions || [], endOfLoopMonth);
+                    forecastTotal += (mRev - mExp + (mInv || 0) + (mRed || 0));
                 }
             }
             
-            setSummary({ revenue, expenses, paid, balance: revenue - expenses, total: forecastTotal });
+            setSummary({ revenue, expenses, paid, investments, balance: revenue - expenses, total: forecastTotal });
         }
     } catch (err) {
         setError(err instanceof Error ? err.message : 'Ocorreu um erro desconhecido.');
@@ -364,10 +460,20 @@ setTransactions(mappedTransactions);
           amount: data.amount, 
           date: data.date,
           type: data.type,
-          status: data.status
+          status: data.status,
+          ...(data.investment ? { investment: data.investment } : {})
         };
       } else {
-        return { idEmail: user.idEmail || user.id, email: user.email, type: data.type, name: data.name, amount: data.amount, date: data.date, status: data.status };
+        return { 
+          idEmail: user.idEmail || user.id, 
+          email: user.email, 
+          type: data.type, 
+          name: data.name, 
+          amount: data.amount, 
+          date: data.date, 
+          status: data.status,
+          ...(data.investment ? { investment: data.investment } : {})
+        };
       }
     };
 
@@ -858,6 +964,10 @@ setTransactions(mappedTransactions);
      return personalTransactions.filter(t => t.type === TransactionType.EXPENSE);
   }, [personalTransactions]);
 
+  const investimentosTransactions = useMemo(() => {
+     return personalTransactions.filter(t => t.type === TransactionType.INVESTMENT && t.status !== PaymentStatus.PAID);
+  }, [personalTransactions]);
+
   const totalAReceber = useMemo(() => {
      return receitasTransactions.filter(t => t.status === PaymentStatus.UNPAID || t.status === PaymentStatus.PENDING).reduce((acc, t) => acc + Number(t.amount), 0);
   }, [receitasTransactions]);
@@ -898,6 +1008,7 @@ setTransactions(mappedTransactions);
     activeTab === 'transactions' ? personalTransactions : 
     activeTab === 'shared' ? sharedTransactions :
     activeTab === 'receitas' ? receitasTransactions :
+    activeTab === 'investimentos' ? investimentosTransactions :
     despesasTransactions;
 
   const sharedUsersActionButton = activeTab === 'shared' && sharedUsersInfo.length > 0 ? (
@@ -942,7 +1053,7 @@ setTransactions(mappedTransactions);
   return (
     <>
       {portalNode ? createPortal(
-        <div className="flex-1 w-full max-w-sm md:max-w-4xl px-0 md:px-8 z-10 pointer-events-auto shrink-0 mx-auto">
+        <div className="flex-1 w-full max-w-sm md:max-w-full z-10 pointer-events-auto shrink-0 mx-auto">
           <MonthNavigator 
             currentDate={currentDate} 
             setCurrentDate={setCurrentDate}
@@ -958,7 +1069,7 @@ setTransactions(mappedTransactions);
         />
       )}
 
-      <SummaryCards revenue={summary.revenue} expenses={summary.expenses} balance={summary.balance} total={summary.total} paid={summary.paid} isFutureMonth={isFutureMonth} />
+      <SummaryCards revenue={summary.revenue} expenses={summary.expenses} balance={summary.balance} total={summary.total} paid={summary.paid} investments={summary.investments || 0} isFutureMonth={isFutureMonth} />
       
       {isExporting && (
         <div className="flex items-center justify-center mb-4 p-3 bg-blue-900/50 rounded-lg border border-blue-500/30">
@@ -970,6 +1081,7 @@ setTransactions(mappedTransactions);
       <ActionButtons 
         onAddRevenue={() => openModal(TransactionType.REVENUE)} 
         onAddExpense={() => openModal(TransactionType.EXPENSE)} 
+        onAddInvestment={() => openModal(TransactionType.INVESTMENT)}
         onShare={() => setIsShareModalOpen(true)} 
         isPastMonth={isPastMonth} 
         onViewReports={() => onNavigate('graficos')}
@@ -980,8 +1092,8 @@ setTransactions(mappedTransactions);
         <div className="flex items-center justify-between px-2 sm:px-4 py-2 border border-gray-700/50 bg-gray-900 rounded-lg shadow-sm">
           <button 
             onClick={() => {
-               const map = { transactions: 'despesas', shared: 'transactions', receitas: 'shared', despesas: 'receitas' } as const;
-               setActiveTab(map[activeTab]);
+               const map = { transactions: 'investimentos', shared: 'transactions', receitas: 'shared', despesas: 'receitas', investimentos: 'despesas' } as const;
+               setActiveTab(map[activeTab] as any);
             }} 
             className="p-2 text-gray-400 transition-colors rounded-lg hover:bg-gray-700 hover:text-white"
           >
@@ -993,12 +1105,13 @@ setTransactions(mappedTransactions);
             {activeTab === 'shared' && <span className="text-purple-300">Compartilhados <span className="text-gray-500 font-normal">({sharedTransactions.length})</span></span>}
             {activeTab === 'receitas' && <span className="text-green-300">Receitas <span className="text-gray-500 font-normal">({receitasTransactions.length})</span></span>}
             {activeTab === 'despesas' && <span className="text-red-300">Despesas <span className="text-gray-500 font-normal">({despesasTransactions.length})</span></span>}
+            {activeTab === 'investimentos' && <span className="text-yellow-300">Investimentos <span className="text-gray-500 font-normal">({investimentosTransactions?.length || 0})</span></span>}
           </div>
 
           <button 
             onClick={() => {
-               const map = { transactions: 'shared', shared: 'receitas', receitas: 'despesas', despesas: 'transactions' } as const;
-               setActiveTab(map[activeTab]);
+               const map = { transactions: 'shared', shared: 'receitas', receitas: 'despesas', despesas: 'investimentos', investimentos: 'transactions' } as const;
+               setActiveTab(map[activeTab] as any);
             }} 
             className="p-2 text-gray-400 transition-colors rounded-lg hover:bg-gray-700 hover:text-white"
           >
@@ -1024,6 +1137,7 @@ setTransactions(mappedTransactions);
               isPastMonth={isPastMonth}
               tabSummary={tabSummaryNode}
               listActions={sharedUsersActionButton}
+              currentViewDate={new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59)}
             />
           )}
         </div>

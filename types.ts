@@ -104,7 +104,8 @@ export interface OrdemServico {
 
 export enum TransactionType {
   REVENUE = 'revenue',
-  EXPENSE = 'expense'
+  EXPENSE = 'expense',
+  INVESTMENT = 'investment'
 }
 
 export enum PaymentStatus {
@@ -138,6 +139,10 @@ export interface Transaction {
   aggregate?: boolean;
   additions?: Addition[];
   paidAmount?: number;
+  investment?: {
+    percentage: number;
+    renderDay: number;
+  };
   paymentRequest?: {
     requested: boolean;
     requestedAt: string;

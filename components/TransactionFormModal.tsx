@@ -11,6 +11,8 @@ type FormDataType = {
   sharedEmailOrPhone: string;
   repeat: boolean;
   repeatCount: string;
+  profitabilityPercentage: string;
+  renderDay: string;
 };
 
 interface TransactionFormModalProps {
@@ -33,10 +35,13 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
     sharedEmailOrPhone: '',
     repeat: false,
     repeatCount: '1',
+    profitabilityPercentage: '100',
+    renderDay: '0',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isExpense = type === TransactionType.EXPENSE;
+  const isInvestment = type === TransactionType.INVESTMENT;
   const isEditing = !!transactionToEdit;
 
   useEffect(() => {
@@ -50,6 +55,8 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
         sharedEmailOrPhone: transactionToEdit.targetEmail || transactionToEdit.targetPhone || transactionToEdit.sharedEmail || transactionToEdit.sharedPhone || '',
         repeat: false,
         repeatCount: '1',
+        profitabilityPercentage: String(transactionToEdit.investment?.percentage ?? '100'),
+        renderDay: String(transactionToEdit.investment?.renderDay ?? '0'),
       });
     } else {
       const dateForForm = new Date(currentDateForForm);
@@ -66,9 +73,11 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
         sharedEmailOrPhone: '',
         repeat: false,
         repeatCount: '1',
+        profitabilityPercentage: '100',
+        renderDay: '0',
       });
     }
-  }, [transactionToEdit, isOpen, isExpense, currentDateForForm]);
+  }, [transactionToEdit, isOpen, isExpense, isInvestment, currentDateForForm]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -92,6 +101,14 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
     try {
         const repeatCount = formData.repeat ? parseInt(formData.repeatCount, 10) : 0;
         
+        let investmentData = undefined;
+        if (isInvestment) {
+            investmentData = {
+                percentage: parseFloat(String(formData.profitabilityPercentage).replace(',', '.')),
+                renderDay: parseFloat(String(formData.renderDay).replace(',', '.'))
+            };
+        }
+
         let submissionData;
         if (isEditing && transactionToEdit) {
             submissionData = {
@@ -100,6 +117,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
                 amount: parseFloat(formData.amount),
                 date: formData.date,
                 status: formData.paid ? PaymentStatus.PAID : PaymentStatus.UNPAID,
+                ...(isInvestment ? { investment: investmentData } : {}),
             };
         } else {
             submissionData = {
@@ -111,6 +129,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
                 sharedEmailOrPhone: formData.sharedEmailOrPhone || undefined,
                 status: formData.isControlled ? PaymentStatus.UNPAID : (formData.paid ? PaymentStatus.PAID : PaymentStatus.UNPAID),
                 repeatCount: repeatCount > 0 ? repeatCount : undefined,
+                ...(isInvestment ? { investment: investmentData } : {}),
             };
         }
         await onSubmit(submissionData);
@@ -126,18 +145,18 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
   if (!isOpen) return null;
 
   const title = isEditing 
-    ? (isExpense ? 'Editar Despesa' : 'Editar Receita')
-    : (isExpense ? 'Registrar Despesa' : 'Registrar Receita');
-  const controlLabel = isExpense ? 'Pagar para' : 'Cobrar de';
-  const submitButtonColor = isExpense ? 'bg-red-accent hover:bg-red-accent/90' : 'bg-green-accent hover:bg-green-accent/90';
+    ? (isInvestment ? 'Editar Investimento' : (isExpense ? 'Editar Despesa' : 'Editar Receita'))
+    : (isInvestment ? 'Registrar Investimento' : (isExpense ? 'Registrar Despesa' : 'Registrar Receita'));
+  const controlLabel = isExpense ? 'Pagar para' : (isInvestment ? 'Corretora / Destino' : 'Cobrar de');
+  const submitButtonColor = isInvestment ? 'bg-yellow-accent hover:bg-yellow-accent/90' : (isExpense ? 'bg-red-accent hover:bg-red-accent/90' : 'bg-green-accent hover:bg-green-accent/90');
   const submitButtonText = isEditing 
     ? (isSubmitting ? 'Salvando...' : 'Salvar Alterações')
     : (isSubmitting ? 'Registrando...' : 'Registrar');
 
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75">
-      <div className="w-full max-w-lg p-6 mx-4 bg-gray-800 rounded-lg shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 overflow-y-auto">
+      <div className="w-full max-w-lg p-6 mx-4 bg-gray-800 rounded-lg shadow-xl my-8">
         <h2 className="mb-4 text-2xl font-bold text-white">{title}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -155,23 +174,42 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
             </div>
           </div>
           
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center">
-                <input type="checkbox" name="paid" id="paid" checked={formData.paid} onChange={handleChange} disabled={formData.isControlled || isSubmitting} className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50" />
-                <label htmlFor="paid" className={`ml-2 text-sm text-gray-300 ${(formData.isControlled || isSubmitting) ? 'opacity-50' : ''}`}>Pago</label>
-            </div>
-             {!isEditing && (
-              <div className="flex items-center">
-                <input type="checkbox" name="repeat" id="repeat" checked={formData.repeat} onChange={handleChange} disabled={isSubmitting} className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50" />
-                <label htmlFor="repeat" className={`ml-2 text-sm text-gray-300 ${isSubmitting ? 'opacity-50' : ''}`}>Repetir +</label>
+          {isInvestment && (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="profitabilityPercentage" className="block mb-1 text-sm font-medium text-gray-300">Porcentagem (%)</label>
+                  <input type="number" name="profitabilityPercentage" id="profitabilityPercentage" value={formData.profitabilityPercentage} onChange={handleChange} required={isInvestment} step="0.01" min="0" disabled={isSubmitting} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500 disabled:opacity-50" placeholder="100, 10.5..." />
+                </div>
+                <div>
+                  <label htmlFor="renderDay" className="block mb-1 text-sm font-medium text-gray-300">Rendimento do Último Dia</label>
+                  <input type="number" name="renderDay" id="renderDay" value={formData.renderDay} onChange={handleChange} required={isInvestment} step="0.0001" min="0" disabled={isSubmitting} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500 disabled:opacity-50" placeholder="Ex: 0.01" />
+                </div>
               </div>
-            )}
-          </div>
+            </>
+          )}
 
-          <div>
-            <label htmlFor="sharedEmailOrPhone" className="block mb-1 text-sm font-medium text-gray-300">{controlLabel} (Email ou Telefone opcional)</label>
-            <input type="text" name="sharedEmailOrPhone" id="sharedEmailOrPhone" value={formData.sharedEmailOrPhone} onChange={(e) => setFormData({...formData, sharedEmailOrPhone: e.target.value, isControlled: !!e.target.value.trim()})} disabled={isEditing || isSubmitting} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500 disabled:opacity-50" placeholder="Deixe em branco para transação local" />
-          </div>
+          {!isInvestment && (
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center">
+                  <input type="checkbox" name="paid" id="paid" checked={formData.paid} onChange={handleChange} disabled={formData.isControlled || isSubmitting} className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50" />
+                  <label htmlFor="paid" className={`ml-2 text-sm text-gray-300 ${(formData.isControlled || isSubmitting) ? 'opacity-50' : ''}`}>Pago</label>
+              </div>
+              {!isEditing && (
+                <div className="flex items-center">
+                  <input type="checkbox" name="repeat" id="repeat" checked={formData.repeat} onChange={handleChange} disabled={isSubmitting} className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50" />
+                  <label htmlFor="repeat" className={`ml-2 text-sm text-gray-300 ${isSubmitting ? 'opacity-50' : ''}`}>Repetir +</label>
+                </div>
+              )}
+            </div>
+          )}
+
+          {!isInvestment && (
+            <div>
+              <label htmlFor="sharedEmailOrPhone" className="block mb-1 text-sm font-medium text-gray-300">{controlLabel} (Email ou Telefone opcional)</label>
+              <input type="text" name="sharedEmailOrPhone" id="sharedEmailOrPhone" value={formData.sharedEmailOrPhone} onChange={(e) => setFormData({...formData, sharedEmailOrPhone: e.target.value, isControlled: !!e.target.value.trim()})} disabled={isEditing || isSubmitting} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500 disabled:opacity-50" placeholder="Deixe em branco para transação local" />
+            </div>
+          )}
 
           {!isEditing && formData.repeat && (
             <div>

@@ -6,6 +6,42 @@ import { TransactionType, PaymentStatus } from '../types';
 import { CheckCircleIcon, ClockIcon, XCircleIcon, ShareIcon, PencilIcon, TrashIcon, ChevronDownIcon, PlusIcon, MinusIcon, BellIcon, EyeIcon } from './icons';
 import ConfirmationModal from './ConfirmationModal';
 
+const calculateInvestmentValue = (tx: any, targetDate: Date = new Date()): number => {
+    if (!tx.investment) return Number(tx.amount || 0);
+
+    const amount = Number(tx.amount || 0);
+    const safeDateStr = tx.date.includes('T') ? tx.date.split('T')[0] : tx.date;
+    const startDate = new Date(safeDateStr + "T00:00:00");
+    const end = new Date(targetDate);
+    
+    startDate.setHours(0,0,0,0);
+    end.setHours(23,59,59,999);
+
+    if (startDate > end) return amount;
+
+    let businessDays = 0;
+    let curDate = new Date(startDate);
+    while (curDate <= end) {
+        const dayOfWeek = curDate.getDay();
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) businessDays++;
+        curDate.setDate(curDate.getDate() + 1);
+    }
+
+    if (businessDays === 0) return amount;
+
+    let renderDay = Number(tx.investment.renderDay);
+    if (!renderDay || renderDay <= 0) {
+        if (tx.investment.percentage) {
+            const pct = Number(tx.investment.percentage);
+            renderDay = amount * 0.00034 * (pct / 100);
+        }
+        if (!renderDay || renderDay <= 0) renderDay = 0.01;
+    }
+
+    const dailyRate = renderDay / amount;
+    return amount * Math.pow(1 + dailyRate, businessDays);
+};
+
 interface TransactionListProps {
   transactions: Transaction[];
   currentUserEmail: string;
@@ -23,6 +59,7 @@ interface TransactionListProps {
   isPastMonth: boolean;
   tabSummary?: React.ReactNode;
   listActions?: React.ReactNode;
+  currentViewDate?: Date;
 }
 
 interface TransactionItemProps {
@@ -40,6 +77,7 @@ interface TransactionItemProps {
   onApprovePayment: (transaction: Transaction) => void;
   onRejectPayment: (transaction: Transaction) => void;
   isPastMonth: boolean;
+  currentViewDate?: Date;
 }
 
 const formatCurrency = (value: number) => {
@@ -56,12 +94,13 @@ const StatusBadge: React.FC<{ status: PaymentStatus }> = ({ status }) => {
     return <div className={`flex items-center flex-shrink-0 space-x-1 text-xs font-medium px-2 py-1 rounded-full ${color} bg-gray-700`}>{icon}<span>{text}</span></div>;
 };
 
-const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transaction, currentUserEmail, currentUserPhone, currentUserId, onUpdateStatus, onToggleSimplePaid, onStartEdit, onDelete, onDeleteSubTransaction, onOpenAddValueModal, onRequestPayment, onApprovePayment, onRejectPayment, isPastMonth }) => {
+const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transaction, currentUserEmail, currentUserPhone, currentUserId, onUpdateStatus, onToggleSimplePaid, onStartEdit, onDelete, onDeleteSubTransaction, onOpenAddValueModal, onRequestPayment, onApprovePayment, onRejectPayment, isPastMonth, currentViewDate }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [additionToDelete, setAdditionToDelete] = useState<Addition | null>(null);
     const [isConfirmUnpayOpen, setIsConfirmUnpayOpen] = useState(false);
 
     const isRevenue = transaction.type === TransactionType.REVENUE;
+    const isInvestment = transaction.type === TransactionType.INVESTMENT;
     const isPaid = transaction.status === PaymentStatus.PAID;
     
     // Logic for shared transactions aggregation visualization
@@ -211,7 +250,7 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
     };
 
     return (
-        <li className={`p-3 sm:p-4 bg-gray-800 rounded-lg shadow-sm border-y border-r border-gray-700/50 border-l-4 ${isRevenue ? 'border-l-green-accent' : 'border-l-red-accent'}`}>
+        <li className={`p-3 sm:p-4 bg-gray-800 rounded-lg shadow-sm border-y border-r border-gray-700/50 border-l-4 ${isInvestment ? 'border-l-yellow-accent' : (isRevenue ? 'border-l-green-accent' : 'border-l-red-accent')}`}>
             <div className="flex items-start justify-between gap-3">
                 {/* LEFT SIDE: Info & Actions */}
                 <div className="flex items-start gap-3 flex-grow min-w-0">
@@ -293,20 +332,34 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
 
                 {/* RIGHT SIDE: Amount & Status */}
                 <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                    <div className="flex items-center gap-1.5">
-                        <p className={`font-bold text-sm md:text-base whitespace-nowrap ${amountClass}`}>
-                            {formatCurrency(transaction.amount)}
-                        </p>
-                        {isSharedViewer && (
-                            <div>
-                                {isAggregated ? (
-                                    <span title="Soma no Total" className="inline-flex items-center text-blue-400 bg-blue-900/40 p-1 rounded-full border border-blue-500/30 cursor-help">
-                                        <PlusIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                                    </span>
-                                ) : (
-                                    <span title="Apenas Visão" className="inline-flex items-center text-gray-400 bg-gray-800/50 p-1 rounded-full border border-gray-600 cursor-help">
-                                        <EyeIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                                    </span>
+                    <div className="flex flex-col items-end gap-0.5">
+                        <div className="flex items-center gap-1.5">
+                            <p className={`font-bold text-sm md:text-base whitespace-nowrap ${amountClass}`}>
+                                {formatCurrency(transaction.amount)}
+                            </p>
+                            {isSharedViewer && (
+                                <div>
+                                    {isAggregated ? (
+                                        <span title="Soma no Total" className="inline-flex items-center text-blue-400 bg-blue-900/40 p-1 rounded-full border border-blue-500/30 cursor-help">
+                                            <PlusIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                        </span>
+                                    ) : (
+                                        <span title="Apenas Visão" className="inline-flex items-center text-gray-400 bg-gray-800/50 p-1 rounded-full border border-gray-600 cursor-help">
+                                            <EyeIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                        {isInvestment && (
+                            <div className="flex flex-col items-end">
+                                <p className="text-xs text-yellow-200/80 font-medium" title="Valor atual aproximado">
+                                    Atual: {formatCurrency(calculateInvestmentValue(transaction))}
+                                </p>
+                                {currentViewDate && currentViewDate > new Date() && (
+                                    <p className="text-xs text-yellow-400 font-bold" title="Projeção para o fim do mês selecionado">
+                                        Fim do Mês: {formatCurrency(calculateInvestmentValue(transaction, currentViewDate))}
+                                    </p>
                                 )}
                             </div>
                         )}
