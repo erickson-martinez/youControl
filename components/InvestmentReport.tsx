@@ -68,10 +68,8 @@ const InvestmentReport: React.FC<InvestmentReportProps> = ({ transactions, curre
     const isPast = year < today.getFullYear() || (year === today.getFullYear() && month < today.getMonth());
     const isFuture = year > today.getFullYear() || (year === today.getFullYear() && month > today.getMonth());
     
+    // Always show the full month to see the future projections
     let lastDay = new Date(year, month + 1, 0).getDate();
-    if (!isPast && !isFuture) {
-      lastDay = today.getDate(); // For current month, chart until today
-    }
     
     const days = [];
     for (let i = 1; i <= lastDay; i++) {
@@ -92,8 +90,8 @@ const InvestmentReport: React.FC<InvestmentReportProps> = ({ transactions, curre
         });
     }
     
-    return days;
-  }, [transactions, currentDate, calculateInvestmentValue]);
+    return days.filter(d => d.total > 0);
+  }, [transactions, currentDate]);
 
   if (transactions.length === 0) return null;
 
@@ -111,6 +109,7 @@ const InvestmentReport: React.FC<InvestmentReportProps> = ({ transactions, curre
                     width={80}
                     tickLine={false} 
                     axisLine={false} 
+                    domain={[(dataMin: number) => Math.max(0, Math.floor(dataMin * 0.999)), (dataMax: number) => Math.ceil(dataMax * 1.001)]}
                 />
                 <Tooltip 
                     formatter={(value: number) => [formatCurrency(value), 'Total']}
