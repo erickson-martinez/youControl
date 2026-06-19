@@ -95,6 +95,11 @@ const InvestmentReport: React.FC<InvestmentReportProps> = ({ transactions, curre
 
   if (transactions.length === 0) return null;
 
+  const minTotal = data.length > 0 ? Math.min(...data.map(d => d.total)) : 0;
+  const maxTotal = data.length > 0 ? Math.max(...data.map(d => d.total)) : 0;
+  const range = maxTotal - minTotal || 10;
+  const customDomain = [Math.max(0, Math.floor(minTotal - range * 1.5 - 10)), Math.ceil(maxTotal + range * 0.5 + 5)];
+
   return (
     <div className="w-full h-64 mt-4 mb-8 bg-gray-800 p-4 rounded-xl border border-gray-700">
         <h3 className="text-white font-semibold mb-4 text-center">Evolução dos Investimentos</h3>
@@ -109,7 +114,7 @@ const InvestmentReport: React.FC<InvestmentReportProps> = ({ transactions, curre
                     width={80}
                     tickLine={false} 
                     axisLine={false} 
-                    domain={[(dataMin: number) => Math.max(0, Math.floor(dataMin * 0.999)), (dataMax: number) => Math.ceil(dataMax * 1.001)]}
+                    domain={customDomain}
                 />
                 <Tooltip 
                     formatter={(value: number) => [formatCurrency(value), 'Total']}

@@ -225,16 +225,39 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, initialRegist
            return;
         }
 
-        const user: User = {
-          email: data.email || data.user?.email || '',
-          name: data.name || data.user?.name || `Usuário`,
-          id: data.idEmail || data._id || data.user?.idEmail || data.user?._id || '',
-          idEmail: data.idEmail || data._id || data.user?.idEmail || data.user?._id || '',
-          phone: data.phone || data.user?.phone || ''
-        };
+        const oldIdEmail = data.idEmail || data._id || data.user?.idEmail || data.user?._id || '';
 
-        localStorage.setItem('currentUser', JSON.stringify(user));
-        onLoginSuccess(user);
+        try {
+          const provider = new GoogleAuthProvider();
+          const userCredential = await signInWithPopup(auth, provider);
+          const firebaseUser = userCredential.user;
+
+          await fetch(`${API_BASE_URL}/user/${oldIdEmail}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              newIdEmail: firebaseUser.uid,
+              email: firebaseUser.email
+            })
+          });
+
+          const user: User = {
+            email: firebaseUser.email || data.email || data.user?.email || '',
+            name: firebaseUser.displayName || data.name || data.user?.name || `Usuário`,
+            id: firebaseUser.uid,
+            idEmail: firebaseUser.uid,
+            phone: data.phone || data.user?.phone || ''
+          };
+
+          localStorage.setItem('currentUser', JSON.stringify(user));
+          onLoginSuccess(user);
+        } catch (err: any) {
+          if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
+             setError('Erro ao vincular conta: ' + (err.message || ''));
+          } else {
+             setError('Você precisa vincular uma conta do Google para continuar.');
+          }
+        }
       } catch (err: any) {
         setError('Erro de conexão ao autenticar.');
       } finally {

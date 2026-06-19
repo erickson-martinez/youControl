@@ -47,8 +47,12 @@ export const exportYearlyPDF = async (idEmail: string, email: string, phone: str
                 dateRaw.setMinutes(dateRaw.getMinutes() + dateRaw.getTimezoneOffset());
                 const dateFormatted = dateRaw.toLocaleDateString('pt-BR');
                 
-                const type = tx.type === TransactionType.REVENUE ? 'Receita' : 'Despesa';
-                const status = tx.status === PaymentStatus.PAID ? 'Pago' : 'Pendente';
+                let type = 'Despesa';
+                if (tx.type === TransactionType.REVENUE || tx.type === 'revenue' || tx.type === 'RECEITA') type = 'Receita';
+                else if (tx.type === TransactionType.INVESTMENT || tx.type === 'investimento' || tx.type === 'INVESTMENT') type = 'Investimento';
+                
+                let status = tx.status === PaymentStatus.PAID ? 'Pago' : 'Pendente';
+                if (tx.status === 'investimento') status = 'Rendendo';
                 const amount = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(tx.amount || 0);
                 
                 return [dateFormatted, tx.name, type, amount, status];
