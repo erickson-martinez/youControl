@@ -258,7 +258,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
 
         // --- MANUALLY CARRY OVER PAST INVESTMENTS ---
         let pastInvestmentsMap = new Map();
-        for (let m = 1; m < month; m++) {
+        for (let m = month - 1; m >= 1; m--) {
             const mKey = `${m}-${year}`;
             let mData;
             if (transactionsCache.current[mKey]) {
@@ -288,6 +288,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
                 }
             }
             if (mData && mData.transactions) {
+                if (mData.transactions.length === 0) {
+                    break;
+                }
                 const invs = mData.transactions.filter((t: any) => {
                     if (t.type !== TransactionType.INVESTMENT && t.type !== 'INVESTMENT' && t.type !== 'investimento') return false;
                     

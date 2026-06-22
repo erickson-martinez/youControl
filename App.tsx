@@ -1,4 +1,6 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { auth } from './firebase';
+import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import LoginScreen from './components/LoginScreen';
 import Dashboard from './components/Dashboard';
 import Sidebar from './components/Sidebar';
@@ -102,6 +104,121 @@ const PublicAgendamentoWrapper = ({ empresaIdParam }: { empresaIdParam?: string 
   );
 };
 
+const GoogleLinkModal = ({ user, onSuccess }: { user: User, onSuccess: (user: User) => void }) => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleLink = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const provider = new GoogleAuthProvider();
+      const userCredential = await signInWithPopup(auth, provider);
+      const firebaseUser = userCredential.user;
+
+      const oldIdEmail = user.idEmail || user.id;
+
+      // Update backend
+      const res = await fetch(`${API_BASE_URL}/user/${oldIdEmail}`, {
+        method: 'PATCH',
+        headers: {
+           'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          newIdEmail: firebaseUser.uid,
+          email: firebaseUser.email
+        })
+      });
+
+      if (!res.ok) {
+        let errData;
+        try { errData = await res.json(); } catch(e){}
+        throw new Error(errData?.error || 'Falha ao atualizar usuário no sistema.');
+      }
+
+      // Update permissions
+      try {
+        await fetch(`${API_BASE_URL}/permissions/${oldIdEmail}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            idEmailPermissions: firebaseUser.uid,
+            email: firebaseUser.email
+          })
+        });
+      } catch (err) {
+        console.error("Erro ao atualizar permissões", err);
+      }
+
+      // Update transactions
+      try {
+        await fetch(`${API_BASE_URL}/transactions/${oldIdEmail}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            newIdEmail: firebaseUser.uid
+          })
+        });
+      } catch (err) {
+        console.error("Erro ao atualizar transações", err);
+      }
+
+      // Update local user
+      const updatedUser = {
+        ...user,
+        id: firebaseUser.uid,
+        idEmail: firebaseUser.uid,
+        email: firebaseUser.email || user.email,
+        name: firebaseUser.displayName || user.name
+      };
+
+      localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+      onSuccess(updatedUser);
+    } catch (err: any) {
+      if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
+         setError(err.message || 'Erro ao vincular conta. Tente novamente.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-gray-900/90 backdrop-blur-sm p-4">
+      <div className="bg-gray-800 p-8 rounded-2xl shadow-xl max-w-md w-full border border-gray-700 text-center">
+        <h2 className="text-2xl font-bold text-white mb-4">Atualização de Segurança</h2>
+        <p className="text-gray-300 mb-6 text-sm">
+          Estamos aprimorando a segurança do sistema. Por favor, vincule sua conta ao Google para continuar acessando todos os recursos.
+        </p>
+        
+        {error && <p className="text-red-400 mb-4 text-sm font-medium">{error}</p>}
+        
+        <button
+          onClick={handleLink}
+          disabled={loading}
+          className="w-full flex items-center justify-center px-4 py-3 bg-white text-gray-900 font-bold rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50"
+        >
+          {loading ? 'Vinculando...' : (
+             <>
+                <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
+                  <path
+                    fill="currentColor"
+                    d="M21.35,11.1H12.18V13.83H18.69C18.36,17.64 15.19,19.27 12.19,19.27C8.36,19.27 5,16.25 5,12C5,7.9 8.2,4.73 12.2,4.73C15.29,4.73 17.1,6.7 17.1,6.7L19,4.72C19,4.72 16.56,2 12.1,2C6.42,2 2.03,6.8 2.03,12C2.03,17.05 6.16,22 12.25,22C17.6,22 21.5,18.33 21.5,12.91C21.5,11.76 21.35,11.1 21.35,11.1V11.1Z"
+                  />
+                </svg>
+                Vincular com o Google
+             </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const App: React.FC = () => {
   // --- ROTAS PÚBLICAS ---
   const isPublicMenu = window.location.pathname === '/cardapio' || window.location.search.includes('view=menu');
@@ -134,6 +251,17 @@ const App: React.FC = () => {
   
   const [isLoading, setIsLoading] = useState(true); 
   const [apiError, setApiError] = useState<string | null>(null);
+
+  const [firebaseChecked, setFirebaseChecked] = useState(false);
+  const [isFirebaseUserLogged, setIsFirebaseUserLogged] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setIsFirebaseUserLogged(!!firebaseUser);
+      setFirebaseChecked(true);
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     try {
@@ -524,8 +652,16 @@ const App: React.FC = () => {
   }
 
 
+  const isNotFirebaseUid = user && user.idEmail && user.idEmail.length !== 28;
+
   return (
-    <div className="min-h-screen font-sans bg-gray-900 text-gray-100">
+    <div className="relative min-h-screen font-sans text-gray-100 bg-gray-900">
+      {firebaseChecked && (!isFirebaseUserLogged || isNotFirebaseUid) && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-gray-900/90 backdrop-blur-sm">
+            <GoogleLinkModal user={user} onSuccess={handleLoginSuccess} />
+        </div>
+      )}
+
       <Sidebar user={user} onLogout={handleLogout} isOpen={isSidebarOpen} onClose={() => setSidebarOpen(false)} permissions={userPermissions || FALLBACK_PERMISSIONS} activePage={activePage} onNavigate={handleNavigate} canClockIn={canUserClockIn}/>
       <div className="transition-all md:ml-64">
          <header className="flex items-center justify-between p-2 mb-2 md:p-4 md:justify-end relative min-h-[64px] gap-2">

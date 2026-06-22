@@ -58,7 +58,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({ onAddRevenue, onAddExpens
         {!isPastMonth && (
           <button
             onClick={onShare}
-            className="flex items-center justify-center flex-1 md:flex-initial px-4 py-2 text-white transition-colors bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 hover:text-blue-400"
+            className="flex items-center justify-center flex-1 md:flex-initial px-4 py-2 text-white transition-colors bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 hover:text-gray-300"
             title="Compartilhar"
           >
             <UsersIcon className="w-5 h-5 md:w-6 md:h-6" />
