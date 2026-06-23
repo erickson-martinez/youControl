@@ -13,6 +13,7 @@ import ConfirmationModal from './ConfirmationModal';
 import AddValueModal from './AddValueModal';
 import OverdueNoticeModal from './OverdueNoticeModal';
 import PendingApprovalModal from './PendingApprovalModal';
+import EndMonthReviewModal from './EndMonthReviewModal';
 import { XCircleIcon, ChartBarIcon, UsersIcon, ChevronLeftIcon, ChevronRightIcon } from './icons';
 import { API_BASE_URL } from '../constants';
 import { exportYearlyPDF } from './exportPDF';
@@ -37,6 +38,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   const [transactionToDelete, setTransactionToDelete] = useState<Transaction | null>(null);
   const [isAddValueModalOpen, setIsAddValueModalOpen] = useState(false);
   const [transactionToAddValueTo, setTransactionToAddValueTo] = useState<Transaction | null>(null);
+  const [isEndMonthReviewOpen, setIsEndMonthReviewOpen] = useState(false);
+  const [hasShownEndMonthReview, setHasShownEndMonthReview] = useState(false);
   const [isOverdueModalOpen, setIsOverdueModalOpen] = useState(false);
   const [isPendingApprovalModalOpen, setIsPendingApprovalModalOpen] = useState(false);
   const [isSharedUsersPopoverOpen, setIsSharedUsersPopoverOpen] = useState(false);
@@ -978,6 +981,29 @@ setTransactions(mappedTransactions);
     }
   }, [isLoading, pendingApprovalTransactions]);
   
+  useEffect(() => {
+    if (isLoading || isExporting) return;
+    const today = new Date();
+    const isLastDay = today.getDate() === new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    // Only check if we are viewing the current month
+    const isCurrentMonth = currentDate.getMonth() === today.getMonth() && currentDate.getFullYear() === today.getFullYear();
+    
+    if (isLastDay && isCurrentMonth && !hasShownEndMonthReview) {
+      const { investimentosTransactions } = (function() {
+         const currentUserId = user.idEmail || user.id;
+         const personal = transactions.filter(t => t.idEmail === currentUserId);
+         return {
+             investimentosTransactions: personal.filter(t => t.type === TransactionType.INVESTMENT || t.type === 'INVESTMENT' || t.type === 'investimento')
+         };
+      })();
+      
+      if (investimentosTransactions && investimentosTransactions.length > 0) {
+        setIsEndMonthReviewOpen(true);
+      }
+      setHasShownEndMonthReview(true); // Don't show again this session
+    }
+  }, [isLoading, currentDate, hasShownEndMonthReview, transactions, user.id, user.idEmail, isExporting]);
+
   const handleApprovePending = async (transactionId: string) => {
     const tx = transactions.find(t => t.id === transactionId);
     if (tx) {
@@ -1150,12 +1176,25 @@ setTransactions(mappedTransactions);
              <ChevronLeftIcon className="w-5 h-5" />
           </button>
           
-          <div className="flex-1 text-center font-bold text-sm sm:text-base">
+          <div className="flex-1 text-center font-bold text-sm sm:text-base flex items-center justify-center gap-2">
             {activeTab === 'transactions' && <span className="text-blue-300">Minhas Transações <span className="text-gray-500 font-normal">({minhasTransactions.length})</span></span>}
             {activeTab === 'shared' && <span className="text-purple-300">Compartilhados <span className="text-gray-500 font-normal">({sharedTransactions.length})</span></span>}
             {activeTab === 'receitas' && <span className="text-green-300">Receitas <span className="text-gray-500 font-normal">({receitasTransactions.length})</span></span>}
             {activeTab === 'despesas' && <span className="text-red-300">Despesas <span className="text-gray-500 font-normal">({despesasTransactions.length})</span></span>}
-            {activeTab === 'investimentos' && <span className="text-yellow-300">Investimentos <span className="text-gray-500 font-normal">({investimentosTransactions?.length || 0})</span></span>}
+            {activeTab === 'investimentos' && (
+              <>
+                <span className="text-yellow-300">Investimentos <span className="text-gray-500 font-normal">({investimentosTransactions?.length || 0})</span></span>
+                {investimentosTransactions && investimentosTransactions.length > 0 && (
+                   <button 
+                      onClick={() => setIsEndMonthReviewOpen(true)}
+                      className="ml-2 px-2 py-1 text-xs bg-yellow-900/40 text-yellow-400 border border-yellow-700/50 rounded hover:bg-yellow-800/60 transition-colors"
+                      title="Revisar Valores dos Investimentos"
+                   >
+                     Revisar Valores
+                   </button>
+                )}
+              </>
+            )}
           </div>
 
           <button 
@@ -1214,6 +1253,20 @@ setTransactions(mappedTransactions);
           transactionType={transactionToAddValueTo.type}
         />
       )}
+      <EndMonthReviewModal
+        isOpen={isEndMonthReviewOpen}
+        onClose={() => setIsEndMonthReviewOpen(false)}
+        investments={investimentosTransactions || []}
+        onUpdateInvestment={async (inv, newAmount) => {
+          const today = new Date();
+          const p = { ...inv, amount: newAmount, date: today.toISOString() };
+          const response = await apiFetch(`${API_BASE_URL}/transactions/${inv.id}`, { method: 'PUT', body: JSON.stringify(p) });
+          if (!response.ok) throw new Error();
+          invalidateCache(inv.date);
+          if (inv.date !== p.date) invalidateCache(p.date);
+          await fetchTransactions();
+        }}
+      />
       <OverdueNoticeModal
         isOpen={isOverdueModalOpen}
         onClose={() => setIsOverdueModalOpen(false)}

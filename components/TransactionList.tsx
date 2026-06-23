@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import type { Transaction, Addition } from '../types';
 import { TransactionType, PaymentStatus } from '../types';
-import { CheckCircleIcon, ClockIcon, XCircleIcon, ShareIcon, PencilIcon, TrashIcon, ChevronDownIcon, PlusIcon, MinusIcon, BellIcon, EyeIcon } from './icons';
+import { CheckCircleIcon, ClockIcon, XCircleIcon, ShareIcon, PencilIcon, TrashIcon, ChevronDownIcon, PlusIcon, MinusIcon, BellIcon, EyeIcon, RefreshIcon } from './icons';
 import ConfirmationModal from './ConfirmationModal';
 
 const calculateInvestmentValue = (tx: any, targetDate: Date = new Date()): number => {
