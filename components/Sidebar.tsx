@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import type { User, MenuPermissions, ActivePage } from '../types';
 import { 
     HomeIcon, CashIcon, UsersIcon, ClipboardListIcon, CogIcon, XIcon, 
     OfficeBuildingIcon, ClockIcon, LogoutIcon, ClipboardCheckIcon, 
     InboxInIcon, DocumentTextIcon, ShoppingCartIcon, BookOpenIcon, 
-    BuildingStoreIcon, ChartBarIcon, BurgerIcon, MotorcycleIcon, MonitorIcon, TagIcon, SparklesIcon 
+    BuildingStoreIcon, ChartBarIcon, BurgerIcon, MotorcycleIcon, MonitorIcon, TagIcon, SparklesIcon,
+    SunIcon, MoonIcon
 } from './icons';
 
 interface SidebarProps {
@@ -34,6 +35,28 @@ const NavLink: React.FC<{ page: ActivePage, onNavigate: (page: ActivePage) => vo
 );
 
 const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, isOpen, onClose, permissions, activePage, onNavigate, canClockIn }) => {
+  const [isLightMode, setIsLightMode] = useState(() => {
+    return document.documentElement.classList.contains('light');
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (isLightMode) {
+      root.classList.add('light');
+      localStorage.setItem('theme', 'light');
+    } else {
+      root.classList.remove('light');
+      localStorage.setItem('theme', 'dark');
+    }
+  }, [isLightMode]);
+
+  useEffect(() => {
+     if(localStorage.getItem('theme') === 'light') {
+         setIsLightMode(true);
+     }
+  }, []);
+
+  const toggleTheme = () => setIsLightMode(!isLightMode);
   
   return (
     <>
@@ -92,12 +115,19 @@ const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, isOpen, onClose, perm
               {permissions.exemplo && <li><NavLink page="exemplo" onNavigate={onNavigate} icon={<DocumentTextIcon className="w-6 h-6" />} label="Exemplos" active={activePage === 'exemplo'} /></li>}
             </ul>
           </nav>
-          <div className="pt-4 mt-4 border-t border-gray-700">
-             <div className="flex items-center p-2 mb-2 text-gray-300">
+          <div className="pt-4 mt-4 border-t border-gray-700 space-y-2">
+             <div className="flex items-center justify-between p-2 mb-2 text-gray-300">
                   <div>
                       <div className="font-semibold">{user.name}</div>
                       <div className="text-xs text-gray-400">{user.email}</div>
                   </div>
+                  <button 
+                     onClick={toggleTheme}
+                     className="p-2 rounded-full hover:bg-gray-700 transition-colors"
+                     title="Alternar Tema"
+                  >
+                     {isLightMode ? <MoonIcon className="w-5 h-5 text-gray-900" /> : <SunIcon className="w-5 h-5 text-yellow-400" />}
+                  </button>
               </div>
                <button
                   onClick={onLogout}

@@ -34,24 +34,78 @@
       .custom-scrollbar::-webkit-scrollbar-thumb:hover {
         background: rgba(100, 100, 100, 1); 
       }
+      
+      :root {
+        --color-gray-900: #121212;
+        --color-gray-800: #1E1E1E;
+        --color-gray-700: #2D2D2D;
+        --color-gray-600: #3D3D3D;
+        --color-gray-400: #A0A0A0;
+        --color-gray-300: #D1D5DB;
+        --color-text-main: #FFFFFF;
+        
+        --color-green-accent: #22c55e;
+        --color-red-accent: #ef4444;
+        --color-blue-accent: #3b82f6;
+        --color-yellow-accent: #eab308;
+      }
+      
+      html.light {
+        --color-gray-900: #f9fafb; /* main background */
+        --color-gray-800: #ffffff; /* cards */
+        --color-gray-700: #e5e7eb; /* borders */
+        --color-gray-600: #d1d5db; /* hover/borders */
+        --color-gray-400: #6b7280; /* muted text */
+        --color-gray-300: #4b5563; /* darker text */
+        --color-text-main: #111827; /* main text */
+      }
+      
+      html.light .text-white {
+        color: var(--color-text-main);
+      }
+      html.light .text-gray-900, html.light .text-gray-800 {
+        color: #111827; /* keep dark text dark on buttons */
+      }
+      html.light .text-gray-400, html.light .text-gray-300 {
+        color: #4b5563;
+      }
+      html.light .bg-white {
+        background-color: var(--color-gray-800);
+      }
+      
+      /* Ensure buttons with explicit text-white still look good or are overridden manually */
+      html.light button.bg-blue-600, html.light button.bg-blue-accent, html.light button.bg-green-accent, html.light button.bg-red-accent {
+         color: #ffffff;
+      }
+      html.light button.bg-blue-600 .text-white, html.light button.bg-blue-accent .text-white {
+         color: #ffffff;
+      }
     </style>
     <script>
       tailwind.config = {
+        darkMode: 'class',
         theme: {
           extend: {
             colors: {
-              'gray-900': '#121212',
-              'gray-800': '#1E1E1E',
-              'gray-700': '#2D2D2D',
-              'gray-600': '#3D3D3D',
-              'gray-400': '#A0A0A0',
-              'green-accent': '#22c55e',
-              'red-accent': '#ef4444',
-              'blue-accent': '#3b82f6',
-              'yellow-accent': '#eab308',
+              'gray-900': 'var(--color-gray-900)',
+              'gray-800': 'var(--color-gray-800)',
+              'gray-700': 'var(--color-gray-700)',
+              'gray-600': 'var(--color-gray-600)',
+              'gray-400': 'var(--color-gray-400)',
+              'gray-300': 'var(--color-gray-300)',
+              'white': 'var(--color-text-main)',
+              'green-accent': 'var(--color-green-accent)',
+              'red-accent': 'var(--color-red-accent)',
+              'blue-accent': 'var(--color-blue-accent)',
+              'yellow-accent': 'var(--color-yellow-accent)',
             }
           }
         }
+      }
+    </script>
+    <script>
+      if (localStorage.getItem('theme') === 'light') {
+        document.documentElement.classList.add('light');
       }
     </script>
 <script type="importmap">

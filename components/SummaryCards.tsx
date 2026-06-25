@@ -17,21 +17,20 @@ const formatNumber = (value: number) => {
 };
 
 const SummaryCard: React.FC<{ title: string; value: number; colorclass: string, classname?: string }> = ({ title, value, colorclass, classname = '' }) => (
-    <div className={`p-4 bg-gray-800 rounded-lg shadow-md border-l-4 ${colorclass} ${classname}`}>
+    <div className={`flex-1 min-w-[140px] md:min-w-[160px] p-4 bg-gray-800 rounded-lg shadow-md border-l-4 ${colorclass} ${classname}`}>
         <div className="flex items-center space-x-2">
-            <p className="text-sm font-medium text-gray-400">{title}</p>
+            <p className="text-xs sm:text-sm font-medium text-gray-400 whitespace-nowrap truncate">{title}</p>
         </div>
-        <p className="mt-2 text-lg md:text-2xl font-bold text-white">{formatNumber(value)}</p>
+        <p className="mt-2 text-base sm:text-lg md:text-xl lg:text-2xl font-bold text-white truncate">{formatNumber(value)}</p>
     </div>
 );
-
 
 const SummaryCards: React.FC<SummaryCardsProps> = ({ revenue, expenses, balance, total, paid, investments, isFutureMonth = false }) => {
   const balanceTitle = isFutureMonth ? 'Previsão Saldo' : 'Saldo do Mês';
   const totalTitle = isFutureMonth ? 'Previsão Total' : 'Total Geral';
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4 mb-6">
+    <div className="flex flex-wrap gap-3 md:gap-4 mb-6">
         <SummaryCard 
             title="Receitas"
             value={revenue}

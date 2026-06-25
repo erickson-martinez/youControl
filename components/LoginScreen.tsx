@@ -356,7 +356,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, initialRegist
             </button>
           </div>
         </form>
-        <div className="flex items-center justify-between px-2 text-sm text-center">
+        <div className="flex items-center justify-center px-2 text-sm text-center">
             {isForgotPasswordMode ? (
                 <button 
                   onClick={handleBackToLogin}
@@ -374,22 +374,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, initialRegist
                   Já tem uma conta? Entrar
                 </button>
             ) : (
-                <>
-                  <button 
-                    onClick={handleModeToggle}
-                    className="font-medium text-blue-400 bg-transparent border-none cursor-pointer hover:text-blue-300 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-blue-400"
-                    disabled={loading}
-                  >
-                    Cadastrar
-                  </button>
-                  <button 
-                    onClick={handleForgotPasswordClick}
-                    className="font-medium text-gray-400 bg-transparent border-none cursor-pointer hover:text-gray-300 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={loading}
-                  >
-                    Esqueci Senha
-                  </button>
-                </>
+                <button 
+                  onClick={handleForgotPasswordClick}
+                  className="font-medium text-gray-400 bg-transparent border-none cursor-pointer hover:text-gray-300 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={loading}
+                >
+                  Esqueci Senha
+                </button>
             )}
         </div>
       </div>
