@@ -37,6 +37,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
     repeatCount: '1',
     profitabilityPercentage: '100',
     renderDay: '0',
+    affectsCash: true,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -57,6 +58,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
         repeatCount: '1',
         profitabilityPercentage: String(transactionToEdit.investment?.percentage ?? '100'),
         renderDay: String(transactionToEdit.investment?.renderDay ?? '0'),
+        affectsCash: transactionToEdit.affectsCash ?? true,
       });
     } else {
       const dateForForm = new Date(currentDateForForm);
@@ -75,6 +77,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
         repeatCount: '1',
         profitabilityPercentage: '100',
         renderDay: '0',
+        affectsCash: true,
       });
     }
   }, [transactionToEdit, isOpen, isExpense, isInvestment, currentDateForForm]);
@@ -117,6 +120,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
                 amount: parseFloat(formData.amount),
                 date: formData.date,
                 status: isInvestment && !formData.paid ? 'investimento' : (formData.paid ? PaymentStatus.PAID : PaymentStatus.UNPAID),
+                affectsCash: isInvestment ? formData.affectsCash : undefined,
                 ...(isInvestment ? { investment: investmentData } : {}),
             };
         } else {
@@ -129,6 +133,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
                 sharedEmailOrPhone: formData.sharedEmailOrPhone || undefined,
                 status: isInvestment && !formData.paid ? 'investimento' : (formData.isControlled ? PaymentStatus.UNPAID : (formData.paid ? PaymentStatus.PAID : PaymentStatus.UNPAID)),
                 repeatCount: repeatCount > 0 ? repeatCount : undefined,
+                affectsCash: isInvestment ? formData.affectsCash : undefined,
                 ...(isInvestment ? { investment: investmentData } : {}),
             };
         }
@@ -185,6 +190,10 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
                   <label htmlFor="renderDay" className="block mb-1 text-sm font-medium text-gray-300">Rendimento do Último Dia</label>
                   <input type="number" name="renderDay" id="renderDay" value={formData.renderDay} onChange={handleChange} required={isInvestment} step="0.0001" min="0" disabled={isSubmitting} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500 disabled:opacity-50" placeholder="Ex: 0.01" />
                 </div>
+              </div>
+              <div className="flex items-center mt-4">
+                <input type="checkbox" name="affectsCash" id="affectsCash" checked={formData.affectsCash} onChange={handleChange} disabled={isSubmitting} className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50" />
+                <label htmlFor="affectsCash" className={`ml-2 text-sm text-gray-300 ${isSubmitting ? 'opacity-50' : ''}`}>Descontar do saldo atual?</label>
               </div>
               <div className="mt-2 text-xs text-yellow-500 bg-yellow-900/20 p-2 rounded border border-yellow-700/30">
                 <strong>Nota:</strong> Os valores de projeção (rendimento) são estimativas. Como não há integração direta com seu banco, os valores podem sofrer pequenas variações até o final do mês.

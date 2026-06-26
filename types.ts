@@ -133,6 +133,7 @@ export interface Transaction {
   name: string;
   amount: number;
   date: string;
+  affectsCash?: boolean;
   
   isControlled: boolean;
   status: PaymentStatus;

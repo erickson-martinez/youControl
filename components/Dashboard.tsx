@@ -214,6 +214,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
                   } else {
                       i += invValue; // remains as pending investment KPI
                   }
+                  if (tx.affectsCash) {
+                      e += amt; // Add to expenses so it reduces the balance
+                  }
               }
           }
       });
@@ -495,6 +498,7 @@ setTransactions(mappedTransactions);
           date: data.date,
           type: data.type,
           status: data.status,
+          affectsCash: data.affectsCash,
           ...(data.investment ? { investment: data.investment } : {})
         };
       } else {
@@ -506,6 +510,7 @@ setTransactions(mappedTransactions);
           amount: data.amount, 
           date: data.date, 
           status: data.status,
+          affectsCash: data.affectsCash,
           ...(data.investment ? { investment: data.investment } : {})
         };
       }
