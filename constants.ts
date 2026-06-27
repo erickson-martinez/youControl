@@ -1,8 +1,8 @@
 
 import type { MenuPermissions } from './types';
 
-export const API_BASE_URL = 'https://stok-5ytv.onrender.com';
-export const BURGER_API_URL = 'https://stok-5ytv.onrender.com'; // URL da API da Lanchonete atualizada para produção
+export const API_BASE_URL = 'https://stok-5ytv.onrender.com/api/v1';
+export const BURGER_API_URL = 'https://stok-5ytv.onrender.com/api/v1'; // URL da API da Lanchonete atualizada para produção
 // Imagem atualizada para um Hamburguer Gourmet com Bacon e Queijo derretido (Estilo Artesanal)
 export const DEFAULT_BURGER_IMAGE = 'https://images.unsplash.com/photo-1594212699903-ec8a3eca50f5?q=80&w=800&auto=format&fit=crop';
 

@@ -55,7 +55,7 @@ const BurgerCompanyPage: React.FC<BurgerCompanyPageProps> = ({ user }) => {
         setError(null);
         try {
             // Busca configurações filtrando pelo email do usuário na URL
-            const response = await fetch(`${BURGER_API_URL}/api/config/${user.email}`);
+            const response = await fetch(`${BURGER_API_URL}/config/${user.email}`);
             if (response.ok) {
                 const json = await response.json();
                 const data = json.data || json;
@@ -116,10 +116,7 @@ const BurgerCompanyPage: React.FC<BurgerCompanyPageProps> = ({ user }) => {
         e.preventDefault();
         setIsSaving(true);
         try {
-            const fetchUrl = config._id 
-                ? `${BURGER_API_URL}/api/config/${config._id}` 
-                : `${BURGER_API_URL}/api/config`;
-
+            const fetchUrl = `${BURGER_API_URL}/config`;
             const finalMethod = config._id ? 'PATCH' : 'POST';
 
             const response = await fetch(fetchUrl, {
@@ -141,7 +138,7 @@ const BurgerCompanyPage: React.FC<BurgerCompanyPageProps> = ({ user }) => {
             // Fallback para POST se PATCH falhar
             if (config._id) {
                  try {
-                    const responseFallback = await fetch(`${BURGER_API_URL}/api/config`, {
+                    const responseFallback = await fetch(`${BURGER_API_URL}/config`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(config)

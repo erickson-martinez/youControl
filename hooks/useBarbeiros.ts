@@ -22,7 +22,7 @@ export const useBarbeiros = (empresaId?: string) => {
       setBarbeiros([]);
       return;
     }
-    const url = `${API_BASE_URL}/api/barbers?linkId=${empresaId}`;
+    const url = `${API_BASE_URL}/barbers?linkId=${empresaId}`;
     try {
       if (!promiseCache.has(url)) {
         promiseCache.set(url, fetch(url).then(r => {
@@ -54,7 +54,7 @@ export const useBarbeiros = (empresaId?: string) => {
   // Manter compatibilidade com a adição manual temporária enquanto a tela não for 100% migrada
   const addBarbeiro = async (barbeiro: Omit<Barbeiro, 'id'>) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/barbers`, {
+      const response = await fetch(`${API_BASE_URL}/barbers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(barbeiro)
@@ -77,7 +77,7 @@ export const useBarbeiros = (empresaId?: string) => {
 
   const removeBarbeiro = async (id: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/barbers/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/barbers/${id}`, {
         method: 'DELETE',
       });
       if (response.ok) {
@@ -95,7 +95,7 @@ export const useBarbeiros = (empresaId?: string) => {
 
   const updateBarbeiro = async (id: string, updates: Partial<Barbeiro>) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/barbers/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/barbers/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

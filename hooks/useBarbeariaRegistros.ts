@@ -51,7 +51,7 @@ export const useBarbeariaAgendamentos = (empresaId?: string) => {
       setAgendamentos([]);
       return;
     }
-    const url = `${API_BASE_URL}/api/appointment-barbers?linkId=${empresaId}`;
+    const url = `${API_BASE_URL}/appointment-barbers?linkId=${empresaId}`;
     try {
       if (!promiseCache.has(url)) {
         promiseCache.set(url, fetch(url).then(async (r) => {
@@ -83,7 +83,7 @@ export const useBarbeariaAgendamentos = (empresaId?: string) => {
 
   const addAgendamento = async (agendamentoData: any) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/appointment-barbers`, {
+      const response = await fetch(`${API_BASE_URL}/appointment-barbers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(agendamentoData),
@@ -110,8 +110,8 @@ export const useBarbeariaAgendamentos = (empresaId?: string) => {
       
       const isCancel = status === 'cancelado';
       const url = isCancel 
-        ? `${API_BASE_URL}/api/appointment-barbers/${id}/cancel`
-        : `${API_BASE_URL}/api/appointment-barbers/${id}/status`;
+        ? `${API_BASE_URL}/appointment-barbers/${id}/cancel`
+        : `${API_BASE_URL}/appointment-barbers/${id}/status`;
 
       const response = await fetch(url, {
         method: 'PATCH',
@@ -131,7 +131,7 @@ export const useBarbeariaAgendamentos = (empresaId?: string) => {
 
   const updateAgendamento = async (id: string, updates: Partial<Agendamento>) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/appointment-barbers/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/appointment-barbers/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
@@ -226,7 +226,7 @@ export const useBarbeariaRegistros = (empresaId?: string) => {
 
   const removeRegistro = async (id: string) => {
     // Deletar ou cancelar no agendamento
-    await fetch(`${API_BASE_URL}/api/appointment-barbers/${id}`, { method: 'DELETE' });
+    await fetch(`${API_BASE_URL}/appointment-barbers/${id}`, { method: 'DELETE' });
     loadAgendamentos();
   };
 

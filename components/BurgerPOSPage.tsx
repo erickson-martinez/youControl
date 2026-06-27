@@ -61,8 +61,8 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
         try {
             const burgerNameEncoded = encodeURIComponent(config.burger);
             const [prodRes, orderRes] = await Promise.all([
-                fetch(`${BURGER_API_URL}/api/products/burgers`),
-                fetch(`${BURGER_API_URL}/api/orders/${burgerNameEncoded}`)
+                fetch(`${BURGER_API_URL}/products/burgers`),
+                fetch(`${BURGER_API_URL}/orders/${burgerNameEncoded}`)
             ]);
             
             const prodData = await prodRes.json();
@@ -83,7 +83,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
             setCheckingAuth(true);
             try {
                 // Agora passa o email do usuário na rota para verificar permissão no backend
-                const response = await fetch(`${BURGER_API_URL}/api/config/caixa/${user.email}`);
+                const response = await fetch(`${BURGER_API_URL}/config/caixa/${user.email}`);
                 const json = await response.json();
                 
                 if (json && json.data) {
@@ -241,7 +241,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
             if (activeRegisterOrder) {
                  const userNameParam = encodeURIComponent(user.name);
                  try {
-                    await fetch(`${BURGER_API_URL}/api/orders/${activeRegisterOrder.id}/status/${userNameParam}`, {
+                    await fetch(`${BURGER_API_URL}/orders/${activeRegisterOrder.id}/status/${userNameParam}`, {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ newStatus: 'Fechado', currentStatus: 'Aberto' })
@@ -286,7 +286,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                             burger: config?.burger
                         };
 
-                        await fetch(`${BURGER_API_URL}/api/orders`, {
+                        await fetch(`${BURGER_API_URL}/orders`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(closingOrderPayload)
@@ -353,7 +353,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                 burger: config?.burger 
             };
 
-            const response = await fetch(`${BURGER_API_URL}/api/orders`, {
+            const response = await fetch(`${BURGER_API_URL}/orders`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(openingOrderPayload)
@@ -432,7 +432,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
                 burger: config?.burger
             };
 
-            const response = await fetch(`${BURGER_API_URL}/api/orders`, {
+            const response = await fetch(`${BURGER_API_URL}/orders`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(withdrawOrderPayload)
@@ -472,7 +472,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
     const updateStatus = async (orderId: number, newStatus: string, currentStatus: string) => {
         try {
             const userNameParam = encodeURIComponent(user.name);
-            await fetch(`${BURGER_API_URL}/api/orders/${orderId}/status/${userNameParam}`, {
+            await fetch(`${BURGER_API_URL}/orders/${orderId}/status/${userNameParam}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ newStatus, currentStatus })
@@ -496,7 +496,7 @@ const BurgerPOSPage: React.FC<BurgerPOSPageProps> = ({ user }) => {
         
         setIsProcessingPayment(true);
         try {
-            await fetch(`${BURGER_API_URL}/api/orders/${paymentModalOrder.id}/payment`, {
+            await fetch(`${BURGER_API_URL}/orders/${paymentModalOrder.id}/payment`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ payment: true })

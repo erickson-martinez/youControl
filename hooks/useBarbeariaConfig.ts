@@ -57,7 +57,7 @@ export const useBarbeariaConfig = (empresaId?: string) => {
       setProdutos([]);
       return;
     }
-    const url = `${API_BASE_URL}/api/barber-products?linkId=${empresaId}`;
+    const url = `${API_BASE_URL}/barber-products?linkId=${empresaId}`;
     try {
       if (!promiseCache.has(url)) {
         promiseCache.set(url, fetch(url).then(async (r) => {
@@ -80,7 +80,7 @@ export const useBarbeariaConfig = (empresaId?: string) => {
       setServicos([]);
       return;
     }
-    const url = `${API_BASE_URL}/api/barber-services?linkId=${empresaId}`;
+    const url = `${API_BASE_URL}/barber-services?linkId=${empresaId}`;
     try {
       if (!promiseCache.has(url)) {
         promiseCache.set(url, fetch(url).then(async (r) => {
@@ -103,7 +103,7 @@ export const useBarbeariaConfig = (empresaId?: string) => {
       setCustos([]);
       return;
     }
-    const url = `${API_BASE_URL}/api/costs?linkId=${empresaId}`;
+    const url = `${API_BASE_URL}/costs?linkId=${empresaId}`;
     try {
       if (!promiseCache.has(url)) {
         promiseCache.set(url, fetch(url).then(async (r) => {
@@ -123,7 +123,7 @@ export const useBarbeariaConfig = (empresaId?: string) => {
 
   const fetchCompanyConfig = useCallback(async () => {
     if (!empresaId) return;
-    const url = `${API_BASE_URL}/api/company-config/${empresaId}`;
+    const url = `${API_BASE_URL}/company-config/${empresaId}`;
     try {
       if (!promiseCache.has(url)) {
         promiseCache.set(url, fetch(url).then(async (r) => {
@@ -153,7 +153,7 @@ export const useBarbeariaConfig = (empresaId?: string) => {
       imposto: updates.imposto !== undefined ? updates.imposto : imposto
     };
     try {
-      const response = await fetch(`${API_BASE_URL}/api/company-config/${empresaId}`, {
+      const response = await fetch(`${API_BASE_URL}/company-config/${empresaId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -189,7 +189,7 @@ export const useBarbeariaConfig = (empresaId?: string) => {
   // Produtos (API API)
   const addProduto = async (produto: Omit<Produto, 'id'>) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/barber-products`, {
+      const response = await fetch(`${API_BASE_URL}/barber-products`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(produto)
@@ -204,7 +204,7 @@ export const useBarbeariaConfig = (empresaId?: string) => {
 
   const removeProduto = async (id: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/barber-products/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/barber-products/${id}`, {
         method: 'DELETE'
       });
       if (response.ok) {
@@ -224,8 +224,8 @@ export const useBarbeariaConfig = (empresaId?: string) => {
       
       const isOnlyStock = Object.keys(produto).length === 1 && 'estoque' in produto;
       const url = isOnlyStock 
-        ? `${API_BASE_URL}/api/barber-products/${id}/stock`
-        : `${API_BASE_URL}/api/barber-products/${id}`;
+        ? `${API_BASE_URL}/barber-products/${id}/stock`
+        : `${API_BASE_URL}/barber-products/${id}`;
         
       const response = await fetch(url, {
         method: isOnlyStock ? 'PATCH' : 'PUT',
@@ -243,7 +243,7 @@ export const useBarbeariaConfig = (empresaId?: string) => {
   // Servicos (API API)
   const addServico = async (servico: Omit<Servico, 'id'>) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/barber-services`, {
+      const response = await fetch(`${API_BASE_URL}/barber-services`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(servico)
@@ -258,7 +258,7 @@ export const useBarbeariaConfig = (empresaId?: string) => {
 
   const removeServico = async (id: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/barber-services/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/barber-services/${id}`, {
         method: 'DELETE'
       });
       if (response.ok) {
@@ -271,7 +271,7 @@ export const useBarbeariaConfig = (empresaId?: string) => {
 
   const updateServico = async (id: string, servico: Partial<Servico>) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/barber-services/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/barber-services/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(servico)
@@ -287,7 +287,7 @@ export const useBarbeariaConfig = (empresaId?: string) => {
   // Custos (API API)
   const addCusto = async (custo: Omit<Custo, 'id'>) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/costs`, {
+      const response = await fetch(`${API_BASE_URL}/costs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(custo)
@@ -302,7 +302,7 @@ export const useBarbeariaConfig = (empresaId?: string) => {
 
   const removeCusto = async (id: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/costs/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/costs/${id}`, {
         method: 'DELETE'
       });
       if (response.ok) {
@@ -315,7 +315,7 @@ export const useBarbeariaConfig = (empresaId?: string) => {
 
   const updateCusto = async (id: string, custo: Partial<Custo>) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/costs/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/costs/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(custo)

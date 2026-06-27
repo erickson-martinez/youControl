@@ -13,7 +13,7 @@ const BurgerDashboardPage: React.FC = () => {
 
     useEffect(() => {
         // Simulate pulling dashboard stats from orders (since backend endpoints might vary)
-        fetch(`${BURGER_API_URL}/api/orders`)
+        fetch(`${BURGER_API_URL}/orders`)
             .then(res => res.json())
             .then(data => {
                 const orders: any[] = data.data || [];

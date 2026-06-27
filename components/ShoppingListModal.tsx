@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import type { ShoppingList, Market } from '../types';
+import type { ShoppingList, Loja } from '../types';
 import { MapPinIcon } from './icons';
 
 interface ShoppingListModalProps {
@@ -8,7 +8,7 @@ interface ShoppingListModalProps {
     onClose: () => void;
     onSave: (data: { name: string, marketId: string, date: string, latitude?: number | null, longitude?: number | null }) => Promise<void>;
     listToEdit: ShoppingList | null;
-    markets: Market[];
+    markets: Loja[];
 }
 
 const ShoppingListModal: React.FC<ShoppingListModalProps> = ({ isOpen, onClose, onSave, listToEdit, markets }) => {
@@ -34,7 +34,8 @@ const ShoppingListModal: React.FC<ShoppingListModalProps> = ({ isOpen, onClose, 
         }
         
         if (marketId) {
-            const marketName = markets.find(m => m.id === marketId)?.name || 'Loja';
+            const selectedMarket = markets.find(m => m.id === marketId);
+            const marketName = selectedMarket ? `${selectedMarket.organization} - ${selectedMarket.name}` : 'Loja';
             setName(`${marketName} - ${todayStr}`);
         } else {
             setName(`Lista de compras - ${todayStr}`);
@@ -112,7 +113,7 @@ const ShoppingListModal: React.FC<ShoppingListModalProps> = ({ isOpen, onClose, 
                             >
                                 <option value="">Nenhuma loja selecionada</option>
                                 {markets.map(market => (
-                                    <option key={market.id} value={market.id}>{market.name}</option>
+                                    <option key={market.id} value={market.id}>{market.organization} - {market.name}</option>
                                 ))}
                             </select>
                         </div>

@@ -49,7 +49,7 @@ const BurgerClientOrderPage: React.FC = () => {
         try {
             // Remove caracteres não numéricos para garantir compatibilidade
             const cleanEmail = email.replace(/\D/g, '');
-            const response = await fetch(`${BURGER_API_URL}/api/orders/email/${cleanEmail}`);
+            const response = await fetch(`${BURGER_API_URL}/orders/email/${cleanEmail}`);
             if (response.ok) {
                 const data = await response.json();
                 // Suporta retorno { data: [...] } ou array direto, dependendo da API
@@ -65,12 +65,12 @@ const BurgerClientOrderPage: React.FC = () => {
 
     useEffect(() => {
         // Carregar Produtos
-        fetch(`${BURGER_API_URL}/api/products/burgers`)
+        fetch(`${BURGER_API_URL}/products/burgers`)
             .then(res => res.json())
             .then(data => setProducts(data.data || []));
 
         // Carregar Configurações da Loja (Taxas, Localização, Pagamentos) usando novo endpoint
-        fetch(`${BURGER_API_URL}/api/config/product`)
+        fetch(`${BURGER_API_URL}/config/product`)
             .then(res => res.json())
             .then(data => {
                 if(data.data) {
@@ -217,7 +217,7 @@ const BurgerClientOrderPage: React.FC = () => {
         }
 
         try {
-            const response = await fetch(`${BURGER_API_URL}/api/orders`, {
+            const response = await fetch(`${BURGER_API_URL}/orders`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

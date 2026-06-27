@@ -37,7 +37,7 @@ const BurgerWaiterPage: React.FC = () => {
     // Initialize
     useEffect(() => {
         // Load config
-        fetch(`${BURGER_API_URL}/api/config`)
+        fetch(`${BURGER_API_URL}/config`)
             .then(res => res.json())
             .then(data => {
                 if (data.data) {
@@ -55,7 +55,7 @@ const BurgerWaiterPage: React.FC = () => {
             .catch(console.error);
 
         // Load Products
-        fetch(`${BURGER_API_URL}/api/products/burgers`)
+        fetch(`${BURGER_API_URL}/products/burgers`)
             .then(res => res.json())
             .then(res => setProducts(res.data || []));
             
@@ -130,7 +130,7 @@ const BurgerWaiterPage: React.FC = () => {
         };
 
         try {
-            const res = await fetch(`${BURGER_API_URL}/api/orders`, {
+            const res = await fetch(`${BURGER_API_URL}/orders`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(orderPayload)

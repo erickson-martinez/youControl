@@ -159,20 +159,40 @@ export interface SharedUser {
   aggregate: boolean;
 }
 
-export interface Market {
+export type StoreType = 
+  | 'supermarket'
+  | 'wholesale'
+  | 'bakery'
+  | 'butcher'
+  | 'pharmacy'
+  | 'petshop'
+  | 'convenience'
+  | 'hardware'
+  | 'restaurant'
+  | 'other';
+
+export interface Store {
   id: string;
+  _id?: string;
+  organization: string;
   name: string;
-  address?: string;
-  number?: string;
-  zip?: string;
-  status: 'active' | 'inactive';
-  email?: string;
+  type: StoreType;
+  cnpj?: string;
+  address: string;
+  number: string;
+  district: string;
+  city: string;
+  state: string;
+  zip: string;
   latitude?: number | null;
   longitude?: number | null;
+  phone?: string;
+  website?: string;
+  status: 'active' | 'inactive';
 }
 
-// Alias for Market as used in LojasPage
-export type Loja = Market;
+// Alias for Store as used in LojasPage
+export type Loja = Store;
 
 export interface Product {
   id: number | string;

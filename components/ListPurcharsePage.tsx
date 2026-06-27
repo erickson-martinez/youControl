@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import type { Market, ShoppingList, Product, User, SharedUser } from '../types';
+import type { Loja, ShoppingList, Product, User, SharedUser } from '../types';
 import { PlusIcon, PencilIcon, TrashIcon, ChevronDownIcon, ShoppingCartIcon, CheckCircleIcon, ShareIcon } from './icons';
 import ConfirmationModal from './ConfirmationModal';
-import MarketModal from './MarketModal';
 import ShoppingListModal from './ShoppingListModal';
 import ProductModal from './ProductModal';
 import ShareModal from './ShareModal';
@@ -18,7 +17,7 @@ interface ListPurcharsePageProps {
 }
 
 const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
-    const [markets, setMarkets] = useState<Market[]>([]);
+    const [markets, setMarkets] = useState<Loja[]>([]);
     const [shoppingLists, setShoppingLists] = useState<ShoppingList[]>([]);
     
     // UI States
@@ -27,7 +26,6 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
     const [expandedListId, setExpandedListId] = useState<string | null>(null);
 
     // Modais
-    const [isMarketModalOpen, setMarketModalOpen] = useState(false);
     const [isListModalOpen, setListModalOpen] = useState(false);
     const [isProductModalOpen, setProductModalOpen] = useState(false);
     const [isConfirmModalOpen, setConfirmModalOpen] = useState(false);
@@ -35,7 +33,6 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
     const [isCompleteModalOpen, setCompleteModalOpen] = useState(false);
 
     // Edição / Seleção
-    const [editingMarket, setEditingMarket] = useState<Market | null>(null);
     const [editingList, setEditingList] = useState<ShoppingList | null>(null);
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
     const [selectedListForProduct, setSelectedListForProduct] = useState<ShoppingList | null>(null);
@@ -69,11 +66,11 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
         setIsLoading(true);
         setError(null);
         try {
-            // Fetch Markets
-            const marketsRes = await apiFetch(`${API_BASE_URL}/markets`);
-            const marketsData = await marketsRes.json();
-            const mappedMarkets = (marketsData || []).map((m: any) => ({ ...m, id: m._id }));
-            setMarkets(mappedMarkets);
+            // Fetch Stores (formerly Markets)
+            const storesRes = await apiFetch(`${API_BASE_URL}/stores`);
+            const storesData = await storesRes.json();
+            const mappedStores = (storesData || []).map((m: any) => ({ ...m, id: m._id }));
+            setMarkets(mappedStores); // Still keeping the state name `markets` for now to minimize refactoring
 
             // Fetch Shopping Lists
             const listsRes = await apiFetch(`${API_BASE_URL}/shopping-lists/${user.id}`);
@@ -111,27 +108,6 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
-
-    // --- Handlers: Markets ---
-    const handleSaveMarket = async (marketData: { name: string }) => {
-        try {
-            if (editingMarket) {
-                await apiFetch(`${API_BASE_URL}/markets/${editingMarket.id}`, { method: 'PATCH', body: JSON.stringify({ ...marketData, email: user.email }) });
-            } else {
-                await apiFetch(`${API_BASE_URL}/markets`, { method: 'POST', body: JSON.stringify({ ...marketData, email: user.email }) });
-            }
-            await fetchData();
-            setMarketModalOpen(false);
-            setEditingMarket(null);
-        } catch (e) { alert((e as Error).message); }
-    };
-
-    const handleDeleteMarket = async (id: string) => {
-        try {
-            await apiFetch(`${API_BASE_URL}/markets?id=${id}&email =${user.email}`, { method: 'DELETE' });
-            await fetchData();
-        } catch (e) { alert((e as Error).message); }
-    };
 
     // --- Handlers: Lists ---
     const handleSaveList = async (listData: { name: string; marketId: string; date: string; latitude?: number | null; longitude?: number | null }) => {
@@ -528,7 +504,6 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
             )}
 
             {/* Modais */}
-            <MarketModal isOpen={isMarketModalOpen} onClose={() => setMarketModalOpen(false)} onSave={handleSaveMarket} marketToEdit={editingMarket} />
             <ShoppingListModal isOpen={isListModalOpen} onClose={() => setListModalOpen(false)} onSave={handleSaveList} listToEdit={editingList} markets={markets} />
             <ProductModal isOpen={isProductModalOpen} onClose={() => setProductModalOpen(false)} onSave={handleSaveProduct} productToEdit={editingProduct} />
             

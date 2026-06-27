@@ -10,13 +10,17 @@ interface LojasPageProps {
   user: User;
 }
 
-const StatusBadge: React.FC<{ status: 'active' | 'inactive' }> = ({ status }) => {
-    const isActive = status === 'active';
-    return (
-        <span className={`px-2 py-1 text-xs font-medium rounded-full ${isActive ? 'bg-green-accent/20 text-green-accent' : 'bg-red-accent/20 text-red-accent'}`}>
-            {isActive ? 'Ativo' : 'Inativo'}
-        </span>
-    );
+const STORE_TYPE_LABELS: Record<string, string> = {
+  supermarket: 'Supermercado',
+  wholesale: 'Atacadista',
+  bakery: 'Padaria',
+  butcher: 'Açougue',
+  pharmacy: 'Farmácia',
+  petshop: 'Pet Shop',
+  convenience: 'Conveniência',
+  hardware: 'Material de Construção',
+  restaurant: 'Restaurante',
+  other: 'Outro'
 };
 
 const LojasPage: React.FC<LojasPageProps> = ({ user }) => {
@@ -46,7 +50,7 @@ const LojasPage: React.FC<LojasPageProps> = ({ user }) => {
     setIsLoading(true);
     setError(null);
     try {
-        const response = await apiFetch(`${API_BASE_URL}/markets`);
+        const response = await apiFetch(`${API_BASE_URL}/stores`);
         const data = await response.json();
         const mappedLojas: Loja[] = (data || []).map((l: any) => ({
             ...l,
@@ -76,15 +80,15 @@ const LojasPage: React.FC<LojasPageProps> = ({ user }) => {
   };
 
   const handleSave = async (data: Omit<Loja, 'id'>) => {
-    const payload = { ...data, email: user.email };
+    const payload = { ...data };
     
     if (editingLoja) {
-        await apiFetch(`${API_BASE_URL}/markets/${editingLoja.id}`, {
+        await apiFetch(`${API_BASE_URL}/stores/${editingLoja.id}`, {
             method: 'PATCH',
             body: JSON.stringify(payload),
         });
     } else {
-        await apiFetch(`${API_BASE_URL}/markets`, {
+        await apiFetch(`${API_BASE_URL}/stores`, {
             method: 'POST',
             body: JSON.stringify(payload),
         });
@@ -95,9 +99,9 @@ const LojasPage: React.FC<LojasPageProps> = ({ user }) => {
 
   const handleUpdateStatus = async (loja: Loja, newStatus: 'active' | 'inactive') => {
       try {
-          await apiFetch(`${API_BASE_URL}/markets/${loja.id}`, {
+          await apiFetch(`${API_BASE_URL}/stores/${loja.id}`, {
               method: 'PATCH',
-              body: JSON.stringify({ status: newStatus, email: user.email }),
+              body: JSON.stringify({ status: newStatus }),
           });
           await fetchLojas();
       } catch (err) {
@@ -113,7 +117,7 @@ const LojasPage: React.FC<LojasPageProps> = ({ user }) => {
   const handleConfirmDelete = async () => {
       if(deletingLoja) {
           try {
-            await apiFetch(`${API_BASE_URL}/markets?id=${deletingLoja.id}&email =${user.email}`, {
+            await apiFetch(`${API_BASE_URL}/stores/${deletingLoja.id}`, {
                 method: 'DELETE',
             });
             await fetchLojas();
@@ -129,7 +133,7 @@ const LojasPage: React.FC<LojasPageProps> = ({ user }) => {
     <>
       <div className="p-4 bg-gray-800 rounded-lg">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-white">Gerenciar Lojas</h1>
+          <h1 className="text-2xl font-bold text-white">Lojas</h1>
           <button
             onClick={() => handleOpenModal()}
             className="flex items-center px-4 py-2 font-semibold text-white transition-colors rounded-lg bg-blue-accent hover:bg-blue-accent/90"
@@ -150,28 +154,26 @@ const LojasPage: React.FC<LojasPageProps> = ({ user }) => {
                     <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-start">
                         <div>
                             <div className="flex items-center gap-3">
-                                <h3 className="text-lg font-bold text-white">{loja.name}</h3>
-                                <StatusBadge status={loja.status} />
+                                <h3 className="text-lg font-bold text-white">{loja.organization} - {loja.name}</h3>
+                                <button
+                                    onClick={() => handleUpdateStatus(loja, loja.status === 'active' ? 'inactive' : 'active')}
+                                    className={`px-2 py-1 text-xs font-medium rounded-full cursor-pointer transition-colors ${loja.status === 'active' ? 'bg-green-accent/20 text-green-accent hover:bg-green-accent/30' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'}`}
+                                    title={loja.status === 'active' ? 'Desativar loja' : 'Ativar loja'}
+                                >
+                                    {loja.status === 'active' ? 'Ativo' : 'Inativo'}
+                                </button>
                             </div>
-                            <p className="text-sm text-gray-400">
-                                {loja.address} {loja.number && `, ${loja.number}`}
+                            <p className="text-sm font-medium text-gray-300 mb-1">
+                                {STORE_TYPE_LABELS[loja.type] || loja.type}
                             </p>
-                            {loja.zip && <p className="text-sm text-gray-400">CEP: {loja.zip}</p>}
+                            <p className="text-sm text-gray-400">
+                                {loja.address}{loja.number ? `, ${loja.number}` : ''}{loja.district ? ` - ${loja.district}` : ''}
+                            </p>
+                            <p className="text-sm text-gray-400">
+                                {loja.city}/{loja.state} {loja.zip ? `| CEP: ${loja.zip}` : ''}
+                            </p>
                         </div>
                         <div className="flex items-center self-end space-x-2 sm:self-start">
-                            <label htmlFor={`status-toggle-${loja.id}`} className="flex items-center cursor-pointer mr-2" title={loja.status === 'active' ? 'Desativar' : 'Ativar'}>
-                                <div className="relative">
-                                    <input 
-                                        type="checkbox" 
-                                        id={`status-toggle-${loja.id}`} 
-                                        className="sr-only" 
-                                        checked={loja.status === 'active'}
-                                        onChange={(e) => handleUpdateStatus(loja, e.target.checked ? 'active' : 'inactive')}
-                                    />
-                                    <div className="block w-10 h-6 bg-gray-600 rounded-full"></div>
-                                    <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${loja.status === 'active' ? 'translate-x-4 bg-green-accent' : 'bg-red-accent'}`}></div>
-                                </div>
-                            </label>
                             <button onClick={() => handleOpenModal(loja)} className="p-2 text-gray-400 rounded-md hover:bg-gray-600 hover:text-white" title="Editar"><PencilIcon className="w-4 h-4"/></button>
                             <button onClick={() => handleStartDelete(loja)} className="p-2 text-gray-400 rounded-md hover:bg-gray-600 hover:text-red-accent" title="Excluir"><TrashIcon className="w-4 h-4"/></button>
                         </div>

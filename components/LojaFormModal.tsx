@@ -10,18 +10,39 @@ interface LojaFormModalProps {
     lojaToEdit: Loja | null;
 }
 
-const initialState = {
+const STORE_TYPE_OPTIONS = [
+    { value: 'supermarket', label: 'Supermercado' },
+    { value: 'wholesale', label: 'Atacadista' },
+    { value: 'bakery', label: 'Padaria' },
+    { value: 'butcher', label: 'Açougue' },
+    { value: 'pharmacy', label: 'Farmácia' },
+    { value: 'petshop', label: 'Pet Shop' },
+    { value: 'convenience', label: 'Conveniência' },
+    { value: 'hardware', label: 'Material de Construção' },
+    { value: 'restaurant', label: 'Restaurante' },
+    { value: 'other', label: 'Outro' }
+];
+
+const initialState: Omit<Loja, 'id' | '_id'> = {
+    organization: '',
     name: '',
+    type: 'supermarket',
+    cnpj: '',
     address: '',
     number: '',
+    district: '',
+    city: '',
+    state: '',
     zip: '',
     latitude: null as number | null,
     longitude: null as number | null,
+    phone: '',
+    website: '',
     status: 'active' as 'active' | 'inactive',
 };
 
 const LojaFormModal: React.FC<LojaFormModalProps> = ({ isOpen, onClose, onSave, lojaToEdit }) => {
-    const [formData, setFormData] = useState(initialState);
+    const [formData, setFormData] = useState<Omit<Loja, 'id' | '_id'>>(initialState);
     const [isSaving, setIsSaving] = useState(false);
     const [gettingLocation, setGettingLocation] = useState(false);
     const [isGeocoding, setIsGeocoding] = useState(false);
@@ -29,13 +50,21 @@ const LojaFormModal: React.FC<LojaFormModalProps> = ({ isOpen, onClose, onSave, 
     useEffect(() => {
         if (lojaToEdit) {
             setFormData({
+                organization: lojaToEdit.organization || '',
                 name: lojaToEdit.name || '',
+                type: lojaToEdit.type || 'supermarket',
+                cnpj: lojaToEdit.cnpj || '',
                 address: lojaToEdit.address || '',
                 number: lojaToEdit.number || '',
+                district: lojaToEdit.district || '',
+                city: lojaToEdit.city || '',
+                state: lojaToEdit.state || '',
                 zip: lojaToEdit.zip || '',
                 latitude: lojaToEdit.latitude || null,
                 longitude: lojaToEdit.longitude || null,
-                status: lojaToEdit.status,
+                phone: lojaToEdit.phone || '',
+                website: lojaToEdit.website || '',
+                status: lojaToEdit.status || 'active',
             });
         } else {
             setFormData(initialState);
@@ -144,21 +173,63 @@ const LojaFormModal: React.FC<LojaFormModalProps> = ({ isOpen, onClose, onSave, 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <fieldset disabled={isSaving} className="space-y-4">
                         <div>
-                            <label htmlFor="name" className="block mb-1 text-sm text-gray-300">Nome da Loja*</label>
-                            <input type="text" name="name" id="name" value={formData.name} onChange={handleChange} required className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
+                            <label htmlFor="organization" className="block mb-1 text-sm text-gray-300">Rede (Organização)*</label>
+                            <input type="text" name="organization" id="organization" value={formData.organization} onChange={handleChange} required className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
                         </div>
                         <div>
-                            <label htmlFor="address" className="block mb-1 text-sm text-gray-300">Endereço</label>
-                            <input type="text" name="address" id="address" value={formData.address} onChange={handleChange} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
+                            <label htmlFor="name" className="block mb-1 text-sm text-gray-300">Nome da Unidade*</label>
+                            <input type="text" name="name" id="name" value={formData.name} onChange={handleChange} required className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label htmlFor="type" className="block mb-1 text-sm text-gray-300">Tipo*</label>
+                                <select name="type" id="type" value={formData.type} onChange={handleChange} required className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50">
+                                    {STORE_TYPE_OPTIONS.map(opt => (
+                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label htmlFor="cnpj" className="block mb-1 text-sm text-gray-300">CNPJ</label>
+                                <input type="text" name="cnpj" id="cnpj" value={formData.cnpj} onChange={handleChange} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
+                            </div>
+                        </div>
+                        <div>
+                            <label htmlFor="address" className="block mb-1 text-sm text-gray-300">Endereço*</label>
+                            <input type="text" name="address" id="address" value={formData.address} onChange={handleChange} required className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                              <div>
-                                <label htmlFor="number" className="block mb-1 text-sm text-gray-300">Número</label>
-                                <input type="text" name="number" id="number" value={formData.number} onChange={handleChange} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
+                                <label htmlFor="number" className="block mb-1 text-sm text-gray-300">Número*</label>
+                                <input type="text" name="number" id="number" value={formData.number} onChange={handleChange} required className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
                             </div>
                              <div>
-                                <label htmlFor="zip" className="block mb-1 text-sm text-gray-300">CEP</label>
-                                <input type="text" name="zip" id="zip" value={formData.zip} onChange={handleChange} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
+                                <label htmlFor="district" className="block mb-1 text-sm text-gray-300">Bairro*</label>
+                                <input type="text" name="district" id="district" value={formData.district} onChange={handleChange} required className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-4">
+                             <div className="col-span-1">
+                                <label htmlFor="zip" className="block mb-1 text-sm text-gray-300">CEP*</label>
+                                <input type="text" name="zip" id="zip" value={formData.zip} onChange={handleChange} required className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
+                            </div>
+                             <div className="col-span-1">
+                                <label htmlFor="city" className="block mb-1 text-sm text-gray-300">Cidade*</label>
+                                <input type="text" name="city" id="city" value={formData.city} onChange={handleChange} required className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
+                            </div>
+                             <div className="col-span-1">
+                                <label htmlFor="state" className="block mb-1 text-sm text-gray-300">Estado*</label>
+                                <input type="text" name="state" id="state" value={formData.state} onChange={handleChange} required className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                             <div>
+                                <label htmlFor="phone" className="block mb-1 text-sm text-gray-300">Telefone</label>
+                                <input type="text" name="phone" id="phone" value={formData.phone} onChange={handleChange} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
+                            </div>
+                             <div>
+                                <label htmlFor="website" className="block mb-1 text-sm text-gray-300">Website</label>
+                                <input type="text" name="website" id="website" value={formData.website} onChange={handleChange} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
                             </div>
                         </div>
                         

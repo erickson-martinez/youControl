@@ -121,7 +121,7 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
         
         if (existingLink.empresaId) {
             try {
-                const response = await apiFetch(`${API_BASE_URL}/api/barbers?linkId=${existingLink.empresaId}`);
+                const response = await apiFetch(`${API_BASE_URL}/barbers?linkId=${existingLink.empresaId}`);
                 if (response.ok) {
                    const barbers = await response.json();
                    const barber = barbers.find((b: any) => {
@@ -131,7 +131,7 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
                        return digits === cleanEmail;
                    });
                    if (barber) {
-                       await apiFetch(`${API_BASE_URL}/api/barbers/${barber.id || barber._id}`, { method: 'DELETE' });
+                       await apiFetch(`${API_BASE_URL}/barbers/${barber.id || barber._id}`, { method: 'DELETE' });
                    }
                 }
             } catch (err) {
@@ -146,7 +146,7 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
         
         try {
             const cleanEmail = userEmail.replace(/\D/g, '');
-            const response = await apiFetch(`${API_BASE_URL}/api/barbers?linkId=${empresaId}`);
+            const response = await apiFetch(`${API_BASE_URL}/barbers?linkId=${empresaId}`);
             if (response.ok) {
                 const barbers = await response.json();
                 const barber = barbers.find((b: any) => {
@@ -170,7 +170,7 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
                         } catch(e) {}
                         
                         try {
-                            await apiFetch(`${API_BASE_URL}/api/barbers`, {
+                            await apiFetch(`${API_BASE_URL}/barbers`, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
@@ -218,7 +218,7 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
                 } else {
                     if (barber) {
                         try {
-                            await apiFetch(`${API_BASE_URL}/api/barbers/${barber.id || barber._id}`, { method: 'DELETE' });
+                            await apiFetch(`${API_BASE_URL}/barbers/${barber.id || barber._id}`, { method: 'DELETE' });
                         } catch(e) {
                             console.warn("Erro ao deletar barbeiro:", e);
                         }

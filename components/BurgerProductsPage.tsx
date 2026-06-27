@@ -28,7 +28,7 @@ const BurgerProductsPage: React.FC<BurgerProductsPageProps> = ({ user }) => {
         const checkOwnership = async () => {
             try {
                 // Tenta buscar configuração pelo email do usuário
-                const res = await fetch(`${BURGER_API_URL}/api/config/${user.email}`);
+                const res = await fetch(`${BURGER_API_URL}/config/${user.email}`);
                 if (res.ok) {
                     const data = await res.json();
                     const configData = data.data || data;
@@ -65,7 +65,7 @@ const BurgerProductsPage: React.FC<BurgerProductsPageProps> = ({ user }) => {
         setIsLoading(true);
         setError(null);
         try {
-            const response = await fetch(`${BURGER_API_URL}/api/products/burgers`);
+            const response = await fetch(`${BURGER_API_URL}/products/burgers`);
             if (!response.ok) throw new Error('Erro ao carregar produtos');
             const result = await response.json();
             setProducts(result.data || []);
@@ -109,7 +109,7 @@ const BurgerProductsPage: React.FC<BurgerProductsPageProps> = ({ user }) => {
 
             let response;
             if (editingProduct) {
-                response = await fetch(`${BURGER_API_URL}/api/products/burgers/${editingProduct.id}`, {
+                response = await fetch(`${BURGER_API_URL}/products/burgers/${editingProduct.id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
@@ -117,7 +117,7 @@ const BurgerProductsPage: React.FC<BurgerProductsPageProps> = ({ user }) => {
             } else {
                 // Obter próximo ID (lógica simplificada, idealmente o backend gera)
                 const nextId = products.length > 0 ? Math.max(...products.map(p => p.id)) + 1 : 1;
-                response = await fetch(`${BURGER_API_URL}/api/products/burgers`, {
+                response = await fetch(`${BURGER_API_URL}/products/burgers`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ ...payload, id: nextId })
@@ -135,7 +135,7 @@ const BurgerProductsPage: React.FC<BurgerProductsPageProps> = ({ user }) => {
     const toggleStatus = async (id: number, currentStatus: string) => {
         try {
             const newStatus = currentStatus === 'Ativo' ? 'Inativo' : 'Ativo';
-            await fetch(`${BURGER_API_URL}/api/products/burgers/${id}`, {
+            await fetch(`${BURGER_API_URL}/products/burgers/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: newStatus })
@@ -149,7 +149,7 @@ const BurgerProductsPage: React.FC<BurgerProductsPageProps> = ({ user }) => {
     const handleDelete = async (id: number) => {
         if (!confirm('Tem certeza que deseja excluir?')) return;
         try {
-            await fetch(`${BURGER_API_URL}/api/products/burgers/${id}`, {
+            await fetch(`${BURGER_API_URL}/products/burgers/${id}`, {
                 method: 'DELETE'
             });
             await fetchProducts();

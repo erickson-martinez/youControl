@@ -38,13 +38,13 @@ const BurgerDeliveryPage: React.FC<BurgerDeliveryPageProps> = ({ user }) => {
             setIsLoadingConfig(true);
             try {
                 // Carregar Produtos
-                fetch(`${BURGER_API_URL}/api/products/burgers`)
+                fetch(`${BURGER_API_URL}/products/burgers`)
                     .then(res => res.json())
                     .then(data => setProducts(data.data || []))
                     .catch(err => console.error("Erro ao carregar produtos", err));
 
                 // Carregar Configuração de Delivery passando o email do usuário
-                const configResponse = await fetch(`${BURGER_API_URL}/api/config/delivery/${user.email}`);
+                const configResponse = await fetch(`${BURGER_API_URL}/config/delivery/${user.email}`);
                 const configJson = await configResponse.json();
                 
                 if (configJson && configJson.data) {
@@ -79,7 +79,7 @@ const BurgerDeliveryPage: React.FC<BurgerDeliveryPageProps> = ({ user }) => {
 
         try {
             const burgerNameEncoded = encodeURIComponent(config.burger);
-            const res = await fetch(`${BURGER_API_URL}/api/orders/delivery/${burgerNameEncoded}`);
+            const res = await fetch(`${BURGER_API_URL}/orders/delivery/${burgerNameEncoded}`);
             const data = await res.json();
             const list = Array.isArray(data.data) ? data.data : (data.data ? [data.data] : []);
             setDeliveries(list);
@@ -95,7 +95,7 @@ const BurgerDeliveryPage: React.FC<BurgerDeliveryPageProps> = ({ user }) => {
         try {
             const burgerNameEncoded = encodeURIComponent(config.burger);
             const userNameEncoded = encodeURIComponent(user.name);
-            const res = await fetch(`${BURGER_API_URL}/api/orders/my-delivery/${burgerNameEncoded}/${userNameEncoded}`);
+            const res = await fetch(`${BURGER_API_URL}/orders/my-delivery/${burgerNameEncoded}/${userNameEncoded}`);
             const data = await res.json();
             const list = Array.isArray(data.data) ? data.data : (data.data ? [data.data] : []);
             // Ordena por data decrescente
@@ -112,7 +112,7 @@ const BurgerDeliveryPage: React.FC<BurgerDeliveryPageProps> = ({ user }) => {
         try {
             const burgerNameEncoded = encodeURIComponent(config.burger);
             // Endpoint específico solicitado para buscar entregas realizadas
-            const res = await fetch(`${BURGER_API_URL}/api/orders/delivery/${burgerNameEncoded}/Entregue`);
+            const res = await fetch(`${BURGER_API_URL}/orders/delivery/${burgerNameEncoded}/Entregue`);
             const data = await res.json();
             const list = Array.isArray(data.data) ? data.data : (data.data ? [data.data] : []);
             setOwnerStoreOrders(list);
@@ -156,7 +156,7 @@ const BurgerDeliveryPage: React.FC<BurgerDeliveryPageProps> = ({ user }) => {
         try {
             // Encode user name to safely append to URL
             const userNameParam = encodeURIComponent(user.name);
-            await fetch(`${BURGER_API_URL}/api/orders/${deliveryModalOrder.id}/status/${userNameParam}`, {
+            await fetch(`${BURGER_API_URL}/orders/${deliveryModalOrder.id}/status/${userNameParam}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ newStatus: 'Entregue', currentStatus: 'A caminho' })
