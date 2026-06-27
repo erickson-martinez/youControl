@@ -56,6 +56,17 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
     }, []);
 
     // --- Fetch Data ---
+    const fetchStores = useCallback(async () => {
+        try {
+            const storesRes = await apiFetch(`${API_BASE_URL}/stores`);
+            const storesData = await storesRes.json();
+            const mappedStores = (storesData || []).map((m: any) => ({ ...m, id: m._id }));
+            setMarkets(mappedStores);
+        } catch (err) {
+            console.error("Error fetching stores:", err);
+        }
+    }, [apiFetch]);
+
     const fetchData = useCallback(async () => {
         if (!user.id) {
             setError("ID do usuário não encontrado. Por favor, faça login novamente.");
@@ -66,33 +77,34 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
         setIsLoading(true);
         setError(null);
         try {
-            // Fetch Stores (formerly Markets)
-            const storesRes = await apiFetch(`${API_BASE_URL}/stores`);
-            const storesData = await storesRes.json();
-            const mappedStores = (storesData || []).map((m: any) => ({ ...m, id: m._id }));
-            setMarkets(mappedStores); // Still keeping the state name `markets` for now to minimize refactoring
-
             // Fetch Shopping Lists
-            const listsRes = await apiFetch(`${API_BASE_URL}/shopping-lists/${user.id}`);
+            const listsRes = await apiFetch(`${API_BASE_URL}/shopping-lists?userId=${user.id}`);
             const listsData = await listsRes.json();
             // Map lists and calculate totals
             const mappedLists = (listsData || []).map((list: any) => {
-                const products = (list.products || []).map((p: any) => ({
-                    ...p,
-                    id: p._id,
-                    // Garante que value e quantity são números
-                    value: Number(p.value || 0),
-                    quantity: Number(p.quantity || 0),
-                    total: Number(p.total || (Number(p.value || 0) * Number(p.quantity || 0)))
-                }));
+                let mappedMeta = {};
+                if (list.metadata) {
+                    mappedMeta = {
+                        marketId: list.metadata.storeId,
+                        date: list.metadata.date ? list.metadata.date.split('T')[0] : undefined,
+                        latitude: list.metadata.latitude,
+                        longitude: list.metadata.longitude
+                    };
+                } else if (list.description && list.description.startsWith('{')) {
+                    try { mappedMeta = JSON.parse(list.description); } catch(e) {}
+                }
                 
-                const total = products.reduce((sum: number, p: Product) => sum + (p.total || 0), 0);
+                // Keep empty initially, fetch dynamically when expanded
+                const products: Product[] = [];
+                const total = 0;
 
                 return {
                     ...list,
+                    ...mappedMeta,
                     id: list._id,
                     products,
-                    total
+                    total,
+                    completed: list.status === 'completed' || list.completed
                 };
             });
             setShoppingLists(mappedLists);
@@ -106,18 +118,29 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
     }, [apiFetch, user.id]);
 
     useEffect(() => {
+        fetchStores();
+    }, [fetchStores]);
+
+    useEffect(() => {
         fetchData();
     }, [fetchData]);
 
     // --- Handlers: Lists ---
-    const handleSaveList = async (listData: { name: string; marketId: string; date: string; latitude?: number | null; longitude?: number | null }) => {
+    const handleSaveList = async (listData: { name: string; description?: string; marketId: string; date: string; latitude?: number | null; longitude?: number | null }) => {
         try {
             const payload = {
-                ...listData,
-                idUser: user.id,
-                products: [], // New lists start empty
-                completed: false,
-                createdAt: new Date().toISOString() // Or backend handles it
+                userId: user.id,
+                name: listData.name,
+                description: listData.description || '',
+                metadata: {
+                    storeId: listData.marketId || null,
+                    date: listData.date ? new Date(listData.date).toISOString() : null,
+                    latitude: listData.latitude,
+                    longitude: listData.longitude
+                },
+                favorite: false,
+                sharedWith: [],
+                status: 'active'
             };
 
             let createdList: ShoppingList | null = null;
@@ -188,11 +211,10 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
     const updateListStatus = async (list: ShoppingList, status: boolean) => {
         if (!user.id) return;
         try {
-            await apiFetch(`${API_BASE_URL}/shopping-lists/${list.id}/complete`, {
-                method: 'PUT',
+            await apiFetch(`${API_BASE_URL}/shopping-lists/${list.id}`, {
+                method: 'PATCH',
                 body: JSON.stringify({
-                    idUser: user.id,
-                    completed: status
+                    status: status ? 'completed' : 'active'
                 })
             });
             await fetchData();
@@ -235,16 +257,19 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
     const handleShareList = async (sharedUser: SharedUser) => {
         if (!listToShare || !user.id) return;
         try {
-            await apiFetch(`${API_BASE_URL}/shopping-lists/${listToShare.id}/share`, {
-                method: 'POST',
-                body: JSON.stringify({
-                    idUser: user.id,
-                    sharedWithEmail: sharedUser.email
-                })
-            });
+            const currentSharedWith = listToShare.sharedWith || [];
+            if (!currentSharedWith.includes(sharedUser.email)) {
+                await apiFetch(`${API_BASE_URL}/shopping-lists/${listToShare.id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                        sharedWith: [...currentSharedWith, sharedUser.email]
+                    })
+                });
+            }
             alert(`Lista compartilhada com sucesso com ${sharedUser.email}!`);
             setListToShare(null);
             setShareModalOpen(false);
+            await fetchData();
         } catch (e) {
             throw e; // Modal will catch and alert
         }
@@ -255,34 +280,58 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
         if (!selectedListForProduct || !user.id) return;
         
         try {
-            const productPayload = {
+            const listId = selectedListForProduct._id || selectedListForProduct.id;
+            if (!listId) throw new Error("ID da lista não encontrado.");
+            const payload = {
+                shoppingListId: listId,
+                userId: user.id,
                 name: productData.name,
                 brand: productData.brand,
-                type: productData.type,
+                unit: productData.type,
+                packageQuantity: productData.packQuantity,
                 quantity: productData.quantity,
-                packQuantity: productData.packQuantity,
-                value: productData.value,
-                total: productData.total,
-                _id: undefined as string | undefined
+                price: productData.value,
+                storeId: productData.storeId || productData.marketId?.name || undefined,
+                storeName: productData.storeName || undefined,
+                notes: productData.notes || undefined
             };
 
-            // Se for edição, anexa o ID do produto
             if (editingProduct) {
-                productPayload._id = editingProduct._id || String(editingProduct.id);
+                await apiFetch(`${API_BASE_URL}/shopping-items/${editingProduct._id || editingProduct.id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify(payload)
+                });
+            } else {
+                await apiFetch(`${API_BASE_URL}/shopping-items`, {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
             }
 
-            const payload = {
-                idUser: user.id,
-                listId: selectedListForProduct.id,
-                product: productPayload
-            };
+            // Re-fetch only this list's items to update the UI
+            try {
+                const itemsRes = await apiFetch(`${API_BASE_URL}/shopping-items?shoppingListId=${listId}`);
+                if (itemsRes.ok) {
+                    const productsData = await itemsRes.json();
+                    const products = (productsData || []).map((p: any) => ({
+                        ...p,
+                        id: p._id,
+                        type: p.unit || p.type,
+                        value: p.price !== undefined ? Number(p.price) : (p.value !== undefined ? Number(p.value) : undefined),
+                        quantity: p.quantity !== undefined ? Number(p.quantity) : undefined,
+                        packQuantity: p.packageQuantity || p.packQuantity,
+                        total: p.total !== undefined ? Number(p.total) : ((p.price !== undefined || p.value !== undefined) && p.quantity !== undefined ? Number(p.price || p.value) * Number(p.quantity) : undefined),
+                        storeId: p.storeId,
+                        storeName: p.store?.name || p.storeName,
+                        notes: p.notes
+                    }));
+                    const total = products.reduce((sum: number, p: Product) => sum + (p.total || 0), 0);
+                    setShoppingLists(prev => prev.map(l => (l._id || l.id) === listId ? { ...l, products, total } : l));
+                }
+            } catch (e) {
+                console.error(e);
+            }
 
-            await apiFetch(`${API_BASE_URL}/shopping-lists/${selectedListForProduct.id}/products`, {
-                method: 'PUT',
-                body: JSON.stringify(payload)
-            });
-
-            await fetchData();
             setProductModalOpen(false);
             setEditingProduct(null);
         } catch (e) {
@@ -293,14 +342,32 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
     const handleDeleteProduct = async (product: Product, listId: string) => {
          if (!user.id) return;
          try {
-            await apiFetch(`${API_BASE_URL}/shopping-lists/${listId}/products`, {
-                method: 'DELETE',
-                body: JSON.stringify({
-                    idUser: user.id,
-                    productId: product._id || product.id
-                })
+            await apiFetch(`${API_BASE_URL}/shopping-items/${product._id || product.id}`, {
+                method: 'DELETE'
             });
-            await fetchData();
+            // Re-fetch only this list's items to update the UI
+            try {
+                const itemsRes = await apiFetch(`${API_BASE_URL}/shopping-items?shoppingListId=${listId}`);
+                if (itemsRes.ok) {
+                    const productsData = await itemsRes.json();
+                    const products = (productsData || []).map((p: any) => ({
+                        ...p,
+                        id: p._id,
+                        type: p.unit || p.type,
+                        value: p.price !== undefined ? Number(p.price) : (p.value !== undefined ? Number(p.value) : undefined),
+                        quantity: p.quantity !== undefined ? Number(p.quantity) : undefined,
+                        packQuantity: p.packageQuantity || p.packQuantity,
+                        total: p.total !== undefined ? Number(p.total) : ((p.price !== undefined || p.value !== undefined) && p.quantity !== undefined ? Number(p.price || p.value) * Number(p.quantity) : undefined),
+                        storeId: p.storeId,
+                        storeName: p.store?.name || p.storeName,
+                        notes: p.notes
+                    }));
+                    const total = products.reduce((sum: number, p: Product) => sum + (p.total || 0), 0);
+                    setShoppingLists(prev => prev.map(l => (l._id || l.id) === listId ? { ...l, products, total } : l));
+                }
+            } catch (e) {
+                console.error(e);
+            }
          } catch (e) {
              alert(`Erro ao remover produto: ${(e as Error).message}`);
          }
@@ -327,8 +394,39 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
         setDeletingItem(null);
     };
 
-    const toggleList = (listId: string) => {
-        setExpandedListId(expandedListId === listId ? null : listId);
+    const toggleList = async (listId: string) => {
+        if (expandedListId !== listId) {
+            setExpandedListId(listId);
+            
+            // Check if we already loaded the products (we check if it's 0 length, but really it's if it hasn't been fetched)
+            // A better way is just to always fetch to get fresh data, or only if empty. Let's always fetch for simplicity
+            try {
+                const itemsRes = await apiFetch(`${API_BASE_URL}/shopping-items?shoppingListId=${listId}`);
+                if (itemsRes.ok) {
+                    const productsData = await itemsRes.json();
+                    const products = (productsData || []).map((p: any) => ({
+                        ...p,
+                        id: p._id,
+                        type: p.unit || p.type,
+                        value: p.price !== undefined ? Number(p.price) : (p.value !== undefined ? Number(p.value) : undefined),
+                        quantity: p.quantity !== undefined ? Number(p.quantity) : undefined,
+                        packQuantity: p.packageQuantity || p.packQuantity,
+                        total: p.total !== undefined ? Number(p.total) : ((p.price !== undefined || p.value !== undefined) && p.quantity !== undefined ? Number(p.price || p.value) * Number(p.quantity) : undefined),
+                        storeId: p.storeId,
+                        storeName: p.store?.name || p.storeName,
+                        notes: p.notes
+                    }));
+                    
+                    const total = products.reduce((sum: number, p: Product) => sum + (p.total || 0), 0);
+                    
+                    setShoppingLists(prev => prev.map(l => (l._id || l.id) === listId ? { ...l, products, total } : l));
+                }
+            } catch (err) {
+                console.error("Erro ao buscar itens da lista", err);
+            }
+        } else {
+            setExpandedListId(null);
+        }
     };
 
     const handleEditProductClick = (list: ShoppingList, product: Product) => {
@@ -377,6 +475,9 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
                                             <h3 className={`font-bold text-base sm:text-lg truncate ${isCompleted ? 'text-green-accent opacity-70 line-through' : 'text-white'}`}>
                                                 {list.name}
                                             </h3>
+                                            {list.description && (
+                                                <p className="text-sm text-gray-400 truncate mt-0.5">{list.description}</p>
+                                            )}
                                         </div>
                                         
                                         <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-2 sm:gap-4 flex-shrink-0">

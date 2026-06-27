@@ -200,7 +200,7 @@ export interface Product {
   name: string;
   brand?: string;
   type?: string;
-  quantity: number;
+  quantity?: number;
   packQuantity?: number;
   value: number;
   total?: number;
@@ -209,11 +209,15 @@ export interface Product {
   marketId?: { name: string };
   currentPrice?: number;
   productName?: string;
+  storeId?: string;
+  storeName?: string;
+  notes?: string;
 }
 
 export interface ShoppingList {
   id: string;
   name: string;
+  description?: string;
   marketId: string;
   date: string;
   products: Product[];
@@ -223,6 +227,8 @@ export interface ShoppingList {
   idUser?: string;
   latitude?: number | null;
   longitude?: number | null;
+  sharedWith?: string[];
+  status?: string;
 }
 
 export interface BurgerProduct {

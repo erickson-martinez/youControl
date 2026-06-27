@@ -6,13 +6,14 @@ import { MapPinIcon } from './icons';
 interface ShoppingListModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (data: { name: string, marketId: string, date: string, latitude?: number | null, longitude?: number | null }) => Promise<void>;
+    onSave: (data: { name: string, description?: string, marketId: string, date: string, latitude?: number | null, longitude?: number | null }) => Promise<void>;
     listToEdit: ShoppingList | null;
     markets: Loja[];
 }
 
 const ShoppingListModal: React.FC<ShoppingListModalProps> = ({ isOpen, onClose, onSave, listToEdit, markets }) => {
     const [name, setName] = useState('');
+    const [description, setDescription] = useState('');
     const [marketId, setMarketId] = useState('');
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     
@@ -38,7 +39,7 @@ const ShoppingListModal: React.FC<ShoppingListModalProps> = ({ isOpen, onClose, 
             const marketName = selectedMarket ? `${selectedMarket.organization} - ${selectedMarket.name}` : 'Loja';
             setName(`${marketName} - ${todayStr}`);
         } else {
-            setName(`Lista de compras - ${todayStr}`);
+            setName(`${todayStr}`);
         }
     }, [marketId, date, markets]);
 
@@ -46,12 +47,14 @@ const ShoppingListModal: React.FC<ShoppingListModalProps> = ({ isOpen, onClose, 
         if (isOpen) {
             if (listToEdit) {
                 setMarketId(listToEdit.marketId);
+                setDescription(listToEdit.description || '');
                 setDate(listToEdit.date || new Date().toISOString().split('T')[0]);
                 // Se a lista já tiver localização salva (futuro), poderia ser carregada aqui
                 setLatitude(null); 
                 setLongitude(null);
             } else {
                 setMarketId('');
+                setDescription('');
                 setDate(new Date().toISOString().split('T')[0]);
                 setLatitude(null);
                 setLongitude(null);
@@ -85,7 +88,7 @@ const ShoppingListModal: React.FC<ShoppingListModalProps> = ({ isOpen, onClose, 
 
         setIsSaving(true);
         try {
-            await onSave({ name, marketId, date, latitude, longitude });
+            await onSave({ name, description, marketId, date, latitude, longitude });
         } catch (error) {
             alert(`Falha ao salvar: ${(error as Error).message}`);
         } finally {
@@ -116,6 +119,17 @@ const ShoppingListModal: React.FC<ShoppingListModalProps> = ({ isOpen, onClose, 
                                     <option key={market.id} value={market.id}>{market.organization} - {market.name}</option>
                                 ))}
                             </select>
+                        </div>
+                        <div>
+                            <label htmlFor="list-description" className="block mb-2 text-sm font-medium text-gray-300">Descrição (Opcional)</label>
+                            <input 
+                                id="list-description" 
+                                type="text" 
+                                value={description} 
+                                onChange={(e) => setDescription(e.target.value)} 
+                                className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"
+                                placeholder="Uma breve descrição da lista..."
+                            />
                         </div>
                         <div>
                             <label htmlFor="list-date" className="block mb-2 text-sm font-medium text-gray-300">Data</label>
