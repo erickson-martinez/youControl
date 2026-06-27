@@ -369,13 +369,13 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
     return (
         <div className="p-4 bg-gray-800 rounded-lg">
             <div className="flex items-center justify-between mb-6">
-                <h1 className="text-2xl font-bold text-white">Lista de Compras</h1>
+                <h1 className="text-2xl font-bold text-white">Compras</h1>
                 <button 
                     onClick={() => { setEditingList(null); setListModalOpen(true); }}
                     className="flex items-center px-4 py-2 font-semibold text-white transition-colors rounded-lg bg-blue-accent hover:bg-blue-accent/90"
                 >
                     <PlusIcon className="w-5 h-5 mr-2" />
-                    Cadastrar Lista
+                    Nova Lista
                 </button>
             </div>
 
@@ -394,36 +394,33 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
                                 <div key={list.id} className="bg-gray-700 rounded-lg overflow-hidden">
                                     {/* Header */}
                                     <div 
-                                        className="p-3 sm:p-4 flex items-center justify-between cursor-pointer hover:bg-gray-600 transition-colors"
+                                        className="p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0 cursor-pointer hover:bg-gray-600 transition-colors"
                                         onClick={() => toggleList(list.id || '')}
                                     >
-                                        <div className="flex-1 flex items-center gap-2 sm:gap-3 min-w-0">
-                                            {/* CHECKBOX DE CONCLUSÃO (Substituindo o antigo botão CheckCircle) */}
-                                            <label
-                                                onClick={(e) => e.stopPropagation()} 
-                                                className="flex items-center space-x-1 sm:space-x-2 cursor-pointer z-10 flex-shrink-0"
-                                                title={isCompleted ? "Reabrir lista" : "Concluir lista e gerar despesa"}
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isCompleted}
-                                                    onChange={() => handleToggleListCompleteClick(list)}
-                                                    className="w-4 h-4 sm:w-5 sm:h-5 text-green-accent bg-gray-600 border-gray-500 rounded focus:ring-green-accent focus:ring-offset-gray-800"
-                                                />
-                                                <span className={`text-xs sm:text-sm font-medium ${isCompleted ? 'text-gray-400' : 'text-gray-300'}`}>Concluir</span>
-                                            </label>
-
-                                            <h3 className={`font-bold text-base sm:text-lg border-l border-gray-600 pl-2 sm:pl-3 ml-1 truncate ${isCompleted ? 'text-green-accent opacity-70' : 'text-white'}`}>
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className={`font-bold text-base sm:text-lg truncate ${isCompleted ? 'text-green-accent opacity-70 line-through' : 'text-white'}`}>
                                                 {list.name}
                                             </h3>
                                         </div>
-                                        <div className="flex items-center gap-2 sm:gap-4 ml-2 flex-shrink-0">
-                                            <span className={`font-bold text-sm sm:text-base whitespace-nowrap ${isCompleted ? 'text-gray-400' : 'text-white'}`}>
+                                        
+                                        <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-2 sm:gap-4 flex-shrink-0">
+                                            <span className={`font-bold text-sm sm:text-base whitespace-nowrap sm:border-l sm:border-gray-600 sm:pl-3 ${isCompleted ? 'text-gray-400 line-through' : 'text-white'}`}>
                                                 {formatCurrency(list.total || 0)}
                                             </span>
                                             
-                                            {/* Actions Menu (Prevent accordion toggle) */}
-                                            <div className="flex items-center space-x-1" onClick={(e) => e.stopPropagation()}>
+                                            <div className="flex items-center gap-2 sm:gap-4">
+                                                {/* Actions Menu (Prevent accordion toggle) */}
+                                                <div className="flex items-center space-x-1" onClick={(e) => e.stopPropagation()}>
+                                                {!isCompleted && (
+                                                    <button 
+                                                        onClick={() => { setSelectedListForProduct(list); setEditingProduct(null); setProductModalOpen(true); }}
+                                                        className="text-xs sm:text-sm text-blue-400 hover:text-blue-300 font-medium flex items-center mr-1 sm:mr-2"
+                                                        title="Adicionar Produto"
+                                                    >
+                                                        <PlusIcon className="w-4 h-4 sm:mr-1" />
+                                                        <span className="hidden sm:inline">Produto</span>
+                                                    </button>
+                                                )}
                                                 <button 
                                                     onClick={() => { setListToShare(list); setShareModalOpen(true); }} 
                                                     className="p-1 text-gray-400 hover:text-blue-accent rounded-md transition-colors"
@@ -445,9 +442,28 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
                                                 >
                                                     <TrashIcon className="w-4 h-4" />
                                                 </button>
+                                                
+                                                {/* CHECKBOX DE CONCLUSÃO */}
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleToggleListCompleteClick(list);
+                                                    }}
+                                                    className={`ml-1 sm:ml-2 flex-shrink-0 w-4 h-4 sm:w-5 sm:h-5 rounded border flex items-center justify-center transition-colors cursor-pointer ${
+                                                        isCompleted
+                                                            ? 'bg-green-900/40 border-green-500/50 text-green-400'
+                                                            : 'bg-gray-600 border-gray-500 text-transparent hover:bg-gray-500 hover:border-gray-400'
+                                                    }`}
+                                                    title={isCompleted ? "Reabrir lista" : "Concluir lista e gerar despesa"}
+                                                >
+                                                    <svg className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${isCompleted ? 'opacity-100' : 'opacity-0'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                </button>
+                                                </div>
+                                                
+                                                <ChevronDownIcon className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                                             </div>
-                                            
-                                            <ChevronDownIcon className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                                         </div>
                                     </div>
 
@@ -497,17 +513,6 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
                                                 </ul>
                                             ) : (
                                                 <p className="text-center text-gray-500 py-2">Nenhum produto nesta lista.</p>
-                                            )}
-                                            
-                                            {!isCompleted && (
-                                                <div className="mt-4 flex justify-end">
-                                                    <button 
-                                                        onClick={() => { setSelectedListForProduct(list); setEditingProduct(null); setProductModalOpen(true); }}
-                                                        className="text-sm text-blue-400 hover:text-blue-300 font-medium flex items-center"
-                                                    >
-                                                        <PlusIcon className="w-4 h-4 mr-1" /> Adicionar Produto
-                                                    </button>
-                                                </div>
                                             )}
                                         </div>
                                     )}

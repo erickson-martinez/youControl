@@ -25,7 +25,14 @@ const ShoppingListModal: React.FC<ShoppingListModalProps> = ({ isOpen, onClose, 
 
     // Efeito para gerar o nome automaticamente
     useEffect(() => {
-        const todayStr = new Date(date).toLocaleDateString('pt-BR');
+        let todayStr = '';
+        if (date && date.includes('-')) {
+            const [year, month, day] = date.split('-');
+            todayStr = `${day}/${month}/${year}`;
+        } else {
+            todayStr = new Date(date || Date.now()).toLocaleDateString('pt-BR');
+        }
+        
         if (marketId) {
             const marketName = markets.find(m => m.id === marketId)?.name || 'Loja';
             setName(`${marketName} - ${todayStr}`);
@@ -74,10 +81,6 @@ const ShoppingListModal: React.FC<ShoppingListModalProps> = ({ isOpen, onClose, 
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!marketId) {
-            alert("Por favor, selecione uma loja.");
-            return;
-        }
 
         setIsSaving(true);
         try {
@@ -100,15 +103,14 @@ const ShoppingListModal: React.FC<ShoppingListModalProps> = ({ isOpen, onClose, 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <fieldset disabled={isSaving} className="space-y-4">
                         <div>
-                            <label htmlFor="list-market" className="block mb-2 text-sm font-medium text-gray-300">Selecione a Loja</label>
+                            <label htmlFor="list-market" className="block mb-2 text-sm font-medium text-gray-300">Selecione a Loja (Opcional)</label>
                             <select 
                                 id="list-market" 
                                 value={marketId} 
                                 onChange={(e) => setMarketId(e.target.value)} 
-                                required 
                                 className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-blue-500 disabled:opacity-50"
                             >
-                                <option value="">Selecione...</option>
+                                <option value="">Nenhuma loja selecionada</option>
                                 {markets.map(market => (
                                     <option key={market.id} value={market.id}>{market.name}</option>
                                 ))}

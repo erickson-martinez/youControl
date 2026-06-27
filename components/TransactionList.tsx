@@ -181,20 +181,18 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
         // Case 1: Creditor needs to confirm a pending payment (most specific case)
         if (isPendingApprovalFromMe) {
             return (
-                <label 
-                    htmlFor={`confirm-toggle-${transaction.id}`} 
-                    className="flex items-center space-x-2 cursor-pointer"
+                <button
+                    onClick={() => onApprovePayment(transaction)}
+                    className="flex items-center space-x-2 cursor-pointer transition-opacity hover:opacity-80"
                     title="Confirmar Pagamento"
                 >
-                    <input
-                        type="checkbox"
-                        id={`confirm-toggle-${transaction.id}`}
-                        checked={false}
-                        onChange={() => onApprovePayment(transaction)}
-                        className="w-5 h-5 text-green-accent bg-gray-600 border-gray-500 rounded focus:ring-green-accent focus:ring-offset-gray-800"
-                    />
+                    <div className="w-5 h-5 rounded border flex items-center justify-center transition-colors border-gray-500 text-transparent bg-gray-700/50">
+                        <svg className="w-3.5 h-3.5 opacity-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                    </div>
                     <span className="text-sm text-gray-300">Pago</span>
-                </label>
+                </button>
             );
         }
 
@@ -205,24 +203,27 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
                 ? "Não é possível alterar o status em meses anteriores." 
                 : isPaid ? "Marcar como Não Pago" : "Confirmar Recebimento";
             return (
-                <label 
-                    htmlFor={`paid-toggle-${transaction.id}`} 
-                    className={`flex items-center space-x-2 ${isDisabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                <button
+                    onClick={() => {
+                        if (isDisabled) return;
+                        const unpayStatus = (isInvestment || transaction.type === 'investimento') ? 'investimento' as PaymentStatus : PaymentStatus.UNPAID;
+                        onUpdateStatus(transaction, isPaid ? unpayStatus : PaymentStatus.PAID);
+                    }}
+                    disabled={isDisabled}
+                    className={`flex items-center space-x-2 ${isDisabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:opacity-80 transition-opacity'}`}
                     title={title}
                 >
-                    <input
-                        type="checkbox"
-                        id={`paid-toggle-${transaction.id}`}
-                        checked={isPaid}
-                        onChange={() => {
-                            const unpayStatus = (isInvestment || transaction.type === 'investimento') ? 'investimento' as PaymentStatus : PaymentStatus.UNPAID;
-                            onUpdateStatus(transaction, isPaid ? unpayStatus : PaymentStatus.PAID);
-                        }}
-                        disabled={isDisabled}
-                        className="w-5 h-5 text-green-accent bg-gray-600 border-gray-500 rounded focus:ring-green-accent focus:ring-offset-gray-800 disabled:cursor-not-allowed"
-                    />
+                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                        isPaid
+                            ? 'bg-green-900/40 border-green-500/50 text-green-400'
+                            : 'border-gray-500 text-transparent bg-gray-700/50'
+                    }`}>
+                        <svg className={`w-3.5 h-3.5 ${isPaid ? 'opacity-100' : 'opacity-0'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                    </div>
                     <span className="text-sm text-gray-300">Recebido</span>
-                </label>
+                </button>
             );
         }
         
@@ -243,21 +244,26 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
         }
 
         return (
-             <label 
-                htmlFor={`paid-toggle-${transaction.id}`} 
-                className={`flex items-center space-x-2 ${isSimpleToggleDisabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+             <button
+                onClick={(e) => {
+                    if (isSimpleToggleDisabled) return;
+                    handleSimpleToggle(e as any);
+                }}
+                disabled={isSimpleToggleDisabled}
+                className={`flex items-center space-x-2 ${isSimpleToggleDisabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:opacity-80 transition-opacity'}`}
                 title={simpleTitle}
             >
-                <input
-                    type="checkbox"
-                    id={`paid-toggle-${transaction.id}`}
-                    checked={isPaid}
-                    onChange={handleSimpleToggle}
-                    disabled={isSimpleToggleDisabled}
-                    className="w-5 h-5 text-green-accent bg-gray-600 border-gray-500 rounded focus:ring-green-accent focus:ring-offset-gray-800 disabled:cursor-not-allowed"
-                />
+                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                    isPaid
+                        ? 'bg-green-900/40 border-green-500/50 text-green-400'
+                        : 'border-gray-500 text-transparent bg-gray-700/50'
+                }`}>
+                    <svg className={`w-3.5 h-3.5 ${isPaid ? 'opacity-100' : 'opacity-0'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                </div>
                 <span className="text-sm text-gray-300">Pago</span>
-            </label>
+            </button>
         );
     };
 
