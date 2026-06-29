@@ -112,26 +112,26 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, pr
     };
 
     const handleSelectSuggestion = (product: any) => {
-        // Mapeia os campos retornados pela API (exemplo fornecido)
-        // product = { productName: "Arroz", brand: "Dallas", currentPrice: 13.59, type: "pacote", ... }
-        setName(product.productName || product.name);
+        setName(product.name || '');
         setBrand(product.brand || '');
-        if (product.type || product.unit) setType(product.type || product.unit);
+        if (product.unit || product.type) setType(product.unit || product.type);
         if (product.packageQuantity || product.packQuantity) setPackQuantity(String(product.packageQuantity || product.packQuantity));
         
-        // Preenche o preço se disponível
-        if (product.currentPrice !== undefined) {
-            setPrice(String(product.currentPrice));
-        } else if (product.price !== undefined) {
+        if (product.price !== undefined) {
             setPrice(String(product.price));
-        } else if (product.value !== undefined) {
-            setPrice(String(product.value));
         }
 
-        if (product.storeId) {
+        if (product.store?.id) {
+            setStoreId(product.store.id);
+        } else if (product.storeId) {
             setStoreId(product.storeId);
         }
-        if (product.storeName) {
+
+        if (product.store?.displayName) {
+            setStoreName(product.store.displayName);
+        } else if (product.store?.name) {
+            setStoreName(product.store.name);
+        } else if (product.storeName) {
             setStoreName(product.storeName);
         }
         
@@ -236,12 +236,6 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, pr
                                         </li>
                                     )}
                                     {suggestions.map((prod, idx) => {
-                                        const marketName = prod.storeName || prod.store?.name || prod.marketId?.name || 'Loja desconhecida';
-                                        const priceVal = prod.price !== undefined ? prod.price : prod.currentPrice;
-                                        const displayPrice = priceVal !== undefined ? `R$ ${priceVal.toFixed(2)}` : '';
-                                        const displayBrand = prod.brand ? `- ${prod.brand}` : '';
-                                        const dateStr = prod.updatedAt ? new Date(prod.updatedAt).toLocaleDateString() : '';
-                                        
                                         return (
                                             <li 
                                                 key={prod._id || prod.id || idx}
@@ -249,11 +243,13 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, pr
                                                 className="px-3 py-2 cursor-pointer hover:bg-gray-100 border-b border-gray-100 last:border-0 text-left"
                                             >
                                                 <div className="text-sm font-bold text-gray-800">
-                                                    {prod.productName || prod.name} {displayBrand}
+                                                    {prod.label}
                                                 </div>
                                                 <div className="flex justify-between items-center text-xs text-gray-600 mt-1">
-                                                    <span className="font-medium text-green-700">{displayPrice}</span>
-                                                    <span>{marketName} {dateStr ? `(${dateStr})` : ''}</span>
+                                                    <span className="font-medium text-green-700">
+                                                        R$ {prod.price !== undefined ? prod.price.toFixed(2) : '0.00'}
+                                                    </span>
+                                                    <span>{prod.subtitle}</span>
                                                 </div>
                                             </li>
                                         );

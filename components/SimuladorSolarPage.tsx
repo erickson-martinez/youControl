@@ -1,5 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { User } from '../types';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface SimuladorSolarPageProps {
   user: User;
@@ -84,9 +86,44 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
     );
   }
 
+  const handleExportPDF = () => {
+    const doc = new jsPDF('landscape');
+    
+    doc.setFontSize(18);
+    doc.text('Simulador Energia Solar', 14, 22);
+    
+    doc.setFontSize(11);
+    doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')}`, 14, 30);
+
+    const tableCols = ALL_COLUMNS.filter(c => visibleColumns.includes(c.key)).map(c => c.label);
+    const tableRows = rows.map(row => 
+      ALL_COLUMNS.filter(c => visibleColumns.includes(c.key)).map(c => (row as any)[c.key])
+    );
+
+    autoTable(doc, {
+      startY: 40,
+      head: [tableCols],
+      body: tableRows,
+      theme: 'striped',
+      headStyles: { fillColor: [25, 118, 210] }, // #1976d2
+      styles: { fontSize: 8, cellPadding: 2 },
+      margin: { left: 14, right: 14 }
+    });
+
+    doc.save('Simulador_Energia_Solar.pdf');
+  };
+
   return (
     <div className="p-4 bg-gray-800 rounded-lg shadow-lg">
-      <h1 className="text-2xl font-bold text-white mb-6">Simulador Energia Solar</h1>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+        <h1 className="text-2xl font-bold text-white">Simulador Energia Solar</h1>
+        <button 
+          onClick={handleExportPDF}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+        >
+          Exportar PDF
+        </button>
+      </div>
       
       <div className="mb-6 p-4 bg-gray-700 rounded-lg border border-gray-600">
         <h3 className="text-sm font-semibold text-gray-300 mb-3 uppercase tracking-wider">Colunas Visíveis</h3>
