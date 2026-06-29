@@ -113,6 +113,10 @@ const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, isOpen, onClose, perm
               {permissions.lojas && <li><NavLink page="lojas" onNavigate={onNavigate} icon={<BuildingStoreIcon className="w-6 h-6" />} label="Lojas" active={activePage === 'lojas'} /></li>}
               {permissions.settings && <li><NavLink page="settings" onNavigate={onNavigate} icon={<CogIcon className="w-6 h-6" />} label="Configurações" active={activePage === 'settings'} /></li>}
               {permissions.exemplo && <li><NavLink page="exemplo" onNavigate={onNavigate} icon={<DocumentTextIcon className="w-6 h-6" />} label="Exemplos" active={activePage === 'exemplo'} /></li>}
+              
+              {user.email === 'ericksonprofissional@gmail.com' && (
+                  <li><NavLink page="simuladorSolar" onNavigate={onNavigate} icon={<SparklesIcon className="w-6 h-6" />} label="Simulador Solar" active={activePage === 'simuladorSolar'} /></li>
+              )}
             </ul>
           </nav>
           <div className="pt-4 mt-4 border-t border-gray-700 space-y-2">

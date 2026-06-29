@@ -37,7 +37,7 @@ export interface MenuPermissions {
   agendamento: boolean;
 }
 
-export type ActivePage = keyof MenuPermissions | 'home';
+export type ActivePage = keyof MenuPermissions | 'home' | 'simuladorSolar';
 
 export interface Empresa {
   id: string;

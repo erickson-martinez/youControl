@@ -81,7 +81,8 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
             const listsRes = await apiFetch(`${API_BASE_URL}/shopping-lists?userId=${user.id}`);
             const listsData = await listsRes.json();
             // Map lists and calculate totals
-            const mappedLists = (listsData || []).map((list: any) => {
+            const mappedLists = [];
+            for (const list of (listsData || [])) {
                 let mappedMeta = {};
                 if (list.metadata) {
                     mappedMeta = {
@@ -94,19 +95,43 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
                     try { mappedMeta = JSON.parse(list.description); } catch(e) {}
                 }
                 
-                // Keep empty initially, fetch dynamically when expanded
-                const products: Product[] = [];
-                const total = 0;
+                let productsData = [];
+                const currentListId = list._id || list.id;
+                if (currentListId) {
+                    try {
+                        const itemsRes = await apiFetch(`${API_BASE_URL}/shopping-items?shoppingListId=${currentListId}`);
+                        if (itemsRes.ok) {
+                            productsData = await itemsRes.json();
+                        }
+                    } catch(e) {
+                        console.error("Error fetching items for list", currentListId, e);
+                    }
+                }
 
-                return {
+                const products = (productsData || []).map((p: any) => ({
+                    ...p,
+                    id: p._id,
+                    type: p.unit || p.type,
+                    value: p.price != null ? Number(p.price) : (p.value != null ? Number(p.value) : undefined),
+                    quantity: p.quantity != null ? Number(p.quantity) : undefined,
+                    packQuantity: p.packageQuantity || p.packQuantity,
+                    total: p.total != null ? Number(p.total) : ((p.price != null || p.value != null) && p.quantity != null ? Number(p.price || p.value) * Number(p.quantity) : undefined),
+                    storeId: p.storeId,
+                    storeName: p.store?.name || p.storeName,
+                    notes: p.notes
+                }));
+                
+                const total = products.reduce((sum: number, p: Product) => sum + (p.total || 0), 0);
+
+                mappedLists.push({
                     ...list,
                     ...mappedMeta,
-                    id: list._id,
+                    id: list._id || list.id,
                     products,
                     total,
                     completed: list.status === 'completed' || list.completed
-                };
-            });
+                });
+            }
             setShoppingLists(mappedLists);
 
         } catch (err) {
@@ -317,10 +342,10 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
                         ...p,
                         id: p._id,
                         type: p.unit || p.type,
-                        value: p.price !== undefined ? Number(p.price) : (p.value !== undefined ? Number(p.value) : undefined),
-                        quantity: p.quantity !== undefined ? Number(p.quantity) : undefined,
+                        value: p.price != null ? Number(p.price) : (p.value != null ? Number(p.value) : undefined),
+                        quantity: p.quantity != null ? Number(p.quantity) : undefined,
                         packQuantity: p.packageQuantity || p.packQuantity,
-                        total: p.total !== undefined ? Number(p.total) : ((p.price !== undefined || p.value !== undefined) && p.quantity !== undefined ? Number(p.price || p.value) * Number(p.quantity) : undefined),
+                        total: p.total != null ? Number(p.total) : ((p.price != null || p.value != null) && p.quantity != null ? Number(p.price || p.value) * Number(p.quantity) : undefined),
                         storeId: p.storeId,
                         storeName: p.store?.name || p.storeName,
                         notes: p.notes
@@ -354,10 +379,10 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
                         ...p,
                         id: p._id,
                         type: p.unit || p.type,
-                        value: p.price !== undefined ? Number(p.price) : (p.value !== undefined ? Number(p.value) : undefined),
-                        quantity: p.quantity !== undefined ? Number(p.quantity) : undefined,
+                        value: p.price != null ? Number(p.price) : (p.value != null ? Number(p.value) : undefined),
+                        quantity: p.quantity != null ? Number(p.quantity) : undefined,
                         packQuantity: p.packageQuantity || p.packQuantity,
-                        total: p.total !== undefined ? Number(p.total) : ((p.price !== undefined || p.value !== undefined) && p.quantity !== undefined ? Number(p.price || p.value) * Number(p.quantity) : undefined),
+                        total: p.total != null ? Number(p.total) : ((p.price != null || p.value != null) && p.quantity != null ? Number(p.price || p.value) * Number(p.quantity) : undefined),
                         storeId: p.storeId,
                         storeName: p.store?.name || p.storeName,
                         notes: p.notes
@@ -408,10 +433,10 @@ const ListPurcharsePage: React.FC<ListPurcharsePageProps> = ({ user }) => {
                         ...p,
                         id: p._id,
                         type: p.unit || p.type,
-                        value: p.price !== undefined ? Number(p.price) : (p.value !== undefined ? Number(p.value) : undefined),
-                        quantity: p.quantity !== undefined ? Number(p.quantity) : undefined,
+                        value: p.price != null ? Number(p.price) : (p.value != null ? Number(p.value) : undefined),
+                        quantity: p.quantity != null ? Number(p.quantity) : undefined,
                         packQuantity: p.packageQuantity || p.packQuantity,
-                        total: p.total !== undefined ? Number(p.total) : ((p.price !== undefined || p.value !== undefined) && p.quantity !== undefined ? Number(p.price || p.value) * Number(p.quantity) : undefined),
+                        total: p.total != null ? Number(p.total) : ((p.price != null || p.value != null) && p.quantity != null ? Number(p.price || p.value) * Number(p.quantity) : undefined),
                         storeId: p.storeId,
                         storeName: p.store?.name || p.storeName,
                         notes: p.notes

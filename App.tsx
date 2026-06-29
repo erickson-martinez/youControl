@@ -25,6 +25,7 @@ import BarbeirosPage from './components/BarbeirosPage';
 import CaixaBarbeariaPage from './components/CaixaBarbeariaPage';
 import BarbeiroAgendaPage from './components/BarbeiroAgendaPage';
 import AgendamentoPage from './components/AgendamentoPage';
+import SimuladorSolarPage from './components/SimuladorSolarPage';
 // Burger Imports
 import BurgerProductsPage from './components/BurgerProductsPage';
 import BurgerPOSPage from './components/BurgerPOSPage';
@@ -708,6 +709,8 @@ const App: React.FC = () => {
               {activePage === 'burgerDashboard' && userPermissions.burgerDashboard && <BurgerDashboardPage />}
               {/* Agora o BurgerClientOrderPage é renderizado internamente quando selecionado no menu */}
               {activePage === 'burgerClient' && userPermissions.burgerClient && <BurgerClientOrderPage />}
+              
+              {activePage === 'simuladorSolar' && <SimuladorSolarPage user={user} />}
             </>
           )}
         </main>
