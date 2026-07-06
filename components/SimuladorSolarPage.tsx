@@ -49,8 +49,8 @@ const ALL_COLUMNS = [
   { key: 'investimentoAcumulado', label: 'Investimento Acumulado', description: 'Soma dos valores investidos acrescidos de juros', group: 'Investimentos' },
   { key: 'patrimonioParcelas', label: 'Patrimônio das Parcelas', description: 'Valor acumulado das parcelas rendendo a 100% do CDI', group: 'Investimentos' },
   { key: 'patrimonioInvestido', label: 'Patrimônio Investido', description: 'Evolução dos R$ 15.500 iniciais caso ficassem aplicados', group: 'Investimentos' },
-  { key: 'patrimonioLiquido', label: 'Patrimônio Líquido', description: 'Soma do Patrimônio das Parcelas e Investimento Acumulado', group: 'Investimentos', highlight: true },
-  { key: 'rendimentoMensal', label: 'Rend. Mensal', description: 'Juros ganhos no mês sobre o investimento acumulado', group: 'Investimentos' },
+  { key: 'patrimonioLiquido', label: 'Patrimônio Total', description: 'Soma do Patrimônio das Parcelas e Investimento Acumulado', group: 'Investimentos', highlight: true },
+  { key: 'rendimentoMensal', label: 'Rendimento (100% CDI)', description: 'Juros ganhos no mês sobre o investimento acumulado', group: 'Investimentos' },
   { key: 'saldoFinal', label: 'Saldo Final', description: 'Investimento Acumulado descontando o Saldo Devedor', group: 'Investimentos' },
 ];
 
@@ -69,6 +69,7 @@ const VIEW_OPTIONS = [
 ];
 
 const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
+  const [periodoMeses, setPeriodoMeses] = useState<number>(36);
   const [visibleViews, setVisibleViews] = useState<string[]>(['patrimonio', 'investimentos']);
   const exportRef = useRef<HTMLDivElement>(null);
 
@@ -103,7 +104,7 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
     let economiaTotal = 0;
     let jurosEvitadosTotal = 0;
 
-    for (let mes = 1; mes <= 36; mes++) {
+    for (let mes = 1; mes <= periodoMeses; mes++) {
       let saldoIni = saldo;
       patrimonio *= 1 + taxa;
       let parcela = 0;
@@ -122,8 +123,11 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
       const totalParcelas = parcela * 3;
       somaParcelasPagas += totalParcelas;
       
-      const rendimentoParcelasMes = patrimonioParcelas * taxa;
-      patrimonioParcelas += rendimentoParcelasMes + totalParcelas;
+      let rendimentoParcelasMes = 0;
+      if (mes <= 24) {
+        rendimentoParcelasMes = patrimonioParcelas * taxa;
+        patrimonioParcelas += rendimentoParcelasMes + totalParcelas;
+      }
 
       const econ18 = mes <= 18 ? Math.max(0, parcela18 - (parcela * 3)) : 0;
       const investir = economia + econ18;
@@ -177,7 +181,7 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
         jurosEvitados: jurosEvitadosTotal,
       }
     };
-  }, []);
+  }, [periodoMeses]);
 
   const LINE_COLORS: Record<string, string> = {
     saldoDevedor: '#ef4444',
@@ -235,12 +239,27 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
     <div className="p-4 bg-gray-800 rounded-lg shadow-lg" ref={exportRef}>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <h1 className="text-2xl font-bold text-white">Simulador Energia Solar</h1>
-        <button 
-          onClick={handleExportPDF}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-        >
-          Exportar PDF
-        </button>
+        
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center space-x-1 bg-gray-700 p-1 rounded-lg border border-gray-600">
+            {[24, 36, 60, 120].map(p => (
+              <button
+                key={p}
+                onClick={() => setPeriodoMeses(p)}
+                className={`px-3 py-1.5 text-xs sm:text-sm rounded-md transition-colors ${periodoMeses === p ? 'bg-blue-600 text-white font-bold shadow' : 'text-gray-300 hover:bg-gray-600'}`}
+              >
+                {p === 60 ? '5 anos' : p === 120 ? '10 anos' : `${p} meses`}
+              </button>
+            ))}
+          </div>
+          
+          <button 
+            onClick={handleExportPDF}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm h-full"
+          >
+            Exportar PDF
+          </button>
+        </div>
       </div>
 
       {/* Top Cards - Hierarchical */}
@@ -248,7 +267,13 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
         {/* Principal */}
         <div className="bg-gray-700 p-6 rounded-lg border border-gray-600 text-center flex flex-col items-center justify-center shadow-lg">
           <p className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-2">💰 Patrimônio Total</p>
-          <p className="text-4xl sm:text-5xl font-bold text-blue-400">{br(summary.patrimonioTotal)}</p>
+          <p className="text-4xl sm:text-5xl font-bold text-blue-400 mb-4">{br(summary.patrimonioTotal)}</p>
+          <div className="flex items-center space-x-2 text-xs sm:text-sm text-gray-400 bg-gray-800 px-4 py-2 rounded-full border border-gray-600">
+            <span>Investimento Inicial <strong className="text-gray-200">R$ 15.500</strong></span>
+            <span className="text-gray-500">→</span>
+            <span>Patrimônio Final <strong className="text-gray-200">{br(summary.patrimonioTotal)}</strong></span>
+            <span className="text-emerald-400 font-bold ml-1 border-l border-gray-600 pl-3">+{((summary.patrimonioTotal / 15500 - 1) * 100).toFixed(1)}%</span>
+          </div>
         </div>
 
         {/* Secundários Patrimônio */}
@@ -267,8 +292,33 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
           </div>
         </div>
 
-        {/* Benefícios e Resumo */}
+        {/* Resumo e Benefícios */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 pt-4">
+          <div className="bg-gray-700 p-5 rounded-lg border border-gray-600 shadow flex flex-col justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-300 mb-4 uppercase tracking-wider border-b border-gray-600 pb-2">Resumo da Estratégia</h3>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400 text-sm">Retorno sobre R$ 15.500</span>
+                  <span className="text-lg font-bold text-emerald-400">{((summary.patrimonioTotal / 15500 - 1) * 100).toFixed(1)}%</span>
+                </div>
+                <div>
+                  <div className="flex justify-between items-end mb-1">
+                    <span className="text-gray-400 text-sm">Investimento Recuperado</span>
+                    <span className="text-sm font-bold text-blue-400">{((summary.patrimonioParcelas / 15500) * 100).toFixed(1)}%</span>
+                  </div>
+                  <div className="w-full bg-gray-800 rounded-full h-3 border border-gray-600 overflow-hidden">
+                    <div className="bg-blue-500 h-3 rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, (summary.patrimonioParcelas / 15500) * 100)}%` }}></div>
+                  </div>
+                  <div className="flex justify-between items-center mt-1">
+                    <span className="text-xs text-gray-500"></span>
+                    <span className="text-xs text-gray-400">{br(summary.patrimonioParcelas)} / {br(15500)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="bg-gray-700 p-5 rounded-lg border border-gray-600 shadow">
             <h3 className="text-sm font-semibold text-gray-300 mb-4 uppercase tracking-wider border-b border-gray-600 pb-2">Benefícios</h3>
             <div className="space-y-4">
@@ -283,43 +333,27 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
             </div>
           </div>
 
-          <div className="bg-gray-700 p-5 rounded-lg border border-gray-600 shadow flex flex-col justify-between">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-300 mb-4 uppercase tracking-wider border-b border-gray-600 pb-2">Resumo da Estratégia</h3>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400 text-sm">Retorno sobre R$ 15.500</span>
-                  <span className="text-lg font-bold text-emerald-400">{((summary.patrimonioTotal / 15500 - 1) * 100).toFixed(1)}%</span>
-                </div>
-                <div>
-                  <div className="flex justify-between items-end mb-1">
-                    <span className="text-gray-400 text-sm">Investimento Recuperado</span>
-                    <span className="text-sm font-bold text-blue-400">{br(summary.patrimonioParcelas)} / {br(15500)}</span>
-                  </div>
-                  <div className="w-full bg-gray-800 rounded-full h-3 border border-gray-600 overflow-hidden">
-                    <div className="bg-blue-500 h-3 rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, (summary.patrimonioParcelas / 15500) * 100)}%` }}></div>
-                  </div>
-                  <p className="text-xs text-gray-500 text-right mt-1">{((summary.patrimonioParcelas / 15500) * 100).toFixed(1)}% concluído</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
           <div className="bg-gradient-to-br from-gray-700 to-gray-800 p-5 rounded-lg border border-emerald-500/30 shadow flex flex-col justify-between relative overflow-hidden">
             <div className="absolute top-0 right-0 p-4 opacity-10 text-emerald-500">
               <svg className="w-16 h-16" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
             </div>
             <div className="relative z-10 flex flex-col h-full">
               <h3 className="text-sm font-bold text-emerald-400 mb-3 uppercase tracking-wider flex items-center gap-2 border-b border-emerald-900/50 pb-2">
-                💡 Veredito: Vale a pena?
+                ✅ Vale a pena?
               </h3>
-              <p className="text-gray-300 text-[13px] leading-relaxed mb-3 flex-grow">
-                <strong className="text-white">Com certeza.</strong> Ao invés de manter os R$ 15.500 apenas investidos (que renderiam <span className="text-gray-100">{br(summary.patrimonioInvestido)}</span>), a compra da energia solar mais o reinvestimento das economias gera um patrimônio final de <strong className="text-emerald-400">{br(summary.patrimonioTotal)}</strong>.
-              </p>
-              <div className="bg-emerald-900/30 border border-emerald-700/50 rounded p-2 mt-auto">
-                <p className="text-emerald-300 text-xs text-center font-medium">
-                  Você ganha {br(summary.patrimonioTotal - summary.patrimonioInvestido)} a mais, além de energia grátis por +20 anos.
-                </p>
+              <div className="flex-grow flex flex-col justify-center space-y-2 mb-2 mt-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-300 text-xs">Patrimônio mantendo investimento:</span>
+                  <span className="text-gray-100 text-sm font-medium">{br(summary.patrimonioInvestido)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-300 text-xs">Estratégia Energia Solar:</span>
+                  <span className="text-emerald-400 text-sm font-bold">{br(summary.patrimonioTotal)}</span>
+                </div>
+                <div className="border-t border-gray-600/50 pt-2 mt-1 flex justify-between items-center">
+                  <span className="text-gray-300 text-xs font-semibold">Diferença:</span>
+                  <span className="text-emerald-400 text-base font-bold">+{br(summary.patrimonioTotal - summary.patrimonioInvestido)}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -353,17 +387,23 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
               <YAxis stroke="#9ca3af" fontSize={12} tickFormatter={(value) => value >= 1000 ? `R$ ${(value / 1000).toFixed(1)}k` : `R$ ${value}`} width={80} />
               <Tooltip content={<CustomTooltip />} wrapperStyle={{ zIndex: 1000, outline: 'none' }} />
               <Legend wrapperStyle={{ paddingTop: '20px' }} />
-              {ALL_COLUMNS.filter(col => col.key !== 'mes' && visibleColumns.includes(col.key)).map(col => (
-                <Line
-                  key={col.key}
-                  name={col.label}
-                  type="monotone"
-                  dataKey={`raw${col.key.charAt(0).toUpperCase() + col.key.slice(1)}`}
-                  stroke={LINE_COLORS[col.key] || '#10b981'}
-                  strokeWidth={2}
-                  activeDot={{ r: 6 }}
-                />
-              ))}
+              {ALL_COLUMNS.filter(col => col.key !== 'mes' && visibleColumns.includes(col.key)).map(col => {
+                let strokeWidth = 1;
+                if (col.key === 'patrimonioLiquido') strokeWidth = 4;
+                else if (col.key === 'patrimonioInvestido' || col.key === 'investimentoAcumulado') strokeWidth = 2;
+                
+                return (
+                  <Line
+                    key={col.key}
+                    name={col.label}
+                    type="monotone"
+                    dataKey={`raw${col.key.charAt(0).toUpperCase() + col.key.slice(1)}`}
+                    stroke={LINE_COLORS[col.key] || '#10b981'}
+                    strokeWidth={strokeWidth}
+                    activeDot={{ r: 6 }}
+                  />
+                );
+              })}
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -381,7 +421,7 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
                 const visibleCount = group.keys.filter(k => visibleColumns.includes(k)).length;
                 if (visibleCount === 0) return null;
                 return (
-                  <th key={group.id} colSpan={visibleCount} className="px-2 py-2 border-b border-gray-600 border-r border-gray-600 bg-gray-700 text-center tracking-wider text-blue-200">
+                  <th key={group.id} colSpan={visibleCount} className="px-2 py-2 border-b border-gray-600 border-r-2 border-gray-500 bg-gray-700 text-center tracking-wider text-blue-200">
                     {group.label}
                   </th>
                 );
@@ -395,7 +435,7 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
                 for (const group of COLUMN_GROUPS) {
                   const visibleKeys = group.keys.filter(k => visibleColumns.includes(k));
                   if (visibleKeys[visibleKeys.length - 1] === col.key) {
-                    groupBorder = "border-r border-gray-600";
+                    groupBorder = "border-r-2 border-gray-500";
                   }
                 }
                 return (
@@ -418,7 +458,7 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
                   for (const group of COLUMN_GROUPS) {
                     const visibleKeys = group.keys.filter(k => visibleColumns.includes(k));
                     if (visibleKeys[visibleKeys.length - 1] === col.key) {
-                      groupBorder = "border-r border-gray-700";
+                      groupBorder = "border-r-2 border-gray-600";
                     }
                   }
                   return (
