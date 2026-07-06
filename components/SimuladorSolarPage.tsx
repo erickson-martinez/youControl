@@ -72,6 +72,7 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
   const [periodoMeses, setPeriodoMeses] = useState<number>(36);
   const [visibleViews, setVisibleViews] = useState<string[]>(['patrimonio', 'investimentos']);
   const exportRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
 
   const toggleView = (id: string) => {
     setVisibleViews(prev => 
@@ -122,6 +123,7 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
       somaParcelas18x += parcela18;
       const totalParcelas = parcela * 3;
       somaParcelasPagas += totalParcelas;
+      let patrimonioLiquido = 0;
       
       let rendimentoParcelasMes = 0;
       if (mes <= 24) {
@@ -129,11 +131,15 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
         patrimonioParcelas += rendimentoParcelasMes + totalParcelas;
       }
 
+
+
       const econ18 = mes <= 18 ? Math.max(0, parcela18 - (parcela * 3)) : 0;
       const investir = economia + econ18;
       invest = invest * (1 + taxa) + investir;
       
-      const patrimonioLiquido = patrimonioParcelas + invest;
+      const taxaPatrimonioLiquido = (patrimonioParcelas + invest) * taxa
+      patrimonioLiquido = (patrimonioParcelas + invest + taxaPatrimonioLiquido);
+      
       
       economiaTotal += economia;
       jurosEvitadosTotal += econ18;
@@ -144,7 +150,7 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
         parcela18x: parcela18 ? br(parcela18) : '-',
         parcelaIndividual: br(parcela),
         totalParcelas: totalParcelas ? br(totalParcelas) : '-',
-        patrimonioParcelas: br(patrimonioParcelas),
+        patrimonioParcelas: mes <= 24 ? br(patrimonioParcelas) : '-',
         consumoMensal: br(consumo),
         economia: br(economia),
         economiaVs18x: parcela18 ? br(econ18) : '-',
@@ -235,6 +241,35 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
     }
   };
 
+  const handleExportTablePDF = () => {
+    if (!tableRef.current) return;
+
+    const pdf = new jsPDF({
+        orientation: "landscape",
+        unit: "mm",
+        format: "a3",
+    });
+
+    autoTable(pdf, {
+        html: tableRef.current,
+        theme: "grid",
+        styles: {
+            fontSize: 6,
+            cellPadding: 1.5,
+        },
+        headStyles: {
+            fillColor: [45, 45, 45],
+            textColor: 255,
+            fontStyle: "bold",
+        },
+        margin: {
+            top: 10,
+        },
+    });
+
+    pdf.save("Tabela_Simulador_Energia_Solar.pdf");
+};
+
   return (
     <div className="p-4 bg-gray-800 rounded-lg shadow-lg" ref={exportRef}>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
@@ -253,11 +288,18 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
             ))}
           </div>
           
-          <button 
+          <button
             onClick={handleExportPDF}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm h-full"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
           >
-            Exportar PDF
+            📄 Exportar Tela
+          </button>
+
+          <button
+            onClick={handleExportTablePDF}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg"
+          >
+            📊 Exportar Tabela
           </button>
         </div>
       </div>
@@ -410,7 +452,9 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-gray-700 shadow-xl">
-        <table className="min-w-full text-[11px] sm:text-xs text-center text-gray-300">
+        <table
+         ref={tableRef}
+         className="min-w-full text-[11px] sm:text-xs text-center text-gray-300">
           <thead className="text-[10px] sm:text-xs text-gray-200 uppercase bg-gray-800">
             {/* Top Header Row for Groups */}
             <tr>
