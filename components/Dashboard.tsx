@@ -17,6 +17,7 @@ import EndMonthReviewModal from './EndMonthReviewModal';
 import { XCircleIcon, ChartBarIcon, UsersIcon, ChevronLeftIcon, ChevronRightIcon } from './icons';
 import { API_BASE_URL } from '../constants';
 import { exportYearlyPDF } from './exportPDF';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface DashboardProps {
   user: User;
@@ -51,6 +52,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [chartData, setChartData] = useState<{name: string, Receitas: number, Despesas: number}[]>([]);
 
   const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
   useEffect(() => {
@@ -472,9 +474,54 @@ setTransactions(mappedTransactions);
   }, [currentDate, user.email, apiFetch, isPastMonth, calculateMonthlyTotals]);
 
 
+  const fetchChartData = useCallback(async () => {
+    try {
+      const data = [];
+      const endMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+      const startMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 5, 1);
+      
+      for (let d = new Date(startMonth); d <= endMonth; d.setMonth(d.getMonth() + 1)) {
+          const m = d.getMonth() + 1;
+          const y = d.getFullYear();
+          const key = `${m}-${y}`;
+          
+          let monthData;
+          if (transactionsCache.current[key]) {
+              monthData = transactionsCache.current[key];
+          } else {
+              const params = new URLSearchParams({ idEmail: user.idEmail || user.id, month: m.toString(), year: y.toString(), includeShared: 'true' });
+              if (user.email) { params.append('sharedEmail', user.email); params.append('targetEmail', user.email); }
+              if (user.phone) { params.append('sharedPhone', user.phone); params.append('targetPhone', user.phone); }
+              
+              const res = await apiFetch(`${API_BASE_URL}/transactions?${params.toString()}`);
+              if (res.ok) {
+                  monthData = await res.json();
+                  transactionsCache.current[key] = monthData;
+              }
+          }
+          
+          if (monthData) {
+              const endOfLoopMonth = new Date(y, m, 0, 23, 59, 59);
+              const { revenue, expenses } = calculateMonthlyTotals(monthData.transactions || [], endOfLoopMonth);
+              
+              const monthName = d.toLocaleString('pt-BR', { month: 'short' });
+              data.push({
+                  name: `${monthName.charAt(0).toUpperCase() + monthName.slice(1)}/${y.toString().slice(-2)}`,
+                  Receitas: revenue,
+                  Despesas: expenses,
+              });
+          }
+      }
+      setChartData(data);
+    } catch (err) {
+      console.error("Failed to fetch chart data", err);
+    }
+  }, [currentDate, user, apiFetch, calculateMonthlyTotals]);
+
   useEffect(() => {
     fetchTransactions();
-  }, [fetchTransactions]);
+    fetchChartData();
+  }, [fetchTransactions, fetchChartData]);
 
   const onAddTransaction = async (newTransactionData: Omit<Transaction, 'id' | 'idEmail' | 'controlId'> & { repeatCount?: number }) => {
     const { repeatCount, ...baseTransactionData } = newTransactionData;
@@ -1168,6 +1215,27 @@ setTransactions(mappedTransactions);
         onViewReports={() => onNavigate('graficos')}
         onExportPDF={handleExportPDF}
       />
+
+      <div className="mb-6 bg-gray-800 rounded-lg shadow-lg border border-gray-700 p-4">
+        <h2 className="text-lg font-bold text-white mb-4">Evolução Mensal (Últimos 6 meses)</h2>
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis dataKey="name" stroke="#9ca3af" fontSize={12} />
+              <YAxis stroke="#9ca3af" fontSize={12} tickFormatter={(value) => `R$ ${value}`} width={80} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '0.5rem', color: '#f3f4f6' }}
+                itemStyle={{ color: '#f3f4f6' }}
+                formatter={(value: number) => [formatCurrency(value), '']}
+              />
+              <Legend />
+              <Line type="monotone" dataKey="Receitas" stroke="#10b981" strokeWidth={2} activeDot={{ r: 6 }} />
+              <Line type="monotone" dataKey="Despesas" stroke="#ef4444" strokeWidth={2} activeDot={{ r: 6 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
       
       <div className="p-4 bg-gray-800 rounded-lg">
         <div className="flex items-center justify-between px-2 sm:px-4 py-2 border border-gray-700/50 bg-gray-900 rounded-lg shadow-sm">

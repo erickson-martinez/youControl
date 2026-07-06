@@ -670,7 +670,7 @@ const App: React.FC = () => {
             <div id="top-header-portal" className="flex-1 min-w-0 flex justify-end md:justify-center z-10 w-full overflow-hidden"></div>
         </header>
         
-        <main className={`max-w-4xl pt-0 mx-auto md:pt-0 ${activePage === 'jornada' ? 'p-0' : 'p-4 md:p-8'}`}>
+        <main className={`w-full max-w-full pt-0 mx-auto md:pt-0 ${activePage === 'jornada' ? 'p-0' : 'p-4 md:p-8'}`}>
           {(isLoading || !userPermissions) ? (
             <div className="flex flex-col items-center justify-center pt-24">
               <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-blue-accent"></div>
