@@ -12,6 +12,7 @@ const ALL_COLUMNS = [
   { key: 'saldoDevedor', label: 'Saldo devedor' },
   { key: 'parcela18x', label: 'Parcela 18x' },
   { key: 'parcelaIndividual', label: 'Parcela Individual' },
+  { key: 'totalParcelas', label: 'Total de Parcelas' },
   { key: 'consumoMensal', label: 'Consumo Mensal' },
   { key: 'economia', label: 'Economia' },
   { key: 'economiaVs18x', label: 'Economia vs 18x' },
@@ -56,6 +57,7 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
       const consumo = 300;
       const economia = Math.max(0, consumo - parcela);
       const parcela18 = mes <= 18 ? 1051 : 0;
+      const totalParcelas = parcela * 3;
       const econ18 = mes <= 18 ? Math.max(0, parcela18 - (parcela * 3)) : 0;
       const investir = economia + econ18;
       invest = invest * (1 + taxa) + investir;
@@ -65,6 +67,7 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
         saldoDevedor: br(saldoIni),
         parcela18x: parcela18 ? br(parcela18) : '-',
         parcelaIndividual: br(parcela),
+        totalParcelas: totalParcelas ? br(totalParcelas) : '-',
         consumoMensal: br(consumo),
         economia: br(economia),
         economiaVs18x: parcela18 ? br(econ18) : '-',
