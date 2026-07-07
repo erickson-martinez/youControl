@@ -53,7 +53,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [chartData, setChartData] = useState<{name: string, Receitas: number, Despesas: number}[]>([]);
+  const [chartData, setChartData] = useState<{name: string, Receitas: number | null, Despesas: number | null, Investimentos: number | null}[]>([]);
 
   const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
   useEffect(() => {
@@ -503,13 +503,14 @@ setTransactions(mappedTransactions);
           
           if (monthData) {
               const endOfLoopMonth = new Date(y, m, 0, 23, 59, 59);
-              const { revenue, expenses } = calculateMonthlyTotals(monthData.transactions || [], endOfLoopMonth);
+              const { revenue, expenses, investments } = calculateMonthlyTotals(monthData.transactions || [], endOfLoopMonth);
               
               const monthName = d.toLocaleString('pt-BR', { month: 'short' });
               data.push({
                   name: `${monthName.charAt(0).toUpperCase() + monthName.slice(1)}/${y.toString().slice(-2)}`,
-                  Receitas: revenue,
-                  Despesas: expenses,
+                  Receitas: revenue === 0 ? null : revenue,
+                  Despesas: expenses === 0 ? null : expenses,
+                  Investimentos: investments === 0 ? null : investments,
               });
           }
       }
@@ -520,8 +521,11 @@ setTransactions(mappedTransactions);
   }, [currentDate, user, apiFetch, calculateMonthlyTotals]);
 
   useEffect(() => {
-    fetchTransactions();
-    fetchChartData();
+    const loadData = async () => {
+      await fetchTransactions();
+      await fetchChartData();
+    };
+    loadData();
   }, [fetchTransactions, fetchChartData]);
 
   const onAddTransaction = async (newTransactionData: Omit<Transaction, 'id' | 'idEmail' | 'controlId'> & { repeatCount?: number }) => {
@@ -1234,15 +1238,16 @@ setTransactions(mappedTransactions);
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="name" stroke="#9ca3af" fontSize={12} />
-                <YAxis stroke="#9ca3af" fontSize={12} tickFormatter={(value) => `R$ ${value}`} width={80} />
+                <YAxis hide />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '0.5rem', color: '#f3f4f6' }}
                   itemStyle={{ color: '#f3f4f6' }}
-                  formatter={(value: number, name: string) => [formatCurrency(value), name]}
+                  formatter={(value: number | null, name: string) => value == null ? [] : [formatCurrency(value), name]}
                 />
                 <Legend />
                 <Line type="monotone" dataKey="Receitas" stroke="#10b981" strokeWidth={2} activeDot={{ r: 6 }} />
                 <Line type="monotone" dataKey="Despesas" stroke="#ef4444" strokeWidth={2} activeDot={{ r: 6 }} />
+                <Line type="monotone" dataKey="Investimentos" stroke="#eab308" strokeWidth={2} activeDot={{ r: 6 }} connectNulls={true} />
               </LineChart>
             </ResponsiveContainer>
           </div>

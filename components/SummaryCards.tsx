@@ -47,6 +47,12 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({ revenue, expenses, balance,
             colorclass="border-teal-400"
         />
         <SummaryCard 
+            title="Investimentos"
+            value={investments}
+            colorclass="border-yellow-accent text-yellow-100"
+            classname="bg-yellow-900/20"
+        />
+        <SummaryCard 
             title={balanceTitle}
             value={balance}
             colorclass="border-blue-accent"
@@ -54,13 +60,7 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({ revenue, expenses, balance,
         <SummaryCard 
             title={totalTitle}
             value={total}
-            colorclass="border-yellow-accent"
-        />
-        <SummaryCard 
-            title="Investimentos"
-            value={investments}
-            colorclass="border-purple-400 text-purple-100"
-            classname="bg-purple-900/20"
+            colorclass="border-purple-400"
         />
     </div>
   );
