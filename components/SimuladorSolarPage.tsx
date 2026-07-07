@@ -48,7 +48,7 @@ const ALL_COLUMNS = [
   { key: 'valorAInvestir', label: 'Valor a Investir', description: 'Total economizado no mês que será reinvestido', group: 'Investimentos' },
   { key: 'investimentoAcumulado', label: 'Investimento Acumulado', description: 'Soma dos valores investidos acrescidos de juros', group: 'Investimentos' },
   { key: 'patrimonioParcelas', label: 'Patrimônio das Parcelas', description: 'Valor acumulado das parcelas rendendo a 100% do CDI', group: 'Investimentos' },
-  { key: 'patrimonioInvestido', label: 'Patrimônio Investido', description: 'Evolução dos R$ 15.500 iniciais caso ficassem aplicados', group: 'Investimentos' },
+  { key: 'patrimonioInvestido', label: 'Patrimônio Investido', description: 'Evolução do valor inicial caso ficasse aplicado', group: 'Investimentos' },
   { key: 'patrimonioLiquido', label: 'Patrimônio Total', description: 'Soma do Patrimônio das Parcelas e Investimento Acumulado', group: 'Investimentos', highlight: true },
   { key: 'rendimentoMensal', label: 'Rendimento (100% CDI)', description: 'Juros ganhos no mês sobre o investimento acumulado', group: 'Investimentos' },
   { key: 'saldoFinal', label: 'Saldo Final', description: 'Investimento Acumulado descontando o Saldo Devedor', group: 'Investimentos' },
@@ -71,6 +71,14 @@ const VIEW_OPTIONS = [
 const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
   const [periodoMeses, setPeriodoMeses] = useState<number>(36);
   const [visibleViews, setVisibleViews] = useState<string[]>(['patrimonio', 'investimentos']);
+  const [config, setConfig] = useState({
+    investimentoInicial: 15500,
+    taxaMensalCDI: 1.14,
+    consumoMensal: 300,
+    reajusteAnualEnergia: 7.34,
+    parcela18x: 1051,
+  });
+  const [showConfig, setShowConfig] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLTableElement>(null);
 
@@ -94,10 +102,10 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
 
   const { rows, summary } = useMemo(() => {
     const data = [];
-    const taxa = 177 / 15500;
-    let saldo = 15500;
+    const taxa = config.taxaMensalCDI / 100;
+    let saldo = config.investimentoInicial;
     let rendimento = 0;
-    let patrimonio = 15500;
+    let patrimonio = config.investimentoInicial;
     let invest = 0;
     let somaParcelasPagas = 0;
     let somaParcelas18x = 0;
@@ -117,9 +125,11 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
         parcela = principal + rend / 3;
         saldo = Math.max(0, saldo - principal * 3);
       }
-      const consumo = 300;
+      const anosPassados = Math.floor((mes - 1) / 12);
+      const fatorReajuste = Math.pow(1 + config.reajusteAnualEnergia / 100, anosPassados);
+      const consumo = config.consumoMensal * fatorReajuste;
       const economia = Math.max(0, consumo - parcela);
-      const parcela18 = mes <= 18 ? 1051 : 0;
+      const parcela18 = mes <= 18 ? config.parcela18x : 0;
       somaParcelas18x += parcela18;
       const totalParcelas = parcela * 3;
       somaParcelasPagas += totalParcelas;
@@ -187,7 +197,7 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
         jurosEvitados: jurosEvitadosTotal,
       }
     };
-  }, [periodoMeses]);
+  }, [periodoMeses, config]);
 
   const LINE_COLORS: Record<string, string> = {
     saldoDevedor: '#ef4444',
@@ -271,8 +281,9 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
 };
 
   return (
-    <div className="p-4 bg-gray-800 rounded-lg shadow-lg" ref={exportRef}>
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+    <>
+      <div className="p-4 bg-gray-800 rounded-lg shadow-lg" ref={exportRef}>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <h1 className="text-2xl font-bold text-white">Simulador Energia Solar</h1>
         
         <div className="flex items-center gap-4 flex-wrap">
@@ -287,6 +298,13 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
               </button>
             ))}
           </div>
+          
+          <button
+            onClick={() => setShowConfig(true)}
+            className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors border border-gray-600"
+          >
+            ⚙️ Configurar Valores
+          </button>
           
           <button
             onClick={handleExportPDF}
@@ -311,10 +329,10 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
           <p className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-2">💰 Patrimônio Total</p>
           <p className="text-4xl sm:text-5xl font-bold text-blue-400 mb-4">{br(summary.patrimonioTotal)}</p>
           <div className="flex items-center space-x-2 text-xs sm:text-sm text-gray-400 bg-gray-800 px-4 py-2 rounded-full border border-gray-600">
-            <span>Investimento Inicial <strong className="text-gray-200">R$ 15.500</strong></span>
+            <span>Investimento Inicial <strong className="text-gray-200">{br(config.investimentoInicial)}</strong></span>
             <span className="text-gray-500">→</span>
             <span>Patrimônio Final <strong className="text-gray-200">{br(summary.patrimonioTotal)}</strong></span>
-            <span className="text-emerald-400 font-bold ml-1 border-l border-gray-600 pl-3">+{((summary.patrimonioTotal / 15500 - 1) * 100).toFixed(1)}%</span>
+            <span className="text-emerald-400 font-bold ml-1 border-l border-gray-600 pl-3">+{((summary.patrimonioTotal / config.investimentoInicial - 1) * 100).toFixed(1)}%</span>
           </div>
         </div>
 
@@ -341,20 +359,20 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
               <h3 className="text-sm font-semibold text-gray-300 mb-4 uppercase tracking-wider border-b border-gray-600 pb-2">Resumo da Estratégia</h3>
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-400 text-sm">Retorno sobre R$ 15.500</span>
-                  <span className="text-lg font-bold text-emerald-400">{((summary.patrimonioTotal / 15500 - 1) * 100).toFixed(1)}%</span>
+                  <span className="text-gray-400 text-sm">Retorno sobre {br(config.investimentoInicial)}</span>
+                  <span className="text-lg font-bold text-emerald-400">{((summary.patrimonioTotal / config.investimentoInicial - 1) * 100).toFixed(1)}%</span>
                 </div>
                 <div>
                   <div className="flex justify-between items-end mb-1">
                     <span className="text-gray-400 text-sm">Investimento Recuperado</span>
-                    <span className="text-sm font-bold text-blue-400">{((summary.patrimonioParcelas / 15500) * 100).toFixed(1)}%</span>
+                    <span className="text-sm font-bold text-blue-400">{((summary.patrimonioParcelas / config.investimentoInicial) * 100).toFixed(1)}%</span>
                   </div>
                   <div className="w-full bg-gray-800 rounded-full h-3 border border-gray-600 overflow-hidden">
-                    <div className="bg-blue-500 h-3 rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, (summary.patrimonioParcelas / 15500) * 100)}%` }}></div>
+                    <div className="bg-blue-500 h-3 rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, (summary.patrimonioParcelas / config.investimentoInicial) * 100)}%` }}></div>
                   </div>
                   <div className="flex justify-between items-center mt-1">
                     <span className="text-xs text-gray-500"></span>
-                    <span className="text-xs text-gray-400">{br(summary.patrimonioParcelas)} / {br(15500)}</span>
+                    <span className="text-xs text-gray-400">{br(summary.patrimonioParcelas)} / {br(config.investimentoInicial)}</span>
                   </div>
                 </div>
               </div>
@@ -517,6 +535,72 @@ const SimuladorSolarPage: React.FC<SimuladorSolarPageProps> = ({ user }) => {
         </table>
       </div>
     </div>
+
+      {showConfig && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[2000] p-4">
+          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-md shadow-2xl">
+            <h2 className="text-xl font-bold text-white mb-4">Configurar Valores</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Investimento Inicial (R$)</label>
+                <input
+                  type="number"
+                  className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  value={config.investimentoInicial}
+                  onChange={(e) => setConfig({ ...config, investimentoInicial: Number(e.target.value) })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Rendimento Mensal (100% CDI em %)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  value={config.taxaMensalCDI}
+                  onChange={(e) => setConfig({ ...config, taxaMensalCDI: Number(e.target.value) })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Consumo Mensal (R$)</label>
+                <input
+                  type="number"
+                  className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  value={config.consumoMensal}
+                  onChange={(e) => setConfig({ ...config, consumoMensal: Number(e.target.value) })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Reajuste Anual Energia (%)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  value={config.reajusteAnualEnergia}
+                  onChange={(e) => setConfig({ ...config, reajusteAnualEnergia: Number(e.target.value) })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Parcela 18x (R$)</label>
+                <input
+                  type="number"
+                  className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  value={config.parcela18x}
+                  onChange={(e) => setConfig({ ...config, parcela18x: Number(e.target.value) })}
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => setShowConfig(false)}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+              >
+                Concluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 
