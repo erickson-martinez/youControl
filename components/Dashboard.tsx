@@ -14,7 +14,7 @@ import AddValueModal from './AddValueModal';
 import OverdueNoticeModal from './OverdueNoticeModal';
 import PendingApprovalModal from './PendingApprovalModal';
 import EndMonthReviewModal from './EndMonthReviewModal';
-import { XCircleIcon, ChartBarIcon, UsersIcon, ChevronLeftIcon, ChevronRightIcon } from './icons';
+import { XCircleIcon, ChartBarIcon, UsersIcon, ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon } from './icons';
 import { API_BASE_URL } from '../constants';
 import { exportYearlyPDF } from './exportPDF';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -30,6 +30,7 @@ const formatCurrency = (value: number) => {
 
 const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [isChartExpanded, setIsChartExpanded] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<TransactionType>(TransactionType.REVENUE);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
@@ -1216,25 +1217,36 @@ setTransactions(mappedTransactions);
         onExportPDF={handleExportPDF}
       />
 
-      <div className="mb-6 bg-gray-800 rounded-lg shadow-lg border border-gray-700 p-4">
-        <h2 className="text-lg font-bold text-white mb-4">Evolução Mensal (Últimos 6 meses)</h2>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="name" stroke="#9ca3af" fontSize={12} />
-              <YAxis stroke="#9ca3af" fontSize={12} tickFormatter={(value) => `R$ ${value}`} width={80} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '0.5rem', color: '#f3f4f6' }}
-                itemStyle={{ color: '#f3f4f6' }}
-                formatter={(value: number) => [formatCurrency(value), '']}
-              />
-              <Legend />
-              <Line type="monotone" dataKey="Receitas" stroke="#10b981" strokeWidth={2} activeDot={{ r: 6 }} />
-              <Line type="monotone" dataKey="Despesas" stroke="#ef4444" strokeWidth={2} activeDot={{ r: 6 }} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+      <div className="mb-6 bg-gray-800 rounded-lg shadow-lg border border-gray-700 overflow-hidden">
+        <button 
+          onClick={() => setIsChartExpanded(!isChartExpanded)}
+          className="w-full flex justify-center items-center p-4 hover:bg-gray-700/50 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-blue-400">{isChartExpanded ? 'Ocultar evolução mensal' : 'Ver evolução mensal'}</span>
+            <ChevronDownIcon className={`w-5 h-5 text-blue-400 transition-transform ${isChartExpanded ? 'rotate-180' : ''}`} />
+          </div>
+        </button>
+        
+        {isChartExpanded && (
+          <div className="h-64 px-4 pb-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="name" stroke="#9ca3af" fontSize={12} />
+                <YAxis stroke="#9ca3af" fontSize={12} tickFormatter={(value) => `R$ ${value}`} width={80} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '0.5rem', color: '#f3f4f6' }}
+                  itemStyle={{ color: '#f3f4f6' }}
+                  formatter={(value: number, name: string) => [formatCurrency(value), name]}
+                />
+                <Legend />
+                <Line type="monotone" dataKey="Receitas" stroke="#10b981" strokeWidth={2} activeDot={{ r: 6 }} />
+                <Line type="monotone" dataKey="Despesas" stroke="#ef4444" strokeWidth={2} activeDot={{ r: 6 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
       
       <div className="p-4 bg-gray-800 rounded-lg">
