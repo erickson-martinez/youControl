@@ -109,8 +109,8 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
     const [isConfirmUnpayOpen, setIsConfirmUnpayOpen] = useState(false);
 
     const isRevenue = transaction.type === TransactionType.REVENUE;
-    const isInvestment = transaction.type === TransactionType.INVESTMENT;
-    const isPaid = transaction.status === PaymentStatus.PAID;
+    const isInvestment = transaction.type === TransactionType.INVESTMENT || transaction.type === 'investimento' || transaction.type === 'INVESTMENT';
+    const isPaid = transaction.status === PaymentStatus.PAID || transaction.status === 'pago';
     
     // Logic for shared transactions aggregation visualization
     const isOwner = transaction.idEmail === currentUserId;
@@ -206,7 +206,7 @@ const TransactionItem: React.FC<TransactionItemProps> = React.memo(({ transactio
                 <button
                     onClick={() => {
                         if (isDisabled) return;
-                        const unpayStatus = (isInvestment || transaction.type === 'investimento') ? 'investimento' as PaymentStatus : PaymentStatus.UNPAID;
+                        const unpayStatus = PaymentStatus.UNPAID;
                         onUpdateStatus(transaction, isPaid ? unpayStatus : PaymentStatus.PAID);
                     }}
                     disabled={isDisabled}

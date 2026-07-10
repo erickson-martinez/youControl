@@ -188,6 +188,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
       let p = 0;
       let i = 0;
       let redeemedInvestments = 0;
+      let cashInvestments = 0;
       const currentUserId = user.idEmail || user.id;
       
       transactionsList.forEach((tx: any) => {
@@ -212,19 +213,83 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
                   }
               } else if (displayType === TransactionType.INVESTMENT || displayType === 'INVESTMENT' || displayType === 'investimento') {
                   const invValue = calculateInvestmentValue(tx, targetDate);
-                  if (tx.status === PaymentStatus.PAID) {
+                  const isPaid = tx.status === PaymentStatus.PAID || tx.status === 'pago';
+                  if (isPaid) {
                       redeemedInvestments += invValue;
                   } else {
                       i += invValue; // remains as pending investment KPI
                   }
                   if (tx.affectsCash) {
-                      e += amt; // Add to expenses so it reduces the balance
+                      // Deduct from balance only in the month it was created
+                      const txDate = tx.date ? new Date(tx.date) : new Date();
+                      if (!targetDate || (txDate.getMonth() === targetDate.getMonth() && txDate.getFullYear() === targetDate.getFullYear())) {
+                          cashInvestments += amt; 
+                      }
                   }
               }
           }
       });
-      return { revenue: r, expenses: e, paid: p, investments: i, redeemedInvestments };
+      return { revenue: r, expenses: e, paid: p, investments: i, redeemedInvestments, cashInvestments };
   }, [user.email, user.id, user.idEmail, user.phone, calculateInvestmentValue]);
+
+  const getCarriedOverInvestments = useCallback(async (targetMonth: number, targetYear: number) => {
+      let pastInvestmentsMap = new Map();
+      const loopStart = new Date(targetYear, targetMonth - 12, 1);
+      const loopEnd = new Date(targetYear, targetMonth - 2, 1);
+      
+      for (let d = new Date(loopEnd); d >= loopStart; d.setMonth(d.getMonth() - 1)) {
+          const m = d.getMonth() + 1;
+          const y = d.getFullYear();
+          const mKey = `${m}-${y}`;
+          let mData = transactionsCache.current[mKey];
+          
+          if (!mData) {
+              const queryParams = new URLSearchParams({
+                  idEmail: user.idEmail || user.id,
+                  month: m.toString(),
+                  year: y.toString(),
+              });
+              if (user.email) {
+                  queryParams.append('sharedEmail', user.email);
+                  queryParams.append('targetEmail', user.email);
+              }
+              if (user.phone) {
+                  queryParams.append('sharedPhone', user.phone);
+                  queryParams.append('targetPhone', user.phone);
+              }
+              try {
+                  const mRes = await apiFetch(`${API_BASE_URL}/transactions?${queryParams.toString()}`);
+                  if (mRes.ok) {
+                      mData = await mRes.json();
+                      transactionsCache.current[mKey] = mData;
+                  }
+              } catch (e) {
+                  console.error("Failed to fetch past month for investments", e);
+              }
+          }
+          
+          if (mData && mData.transactions) {
+              const invs = mData.transactions.filter((t: any) => {
+                  if (t.type !== TransactionType.INVESTMENT && t.type !== 'INVESTMENT' && t.type !== 'investimento') return false;
+                  
+                  const isPaid = t.status === PaymentStatus.PAID || t.status === 'pago';
+                  if (!isPaid) return true;
+                  
+                  const pDate = t.updatedAt ? new Date(t.updatedAt) : new Date(t.date);
+                  const pMonth = pDate.getMonth() + 1;
+                  const pYear = pDate.getFullYear();
+                  
+                  // Do not carry over if it was already paid in a previous month (before targetMonth)
+                  if (pYear < targetYear || (pYear === targetYear && pMonth < targetMonth)) {
+                      return false;
+                  }
+                  return true;
+              });
+              invs.forEach((t: any) => pastInvestmentsMap.set(t._id || t.id, t));
+          }
+      }
+      return Array.from(pastInvestmentsMap.values());
+  }, [user.idEmail, user.id, user.email, user.phone, apiFetch]);
 
   const fetchTransactions = useCallback(async () => {
     setIsLoading(true);
@@ -266,65 +331,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
         }
 
         // --- MANUALLY CARRY OVER PAST INVESTMENTS ---
-        let pastInvestmentsMap = new Map();
-        for (let m = month - 1; m >= 1; m--) {
-            const mKey = `${m}-${year}`;
-            let mData;
-            if (transactionsCache.current[mKey]) {
-                mData = transactionsCache.current[mKey];
-            } else {
-                const queryParams = new URLSearchParams({
-                    idEmail: user.idEmail || user.id,
-                    month: m.toString(),
-                    year: year.toString(),
-                });
-                if (user.email) {
-                    queryParams.append('sharedEmail', user.email);
-                    queryParams.append('targetEmail', user.email);
-                }
-                if (user.phone) {
-                    queryParams.append('sharedPhone', user.phone);
-                    queryParams.append('targetPhone', user.phone);
-                }
-                try {
-                    const mRes = await apiFetch(`${API_BASE_URL}/transactions?${queryParams.toString()}`);
-                    if (mRes.ok) {
-                        mData = await mRes.json();
-                        transactionsCache.current[mKey] = mData;
-                    }
-                } catch (e) {
-                    console.error("Failed to fetch past month for investments", e);
-                }
-            }
-            if (mData && mData.transactions) {
-                if (mData.transactions.length === 0) {
-                    break;
-                }
-                const invs = mData.transactions.filter((t: any) => {
-                    if (t.type !== TransactionType.INVESTMENT && t.type !== 'INVESTMENT' && t.type !== 'investimento') return false;
-                    
-                    const isPaid = t.status === PaymentStatus.PAID || t.status === 'pago';
-                    if (!isPaid) return true;
-                    
-                    const pDate = t.updatedAt ? new Date(t.updatedAt) : new Date(t.date);
-                    const pMonth = pDate.getMonth() + 1;
-                    const pYear = pDate.getFullYear();
-                    
-                    // Do not carry over if it was already paid in a previous month
-                    if (pYear < year || (pYear === year && pMonth < month)) {
-                        return false;
-                    }
-                    return true;
-                });
-                invs.forEach((t: any) => pastInvestmentsMap.set(t._id || t.id, t));
-            }
-        }
-        
-        let pastInvestments = Array.from(pastInvestmentsMap.values());
+        let pastInvestments = await getCarriedOverInvestments(month, year);
         
         if (data && data.transactions) {
             const currentIds = new Set(data.transactions.map((t: any) => t._id || t.id));
-            const uniquePastInvestments = pastInvestments.filter(t => !currentIds.has(t._id || t.id));
+            const uniquePastInvestments = pastInvestments.filter((t: any) => !currentIds.has(t._id || t.id));
             data = {
                 ...data,
                 transactions: [...data.transactions, ...uniquePastInvestments]
@@ -386,18 +397,22 @@ setTransactions(mappedTransactions);
         
         // Calculate totals manually to respect 'aggregate' flag strictly
         const endOfViewedMonth = new Date(year, month, 0, 23, 59, 59);
-        const { revenue, expenses, paid, investments, redeemedInvestments } = calculateMonthlyTotals(data.transactions || [], endOfViewedMonth);
+        const { revenue, expenses, paid, investments, redeemedInvestments, cashInvestments } = calculateMonthlyTotals(data.transactions || [], endOfViewedMonth);
         
         if (isPastMonth) {
+            const baseAccumulated = data.summary?.accumulatedBalance || 0;
+            const baseMonthly = data.summary?.monthlyBalance || 0;
+            // Real balance up to the start of this past month
+            const realBalanceUpToMonthBefore = baseAccumulated - baseMonthly;
+            const predictedMonthlyBalance = revenue - expenses - cashInvestments + redeemedInvestments;
+            
             setSummary({
                 revenue,
                 expenses,
                 paid,
                 investments,
-                balance: revenue - expenses,
-                // accumulatedBalance from backend might include non-aggregated data, 
-                // but we can't easily re-calc history. Using it as best effort baseline.
-                total: (data.summary?.accumulatedBalance || 0) + investments + redeemedInvestments,
+                balance: predictedMonthlyBalance,
+                total: realBalanceUpToMonthBefore + predictedMonthlyBalance + investments
             });
         } else {
             const today = new Date();
@@ -457,15 +472,21 @@ setTransactions(mappedTransactions);
                 
                 if (loopData) {
                     const endOfLoopMonth = new Date(loopYear, loopMonth, 0, 23, 59, 59);
-                    const { revenue: mRev, expenses: mExp } = calculateMonthlyTotals(loopData.transactions || [], endOfLoopMonth);
-                    forecastTotal += (mRev - mExp);
+                    
+                    let loopPastInvestments = await getCarriedOverInvestments(loopMonth, loopYear);
+                    const currentLoopIds = new Set((loopData.transactions || []).map((t: any) => t._id || t.id));
+                    const uniqueLoopPastInvestments = loopPastInvestments.filter((t: any) => !currentLoopIds.has(t._id || t.id));
+                    const mergedLoopTransactions = [...(loopData.transactions || []), ...uniqueLoopPastInvestments];
+                    
+                    const { revenue: mRev, expenses: mExp, cashInvestments: mCashInv, redeemedInvestments: mRedeemed } = calculateMonthlyTotals(mergedLoopTransactions, endOfLoopMonth);
+                    forecastTotal += (mRev - mExp - mCashInv + mRedeemed);
                 }
             }
             
-            // Add the absolute values of investments and redeemed investments at the target month
-            forecastTotal += (investments + redeemedInvestments);
+            // Add the absolute values of pending investments at the target month
+            forecastTotal += investments;
             
-            setSummary({ revenue, expenses, paid, investments, balance: revenue - expenses, total: forecastTotal });
+            setSummary({ revenue, expenses, paid, investments, balance: revenue - expenses - cashInvestments + redeemedInvestments, total: forecastTotal });
         }
     } catch (err) {
         setError(err instanceof Error ? err.message : 'Ocorreu um erro desconhecido.');
@@ -477,41 +498,60 @@ setTransactions(mappedTransactions);
 
   const fetchChartData = useCallback(async () => {
     try {
-      const data = [];
       const endMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-      const startMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 5, 1);
+      const startMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 11, 1);
+      
+      const fetchPromises = [];
+      const keys: string[] = [];
+      const dates: Date[] = [];
       
       for (let d = new Date(startMonth); d <= endMonth; d.setMonth(d.getMonth() + 1)) {
           const m = d.getMonth() + 1;
           const y = d.getFullYear();
           const key = `${m}-${y}`;
+          keys.push(key);
+          dates.push(new Date(d));
           
-          let monthData;
-          if (transactionsCache.current[key]) {
-              monthData = transactionsCache.current[key];
-          } else {
+          if (!transactionsCache.current[key]) {
               const params = new URLSearchParams({ idEmail: user.idEmail || user.id, month: m.toString(), year: y.toString(), includeShared: 'true' });
               if (user.email) { params.append('sharedEmail', user.email); params.append('targetEmail', user.email); }
               if (user.phone) { params.append('sharedPhone', user.phone); params.append('targetPhone', user.phone); }
-              
-              const res = await apiFetch(`${API_BASE_URL}/transactions?${params.toString()}`);
-              if (res.ok) {
-                  monthData = await res.json();
-                  transactionsCache.current[key] = monthData;
-              }
+              fetchPromises.push(apiFetch(`${API_BASE_URL}/transactions?${params.toString()}`).then(res => res.ok ? res.json() : null));
+          } else {
+              fetchPromises.push(Promise.resolve(transactionsCache.current[key]));
           }
-          
+      }
+      
+      const results = await Promise.all(fetchPromises);
+      const data = [];
+      
+      for (let index = 0; index < results.length; index++) {
+          const monthData = results[index];
           if (monthData) {
-              const endOfLoopMonth = new Date(y, m, 0, 23, 59, 59);
-              const { revenue, expenses, investments } = calculateMonthlyTotals(monthData.transactions || [], endOfLoopMonth);
+              const key = keys[index];
+              const d = dates[index];
+              transactionsCache.current[key] = monthData;
               
-              const monthName = d.toLocaleString('pt-BR', { month: 'short' });
-              data.push({
-                  name: `${monthName.charAt(0).toUpperCase() + monthName.slice(1)}/${y.toString().slice(-2)}`,
-                  Receitas: revenue === 0 ? null : revenue,
-                  Despesas: expenses === 0 ? null : expenses,
-                  Investimentos: investments === 0 ? null : investments,
-              });
+              // Only add to chart data if it's within the last 6 months
+              const monthsDiff = (endMonth.getFullYear() - d.getFullYear()) * 12 + (endMonth.getMonth() - d.getMonth());
+              if (monthsDiff <= 5) {
+                  const endOfLoopMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
+                  
+                  let loopPastInvestments = await getCarriedOverInvestments(d.getMonth() + 1, d.getFullYear());
+                  const currentLoopIds = new Set((monthData.transactions || []).map((t: any) => t._id || t.id));
+                  const uniqueLoopPastInvestments = loopPastInvestments.filter((t: any) => !currentLoopIds.has(t._id || t.id));
+                  const mergedLoopTransactions = [...(monthData.transactions || []), ...uniqueLoopPastInvestments];
+                  
+                  const { revenue, expenses, investments } = calculateMonthlyTotals(mergedLoopTransactions, endOfLoopMonth);
+                  
+                  const monthName = d.toLocaleString('pt-BR', { month: 'short' });
+                  data.push({
+                      name: `${monthName.charAt(0).toUpperCase() + monthName.slice(1)}/${d.getFullYear().toString().slice(-2)}`,
+                      Receitas: revenue === 0 ? null : revenue,
+                      Despesas: expenses === 0 ? null : expenses,
+                      Investimentos: investments === 0 ? null : investments,
+                  });
+              }
           }
       }
       setChartData(data);
@@ -522,8 +562,8 @@ setTransactions(mappedTransactions);
 
   useEffect(() => {
     const loadData = async () => {
-      await fetchTransactions();
       await fetchChartData();
+      await fetchTransactions();
     };
     loadData();
   }, [fetchTransactions, fetchChartData]);
@@ -802,9 +842,6 @@ setTransactions(mappedTransactions);
     const transaction = transactions.find((t) => t.id === id);
     if (!transaction) return;
     let newStatus = transaction.status === PaymentStatus.PAID ? PaymentStatus.UNPAID : PaymentStatus.PAID;
-    if ((transaction.type === TransactionType.INVESTMENT || transaction.type === 'INVESTMENT' || transaction.type === 'investimento') && transaction.status === PaymentStatus.PAID) {
-         newStatus = 'investimento' as PaymentStatus;
-    }
     
     try {
       const currentUserId = user.idEmail || user.id;
@@ -920,7 +957,7 @@ setTransactions(mappedTransactions);
   };
 
   const openModal = (type: TransactionType) => { setEditingTransaction(null); setModalType(type); setIsModalOpen(true); };
-  const handleStartEdit = (transaction: Transaction) => { setEditingTransaction(transaction); setIsModalOpen(true); };
+  const handleStartEdit = (transaction: Transaction) => { setEditingTransaction(transaction); setModalType(transaction.type); setIsModalOpen(true); };
   const handleModalClose = () => { setIsModalOpen(false); setEditingTransaction(null); };
 
   const handleModalSubmit = async (data: (Omit<Transaction, 'id' | 'idEmail' | 'controlId'> | Transaction) & { repeatCount?: number }) => {
