@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import type { User, MenuPermissions, ActivePage } from '../types';
-import { 
+import { usePWAInstall } from '../hooks/usePWAInstall';
+import { useNotifications } from '../hooks/useNotifications';
+import { DownloadIcon, BellIcon, 
     HomeIcon, CashIcon, UsersIcon, ClipboardListIcon, CogIcon, XIcon, 
     OfficeBuildingIcon, ClockIcon, LogoutIcon, ClipboardCheckIcon, 
     InboxInIcon, DocumentTextIcon, ShoppingCartIcon, BookOpenIcon, 
@@ -38,6 +40,8 @@ const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, isOpen, onClose, perm
   const [isLightMode, setIsLightMode] = useState(() => {
     return document.documentElement.classList.contains('light');
   });
+  const { isInstallable, installPWA } = usePWAInstall();
+  const { permission: notifPermission, requestPermission } = useNotifications();
 
   useEffect(() => {
     const root = document.documentElement;
@@ -133,6 +137,25 @@ const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, isOpen, onClose, perm
                      {isLightMode ? <MoonIcon className="w-5 h-5 text-gray-900" /> : <SunIcon className="w-5 h-5 text-yellow-400" />}
                   </button>
               </div>
+              
+              {notifPermission !== 'granted' && (
+                <button
+                   onClick={requestPermission}
+                   className="flex items-center w-full px-4 py-3 text-sm font-medium text-white transition-colors rounded-lg bg-yellow-600 hover:bg-yellow-700 mb-2"
+                 >
+                   <BellIcon className="w-6 h-6" />
+                   <span className="ml-3">Ativar Notificações</span>
+                 </button>
+              )}
+{isInstallable && (
+                <button
+                   onClick={installPWA}
+                   className="flex items-center w-full px-4 py-3 text-sm font-medium text-white transition-colors rounded-lg bg-blue-accent hover:bg-blue-accent/90 mb-2"
+                 >
+                   <DownloadIcon className="w-6 h-6" />
+                   <span className="ml-3">Instalar App</span>
+                 </button>
+              )}
                <button
                   onClick={onLogout}
                   className="flex items-center w-full px-4 py-3 text-sm font-medium text-gray-300 transition-colors rounded-lg hover:bg-red-accent hover:text-white"
