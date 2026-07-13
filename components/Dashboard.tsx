@@ -1408,7 +1408,8 @@ setTransactions(mappedTransactions);
         overdueTransactions={overdueTransactions}
         onMarkAsPaid={onToggleSimpleTransactionPaid}
       />
-       <PendingApprovalModal
+       
+      <PendingApprovalModal
         isOpen={isPendingApprovalModalOpen}
         onClose={() => setIsPendingApprovalModalOpen(false)}
         pendingTransactions={pendingApprovalTransactions}

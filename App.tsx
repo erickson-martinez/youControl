@@ -26,6 +26,7 @@ import CaixaBarbeariaPage from './components/CaixaBarbeariaPage';
 import BarbeiroAgendaPage from './components/BarbeiroAgendaPage';
 import AgendamentoPage from './components/AgendamentoPage';
 import SimuladorSolarPage from './components/SimuladorSolarPage';
+import InstallPWAButton from './components/InstallPWAButton';
 // Burger Imports
 import BurgerProductsPage from './components/BurgerProductsPage';
 import BurgerPOSPage from './components/BurgerPOSPage';
@@ -686,6 +687,7 @@ const App: React.FC = () => {
         </div>
       )}
 
+      <InstallPWAButton />
       <Sidebar user={user} onLogout={handleLogout} isOpen={isSidebarOpen} onClose={() => setSidebarOpen(false)} permissions={userPermissions || FALLBACK_PERMISSIONS} activePage={activePage} onNavigate={handleNavigate} canClockIn={canUserClockIn}/>
       <div className="transition-all md:ml-64">
          <header className="flex items-center justify-between p-2 mb-2 md:p-4 md:justify-end relative min-h-[64px] gap-2">

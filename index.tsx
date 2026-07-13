@@ -1,3 +1,4 @@
+import "./index.css";
 import "./src/pwa-prompt";
 import { registerSW } from 'virtual:pwa-register';
 
