@@ -15,6 +15,7 @@ import OverdueNoticeModal from './OverdueNoticeModal';
 import PendingApprovalModal from './PendingApprovalModal';
 import EndMonthReviewModal from './EndMonthReviewModal';
 import { XCircleIcon, ChartBarIcon, UsersIcon, ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon } from './icons';
+import { useNotifications } from '../hooks/useNotifications';
 import { API_BASE_URL } from '../constants';
 import { exportYearlyPDF } from './exportPDF';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -51,6 +52,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   const [sharedUsersInfo, setSharedUsersInfo] = useState<SharedUser[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { sendNotification } = useNotifications();
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [chartData, setChartData] = useState<{name: string, Receitas: number | null, Despesas: number | null, Investimentos: number | null}[]>([]);
@@ -1042,6 +1044,12 @@ setTransactions(mappedTransactions);
     if (overdueTransactions.length > 0 && !hasShownModal) {
         setIsOverdueModalOpen(true);
         sessionStorage.setItem('overdueModalShown', 'true');
+        
+        // Dispara a notificação
+        sendNotification('Transações Recorrentes', {
+           body: 'Você tem contas recorrentes/vencidas pendentes. Revise suas finanças!',
+           tag: 'recurring-alert'
+        });
     }
   }, [isLoading, overdueTransactions]);
   

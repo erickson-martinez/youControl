@@ -221,6 +221,29 @@ const GoogleLinkModal = ({ user, onSuccess }: { user: User, onSuccess: (user: Us
 };
 
 const App: React.FC = () => {
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      console.log('🌍 [PWA] Evento beforeinstallprompt disparado!', e);
+      e.preventDefault();
+      // Mostra as plataformas onde a instalação é suportada
+      console.log('🌍 [PWA] Plataformas suportadas:', e.platforms);
+    };
+
+    const handleAppInstalled = (e: any) => {
+      console.log('✅ [PWA] Aplicativo instalado com sucesso!', e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    console.log('🔍 [PWA] Listeners de instalação registrados no App.tsx');
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
   // --- ROTAS PÚBLICAS ---
   const isPublicMenu = window.location.pathname === '/cardapio' || window.location.search.includes('view=menu');
   const isPublicAgendamento = window.location.pathname === '/agendamento' || window.location.search.includes('empresaId=');
