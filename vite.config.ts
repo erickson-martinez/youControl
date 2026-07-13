@@ -8,11 +8,14 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       registerType: 'autoUpdate',
-      includeAssets: ['apple-touch-icon.png'],
-      workbox: {
+      injectManifest: {
         maximumFileSizeToCacheInBytes: 5000000
       },
+      includeAssets: ['apple-touch-icon.png'],
       manifest: {
         name: 'YouControl',
         short_name: 'YouControl',
