@@ -1,3 +1,4 @@
+import "./src/pwa-prompt";
 import { registerSW } from 'virtual:pwa-register';
 
 registerSW({ immediate: true });

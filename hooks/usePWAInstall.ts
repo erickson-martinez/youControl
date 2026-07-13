@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getDeferredPrompt } from '../src/pwa-prompt';
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -10,33 +11,42 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export function usePWAInstall() {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isInstallable, setIsInstallable] = useState(false);
+  const [promptEvent, setPromptEvent] = useState<BeforeInstallPromptEvent | null>(getDeferredPrompt());
+  const [isInstallable, setIsInstallable] = useState(!!getDeferredPrompt());
 
   useEffect(() => {
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
-      setIsInstallable(true);
+    const handleInstallable = () => {
+      const prompt = getDeferredPrompt();
+      setPromptEvent(prompt);
+      setIsInstallable(!!prompt);
     };
 
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    if (getDeferredPrompt()) {
+      handleInstallable();
+    }
+
+    window.addEventListener('pwa-installable', handleInstallable);
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('pwa-installable', handleInstallable);
     };
   }, []);
 
   const installPWA = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      console.log('User accepted the install prompt');
-    } else {
-      console.log('User dismissed the install prompt');
+    if (!promptEvent) return;
+    try {
+      await promptEvent.prompt();
+      const { outcome } = await promptEvent.userChoice;
+      if (outcome === 'accepted') {
+        console.log('User accepted the install prompt');
+      } else {
+        console.log('User dismissed the install prompt');
+      }
+    } catch (err) {
+      console.error('Error with PWA install prompt:', err);
     }
-    setDeferredPrompt(null);
+    
+    setPromptEvent(null);
     setIsInstallable(false);
   };
 
