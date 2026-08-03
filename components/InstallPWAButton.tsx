@@ -64,18 +64,18 @@ const InstallPWAButton: React.FC = () => {
   }
 
   return (
-    <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-[9999] w-11/12 max-w-md">
+    
       <button
         onClick={handleInstallClick}
-        className={`w-full py-3 px-4 ${deferredPrompt ? 'bg-blue-accent hover:bg-blue-600 animate-bounce shadow-blue-500/50' : 'bg-gray-700 hover:bg-gray-600 border border-gray-600 shadow-gray-900/50'} text-white font-bold rounded-lg shadow-lg flex items-center justify-center gap-2 transition-all duration-300`}
+        className={`py-2 px-4 text-sm ${deferredPrompt ? 'bg-blue-accent hover:bg-blue-600 animate-bounce shadow-blue-500/50' : 'bg-gray-700 hover:bg-gray-600 border border-gray-600'} text-white font-bold rounded-lg shadow flex items-center justify-center gap-2 transition-all duration-300 whitespace-nowrap`}
         style={deferredPrompt ? { animationIterationCount: 3 } : {}}
       >
         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
         </svg>
-        {deferredPrompt ? 'Instalar App (Acesso Rápido)' : isIOS ? 'Como Instalar no iOS' : 'Instalar App (Manual)'}
+        {deferredPrompt ? 'Instalar App' : isIOS ? 'Instalar iOS' : 'Instalar App'}
       </button>
-    </div>
+    
   );
 };
 

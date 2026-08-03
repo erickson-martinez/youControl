@@ -88,8 +88,9 @@ interface TransactionItemProps {
   currentViewDate?: Date;
 }
 
-const formatCurrency = (value: number) => {
-  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const formatCurrency = (value: number | undefined | null) => {
+    if (value === undefined || value === null || isNaN(value)) return 'R$ 0,00';
+    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 };
 
 const StatusBadge: React.FC<{ status: PaymentStatus | string }> = ({ status }) => {

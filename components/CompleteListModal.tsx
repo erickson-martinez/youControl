@@ -154,7 +154,7 @@ const CompleteListModal: React.FC<CompleteListModalProps> = ({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75">
-            <div className="w-full max-w-lg p-6 mx-4 bg-gray-800 rounded-lg shadow-xl">
+            <div className="w-full max-w-lg p-6 mx-4 bg-gray-800 rounded-lg shadow-xl max-h-[95vh] overflow-y-auto">
                 <h2 className="mb-4 text-xl font-bold text-white">Concluir Lista</h2>
                 <div className="p-3 mb-4 bg-gray-700 rounded-md">
                     <p className="text-gray-300 text-sm">Lista: <span className="font-bold text-white">{listName}</span></p>

@@ -10,7 +10,8 @@ interface GraphicsPageProps {
     user: User;
 }
 
-const formatCurrency = (value: number) => {
+const formatCurrency = (value: number | undefined | null) => {
+    if (value === undefined || value === null || isNaN(value)) return 'R$ 0,00';
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 };
 

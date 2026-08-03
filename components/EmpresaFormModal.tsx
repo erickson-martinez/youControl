@@ -102,15 +102,11 @@ const EmpresaFormModal: React.FC<EmpresaFormModalProps> = ({ isOpen, onClose, on
                                 <input type="text" name="cnpj" id="cnpj" value={formData.cnpj} onChange={handleChange} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
                             </div>
                             <div>
-                                <label htmlFor="email" className="block mb-1 text-sm text-gray-300">Email</label>
-                                <input type="tel" name="email" id="email" value={formData.email} onChange={handleChange} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                            <div>
-                                <label htmlFor="email" className="block mb-1 text-sm text-gray-300">Email</label>
+                                <label htmlFor="email" className="block mb-1 text-sm text-gray-300">Email da Empresa</label>
                                 <input type="email" name="email" id="email" value={formData.email} onChange={handleChange} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>
                             </div>
+                        </div>
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-1">
                             <div>
                                 <label htmlFor="address" className="block mb-1 text-sm text-gray-300">Endereço</label>
                                 <input type="text" name="address" id="address" value={formData.address} onChange={handleChange} className="w-full px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-md disabled:opacity-50"/>

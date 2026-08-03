@@ -8,7 +8,8 @@ import ShareModal from './ShareModal';
 import CompleteListModal from './CompleteListModal';
 import { API_BASE_URL } from '../constants';
 
-const formatCurrency = (value: number) => {
+const formatCurrency = (value: number | undefined | null) => {
+    if (value === undefined || value === null || isNaN(value)) return 'R$ 0,00';
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 };
 

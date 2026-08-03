@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { PlusIcon, MinusIcon, UsersIcon, ChartBarIcon, DownloadIcon } from './icons';
+import { PlusIcon, MinusIcon, UsersIcon, ChartBarIcon, DownloadIcon, BellIcon } from './icons';
 
 interface ActionButtonsProps {
   onAddRevenue: () => void;
@@ -9,10 +9,22 @@ interface ActionButtonsProps {
   onShare: () => void;
   onViewReports: () => void;
   onExportPDF: () => void;
+  onOpenNotifications?: () => void;
+  notificationCount?: number;
   isPastMonth: boolean;
 }
 
-const ActionButtons: React.FC<ActionButtonsProps> = ({ onAddRevenue, onAddExpense, onAddInvestment, onShare, onViewReports, onExportPDF, isPastMonth }) => {
+const ActionButtons: React.FC<ActionButtonsProps> = ({
+  onAddRevenue,
+  onAddExpense,
+  onAddInvestment,
+  onShare,
+  onViewReports,
+  onExportPDF,
+  onOpenNotifications,
+  notificationCount = 0,
+  isPastMonth,
+}) => {
 
   return (
     <div className="grid grid-cols-3 md:flex md:flex-wrap md:flex-row gap-2 mb-6 md:gap-4">
@@ -47,6 +59,21 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({ onAddRevenue, onAddExpens
         <span className="md:hidden ml-1 text-xs sm:text-sm">Investir</span>
       </button>
       <div className="flex gap-2 col-span-3 md:col-span-auto md:w-auto md:flex-1">
+        {onOpenNotifications && (
+          <button
+            onClick={onOpenNotifications}
+            className="relative flex items-center justify-center flex-1 md:flex-initial px-4 py-2 text-white transition-colors bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 hover:text-blue-400"
+            title="Central de Notificações"
+          >
+            <BellIcon className="w-5 h-5 md:w-6 md:h-6" />
+            {notificationCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-md animate-pulse">
+                {notificationCount > 9 ? '9+' : notificationCount}
+              </span>
+            )}
+          </button>
+        )}
+
         <button
           onClick={onViewReports}
           className="flex items-center justify-center flex-1 md:flex-initial px-4 py-2 text-white transition-colors bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 hover:text-purple-400"

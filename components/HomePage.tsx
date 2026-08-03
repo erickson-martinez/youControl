@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import InstallPWAButton from './InstallPWAButton';
 import type { User, MenuPermissions, ActivePage } from '../types';
 import { 
     CashIcon, UsersIcon, ClockIcon, ClipboardCheckIcon, ClipboardListIcon, 
@@ -133,7 +132,6 @@ const FeatureCard: React.FC<{ feature: Feature; hasPermission: boolean; onNaviga
             <div className="mt-4 text-sm font-semibold text-blue-400">
                 {hasPermission ? 'Acessar Módulo \u2192' : '\u00A0'}
             </div>
-            <InstallPWAButton />
         </div>
     );
 };

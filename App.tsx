@@ -4,6 +4,7 @@ import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from 'firebas
 import LoginScreen from './components/LoginScreen';
 import Dashboard from './components/Dashboard';
 import Sidebar from './components/Sidebar';
+import InstallPWAButton from './components/InstallPWAButton';
 import EmpresaPage from './components/EmpresaPage';
 import LojasPage from './components/LojasPage';
 import RHPage from './components/RHPage';
@@ -575,26 +576,40 @@ const App: React.FC = () => {
   const handleSaveEmpresa = async (empresaData: Omit<Empresa, 'id' | 'owner'>) => {
     if (!user) return;
     try {
+        const idEmail = user.idEmail || user.id || user.email;
         await apiFetch(`${API_BASE_URL}/companies`, {
             method: 'POST',
-            body: JSON.stringify({ ...empresaData, owner: user.email }),
+            body: JSON.stringify({
+                ...empresaData,
+                owner: user.email,
+                idEmail: idEmail,
+                id_email: idEmail,
+                emailId: idEmail,
+                email: empresaData.email || user.email,
+            }),
         });
         await refreshCompanies(user);
     } catch (error) {
-        alert("Falha ao salvar empresa.");
+        alert("Falha ao salvar empresa: " + (error as Error).message);
     }
   };
 
   const handleUpdateEmpresa = async (empresaId: string, empresaData: Partial<Omit<Empresa, 'id' | 'owner'>>) => {
     if (!user) return;
     try {
+        const idEmail = user.idEmail || user.id || user.email;
         await apiFetch(`${API_BASE_URL}/companies/${empresaId}`, {
             method: 'PUT',
-            body: JSON.stringify(empresaData),
+            body: JSON.stringify({
+                ...empresaData,
+                idEmail: idEmail,
+                id_email: idEmail,
+                emailId: idEmail,
+            }),
         });
         await refreshCompanies(user);
     } catch (error) {
-        alert("Falha ao atualizar empresa.");
+        alert("Falha ao atualizar empresa: " + (error as Error).message);
     }
   };
   
@@ -691,6 +706,9 @@ const App: React.FC = () => {
          <header className="flex items-center justify-between p-2 mb-2 md:p-4 md:justify-end relative min-h-[64px] gap-2">
             <button onClick={() => setSidebarOpen(true)} className="p-2 text-gray-400 rounded-lg md:hidden hover:bg-gray-700 focus:outline-none z-20 shrink-0" aria-controls="default-sidebar" aria-label="Open sidebar"><span className="sr-only">Open sidebar</span><MenuIcon className="w-6 h-6" /></button>
             <div id="top-header-portal" className="flex-1 min-w-0 flex justify-end md:justify-center z-10 w-full overflow-hidden"></div>
+            <div className="flex-shrink-0 z-20">
+                <InstallPWAButton />
+            </div>
         </header>
         
         <main className={`w-full max-w-full pt-0 mx-auto md:pt-0 ${activePage === 'jornada' ? 'p-0' : 'p-4 md:p-8'}`}>

@@ -41,7 +41,7 @@ const ResolverOSModal: React.FC<ResolverOSModalProps> = ({ isOpen, onClose, os, 
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75">
-            <div className="w-full max-w-lg p-6 mx-4 bg-gray-800 rounded-lg shadow-xl">
+            <div className="w-full max-w-lg p-6 mx-4 bg-gray-800 rounded-lg shadow-xl max-h-[95vh] overflow-y-auto">
                 <h2 className="mb-2 text-xl font-bold text-white">Resolver Ordem de Serviço</h2>
                 <div className='p-3 mb-4 bg-gray-700 rounded-md'>
                     <h3 className="font-semibold text-gray-200">{os.title}</h3>

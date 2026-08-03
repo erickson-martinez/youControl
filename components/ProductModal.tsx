@@ -193,7 +193,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, pr
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75">
-            <div ref={modalRef} className="w-full max-w-md p-6 mx-4 bg-gray-800 rounded-lg shadow-xl relative text-white" onClick={() => setShowSuggestions(false)}>
+            <div ref={modalRef} className="w-full max-w-md p-6 mx-4 bg-gray-800 rounded-lg shadow-xl relative text-white max-h-[95vh] overflow-y-auto" onClick={() => setShowSuggestions(false)}>
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-xl font-bold">
                         {productToEdit ? 'Editar Produto' : 'Cadastrar Produto'}

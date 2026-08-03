@@ -14,6 +14,7 @@ import AddValueModal from './AddValueModal';
 import OverdueNoticeModal from './OverdueNoticeModal';
 import PendingApprovalModal from './PendingApprovalModal';
 import EndMonthReviewModal from './EndMonthReviewModal';
+import NotificationCenterModal from './NotificationCenterModal';
 import { XCircleIcon, ChartBarIcon, UsersIcon, ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon } from './icons';
 import { useNotifications } from '../hooks/useNotifications';
 import { API_BASE_URL } from '../constants';
@@ -25,8 +26,9 @@ interface DashboardProps {
   onNavigate: (page: ActivePage) => void;
 }
 
-const formatCurrency = (value: number) => {
-  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const formatCurrency = (value: number | undefined | null) => {
+    if (value === undefined || value === null || isNaN(value)) return 'R$ 0,00';
+    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 };
 
 const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
@@ -45,6 +47,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   const [hasShownEndMonthReview, setHasShownEndMonthReview] = useState(false);
   const [isOverdueModalOpen, setIsOverdueModalOpen] = useState(false);
   const [isPendingApprovalModalOpen, setIsPendingApprovalModalOpen] = useState(false);
+  const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
   const [isSharedUsersPopoverOpen, setIsSharedUsersPopoverOpen] = useState(false);
   
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -1264,6 +1267,8 @@ setTransactions(mappedTransactions);
         isPastMonth={isPastMonth} 
         onViewReports={() => onNavigate('graficos')}
         onExportPDF={handleExportPDF}
+        onOpenNotifications={() => setIsNotificationCenterOpen(true)}
+        notificationCount={overdueTransactions.length + pendingApprovalTransactions.length + sharedTransactions.length}
       />
 
       <div className="mb-6 bg-gray-800 rounded-lg shadow-lg border border-gray-700 overflow-hidden">
@@ -1415,6 +1420,25 @@ setTransactions(mappedTransactions);
         pendingTransactions={pendingApprovalTransactions}
         onApprove={handleApprovePending}
         onReject={handleRejectPending}
+        userMap={userMap}
+      />
+
+      <NotificationCenterModal
+        isOpen={isNotificationCenterOpen}
+        onClose={() => setIsNotificationCenterOpen(false)}
+        overdueTransactions={overdueTransactions}
+        pendingApprovalTransactions={pendingApprovalTransactions}
+        sharedTransactions={sharedTransactions}
+        onMarkAsPaid={async (id) => {
+          await onToggleSimpleTransactionPaid(id);
+        }}
+        onApprovePending={async (id) => {
+          await handleApprovePending(id);
+        }}
+        onRejectPending={async (id) => {
+          await handleRejectPending(id);
+        }}
+        onNavigateToTab={(tab) => setActiveTab(tab)}
         userMap={userMap}
       />
     </>
