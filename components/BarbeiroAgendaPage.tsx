@@ -16,6 +16,13 @@ interface BarbeiroAgendaPageProps {
 }
 
 const HORARIOS = [
+  "08:00",
+  "08:30",
+  "09:00",
+  "09:30",
+  "10:00",
+  "13:00",
+  "13:30",
   "14:00",
   "14:30",
   "15:00",
@@ -673,8 +680,8 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                     <div>
                       <label className="block text-sm text-gray-400 mb-1">Produtos (Opcionais)</label>
                       <div className="bg-gray-700 border border-gray-600 rounded p-3 max-h-40 overflow-y-auto w-full custom-scrollbar">
-                        {produtos.length === 0 && <p className="text-gray-500 text-sm">Nenhum produto.</p>}
-                        {produtos.map(p => (
+                        {produtos.filter(p => (p.estoque ?? 0) > 0).length === 0 && <p className="text-gray-500 text-sm">Nenhum produto em estoque.</p>}
+                        {produtos.filter(p => (p.estoque ?? 0) > 0).map(p => (
                           <label key={p.id} className="flex items-center space-x-3 mb-2 cursor-pointer pb-2 border-b border-gray-600/50 last:mb-0 last:pb-0 last:border-0">
                             <input
                               type="checkbox"
@@ -805,7 +812,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                     <div>
                       <label className="block text-sm text-gray-400 mb-3 font-medium">Produtos Disponíveis</label>
                       <div className="space-y-2">
-                          {produtos.length > 0 ? produtos.map(p => (
+                          {produtos.filter(p => (p.estoque ?? 0) > 0 || selectedProdutosIds.includes(p.id)).length > 0 ? produtos.filter(p => (p.estoque ?? 0) > 0 || selectedProdutosIds.includes(p.id)).map(p => (
                             <label key={p.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedProdutosIds.includes(p.id) ? 'bg-blue-900/20 border-blue-500/50' : 'bg-gray-900/50 border-gray-800 hover:border-gray-700'}`}>
                               <input 
                                 type="checkbox" 

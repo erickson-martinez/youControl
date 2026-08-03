@@ -205,11 +205,13 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
 
   const produtosPorCategoria = useMemo(() => {
     const acc: Record<string, typeof produtos> = {};
-    produtos.forEach((p) => {
-      const cat = p.categoria || "Geral";
-      if (!acc[cat]) acc[cat] = [];
-      acc[cat].push(p);
-    });
+    produtos
+      .filter((p) => (p.estoque ?? 0) > 0)
+      .forEach((p) => {
+        const cat = p.categoria || "Geral";
+        if (!acc[cat]) acc[cat] = [];
+        acc[cat].push(p);
+      });
     return acc;
   }, [produtos]);
 
