@@ -196,20 +196,20 @@ const HomePage: React.FC<HomePageProps> = ({ user, permissions, onNavigate }) =>
     }
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-8 max-w-full overflow-hidden">
             <div>
-                <h1 className="text-3xl font-bold text-white">Bem-vindo(a) ao Seu Controle, {user.name}!</h1>
-                <p className="mt-2 text-gray-400">Aqui está um resumo das soluções que oferecemos. Acesse os módulos aos quais você tem permissão ou contate um administrador para solicitar acesso a outros.</p>
+                <h1 className="text-2xl sm:text-3xl font-bold text-white leading-tight">Bem-vindo(a) ao Seu Controle, {user.name}!</h1>
+                <p className="mt-2 text-sm sm:text-base text-gray-400">Aqui está um resumo das soluções que oferecemos. Acesse os módulos aos quais você tem permissão ou contate um administrador para solicitar acesso a outros.</p>
             </div>
 
-            <div className="relative">
-                <div className="overflow-hidden">
+            <div className="relative px-2 sm:px-10">
+                <div className="overflow-hidden rounded-xl">
                     <div
                         className="flex transition-transform duration-700 ease-in-out"
                         style={{ transform: `translateX(-${currentIndex * 100}%)` }}
                     >
                         {slides.map((slideFeatures, index) => (
-                            <div key={index} className="flex-shrink-0 w-full">
+                            <div key={index} className="flex-shrink-0 w-full px-1">
                                 <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                                     {slideFeatures.map(feature => (
                                         <FeatureCard
@@ -229,20 +229,20 @@ const HomePage: React.FC<HomePageProps> = ({ user, permissions, onNavigate }) =>
                     <>
                         <button
                             onClick={goToPrevious}
-                            className="absolute top-1/2 -translate-y-1/2 left-0 z-10 p-2 -ml-4 text-white bg-gray-800 rounded-full shadow-lg opacity-75 hover:opacity-100"
+                            className="absolute top-1/2 -translate-y-1/2 left-0 z-10 p-2 text-white bg-gray-800/90 border border-gray-700 rounded-full shadow-lg hover:bg-gray-700 transition-colors"
                             aria-label="Anterior"
                         >
-                            <ChevronLeftIcon className="w-6 h-6" />
+                            <ChevronLeftIcon className="w-5 h-5" />
                         </button>
                         <button
                             onClick={goToNext}
-                            className="absolute top-1/2 -translate-y-1/2 right-0 z-10 p-2 -mr-4 text-white bg-gray-800 rounded-full shadow-lg opacity-75 hover:opacity-100"
+                            className="absolute top-1/2 -translate-y-1/2 right-0 z-10 p-2 text-white bg-gray-800/90 border border-gray-700 rounded-full shadow-lg hover:bg-gray-700 transition-colors"
                             aria-label="Próximo"
                         >
-                            <ChevronRightIcon className="w-6 h-6" />
+                            <ChevronRightIcon className="w-5 h-5" />
                         </button>
                         
-                        <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex space-x-2">
+                        <div className="flex justify-center space-x-2 mt-6">
                             {slides.map((_, index) => (
                                 <button
                                     key={index}

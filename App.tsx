@@ -694,7 +694,7 @@ const App: React.FC = () => {
   const isNotFirebaseUid = user && user.idEmail && user.idEmail.length !== 28;
 
   return (
-    <div className="relative min-h-screen font-sans text-gray-100 bg-gray-900">
+    <div className="relative min-h-screen font-sans text-gray-100 bg-gray-900 overflow-x-hidden">
       {firebaseChecked && (!isFirebaseUserLogged || isNotFirebaseUid) && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-gray-900/90 backdrop-blur-sm">
             <GoogleLinkModal user={user} onSuccess={handleLoginSuccess} />
@@ -702,7 +702,7 @@ const App: React.FC = () => {
       )}
 
       <Sidebar user={user} onLogout={handleLogout} isOpen={isSidebarOpen} onClose={() => setSidebarOpen(false)} permissions={userPermissions || FALLBACK_PERMISSIONS} activePage={activePage} onNavigate={handleNavigate} canClockIn={canUserClockIn}/>
-      <div className="transition-all md:ml-64">
+      <div className="transition-all md:ml-64 min-w-0 overflow-x-hidden">
          <header className="flex items-center justify-between p-2 mb-2 md:p-4 md:justify-end relative min-h-[64px] gap-2">
             <button onClick={() => setSidebarOpen(true)} className="p-2 text-gray-400 rounded-lg md:hidden hover:bg-gray-700 focus:outline-none z-20 shrink-0" aria-controls="default-sidebar" aria-label="Open sidebar"><span className="sr-only">Open sidebar</span><MenuIcon className="w-6 h-6" /></button>
             <div id="top-header-portal" className="flex-1 min-w-0 flex justify-end md:justify-center z-10 w-full overflow-hidden"></div>
@@ -711,7 +711,7 @@ const App: React.FC = () => {
             </div>
         </header>
         
-        <main className={`w-full max-w-full pt-0 mx-auto md:pt-0 ${activePage === 'jornada' ? 'p-0' : 'p-4 md:p-8'}`}>
+        <main className={`w-full max-w-full pt-0 mx-auto md:pt-0 overflow-x-hidden ${activePage === 'jornada' ? 'p-0' : 'p-4 md:p-8'}`}>
           {(isLoading || !userPermissions) ? (
             <div className="flex flex-col items-center justify-center pt-24">
               <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-blue-accent"></div>
