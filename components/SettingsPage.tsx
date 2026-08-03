@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import type { User, MenuPermissions } from '../types';
 import { ALL_PERMISSION_KEYS_WITH_LABELS, FALLBACK_PERMISSIONS, API_BASE_URL } from '../constants';
 import { ChevronDownIcon } from './icons';
+import { useNotifications } from '../hooks/useNotifications';
 
 interface SettingsPageProps {
   currentUser: User;

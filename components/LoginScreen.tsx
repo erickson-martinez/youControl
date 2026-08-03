@@ -29,7 +29,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, initialRegist
   const [loading, setLoading] = useState(false);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
-  const syncUserWithBackend = async (user: User, pass: string = '1234dummy'): Promise<User> => {
+  const syncUserWithBackend = async (user: User, pass: string = 'Teste@1212@1212'): Promise<User> => {
     let syncedUser = { ...user };
     try {
       const response = await fetch(`${API_BASE_URL}/users`);
