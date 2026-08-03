@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useBarbeiros } from '../hooks/useBarbeiros';
-import { useBarbeariaRegistros, useBarbeariaAgendamentos } from '../hooks/useBarbeariaRegistros';
+import { useBarbeariaRegistros, useBarbeariaAgendamentos, formatarDataHora } from '../hooks/useBarbeariaRegistros';
 import { useBarbeariaConfig } from '../hooks/useBarbeariaConfig';
 import { CheckCircleIcon, XCircleIcon, ClockIcon, ScissorsIcon } from './icons';
 import { User, Empresa } from '../types';
@@ -1019,12 +1019,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
 
                             <div className="flex flex-col items-end gap-1">
                               <div className="bg-blue-600/10 text-blue-400 font-black text-xl px-3 py-1.5 rounded-xl border border-blue-500/20 tabular-nums tracking-tighter shadow-inner">
-                                {a.horarios && a.horarios.length > 0
-                                  ? a.horarios.join(', ')
-                                  : dataObj.toLocaleTimeString([], {
-                                      hour: '2-digit',
-                                      minute: '2-digit',
-                                    })}
+                                {formatarDataHora(a.dataAgendada, a.horarios).horaStr}
                               </div>
                             </div>
                           </div>
@@ -1230,10 +1225,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                           <div className="flex flex-col items-end gap-1.5">
                             <div className="text-right">
                               <div className="text-gray-300 font-bold text-sm tracking-tight">
-                                {a.horarios && a.horarios.length > 0 
-                                  ? a.horarios.join(', ') 
-                                  : dataObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
-                                }
+                                {formatarDataHora(a.dataAgendada, a.horarios).horaStr}
                               </div>
                             </div>
                           </div>

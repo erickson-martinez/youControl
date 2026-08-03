@@ -13,6 +13,7 @@ export interface RegistroItem {
 export interface RegistroBarbearia {
   id: string;
   data: string; // ISO string
+  horarios?: string[];
   cliente: string;
   telefone: string;
   barbeiroId?: string;
@@ -21,6 +22,51 @@ export interface RegistroBarbearia {
   total: number;
   tipoPagamento?: string[];
 }
+
+export const formatarDataHora = (isoStr: string | undefined, horarios?: string[]) => {
+  if (!isoStr) return { dataStr: '', horaStr: '', dataHoraStr: '' };
+
+  let dataStr = '';
+  let horaStr = '';
+
+  if (horarios && Array.isArray(horarios) && horarios.length > 0) {
+    horaStr = horarios.join(', ');
+  }
+
+  if (typeof isoStr === 'string' && isoStr.includes('T')) {
+    const [datePart, timePart] = isoStr.split('T');
+    if (datePart && datePart.includes('-')) {
+      const [y, m, d] = datePart.split('-');
+      if (y && m && d) {
+        dataStr = `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`;
+      }
+    }
+    if (!horaStr && timePart) {
+      const cleanTime = timePart.replace('Z', '').split('.')[0];
+      const timeComponents = cleanTime.split(':');
+      if (timeComponents.length >= 2) {
+        horaStr = `${timeComponents[0].padStart(2, '0')}:${timeComponents[1].padStart(2, '0')}`;
+      }
+    }
+  }
+
+  if (!dataStr || !horaStr) {
+    try {
+      const d = new Date(isoStr);
+      if (!isNaN(d.getTime())) {
+        if (!dataStr) {
+          dataStr = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        }
+        if (!horaStr) {
+          horaStr = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        }
+      }
+    } catch (e) {}
+  }
+
+  const dataHoraStr = `${dataStr} ${horaStr}`.trim();
+  return { dataStr, horaStr, dataHoraStr };
+};
 
 export interface Agendamento {
   id: string;
@@ -204,6 +250,7 @@ export const useBarbeariaRegistros = (empresaId?: string) => {
       return {
         id: a.id,
         data: a.dataAgendada,
+        horarios: a.horarios,
         cliente: a.cliente,
         telefone: a.telefone,
         barbeiroId: a.barbeiroId,

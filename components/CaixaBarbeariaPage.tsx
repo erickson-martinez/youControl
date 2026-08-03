@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useBarbeariaRegistros, useBarbeariaAgendamentos } from '../hooks/useBarbeariaRegistros';
+import { useBarbeariaRegistros, useBarbeariaAgendamentos, formatarDataHora } from '../hooks/useBarbeariaRegistros';
 import { useBarbeiros } from '../hooks/useBarbeiros';
 import { useBarbeariaConfig } from '../hooks/useBarbeariaConfig';
 import { CheckCircleIcon, XCircleIcon, ClipboardListIcon } from './icons';
@@ -196,9 +196,7 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
         ) : (
           <div className="flex flex-col gap-4 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar">
             {pendentes.map(a => {
-              const dataAgendada = new Date(a.dataAgendada);
-              const dataStr = dataAgendada.toLocaleDateString();
-              const horaStr = dataAgendada.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+              const { dataStr, horaStr } = formatarDataHora(a.dataAgendada, a.horarios);
               const barbeiro = barbeiros.find(b => b.id === a.barbeiroId)?.nome || 'Qualquer um';
               
               const servicosDoAgendamento: any[] = [];
@@ -305,7 +303,7 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
         ) : (
           <div className="grid grid-cols-1 gap-4 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar">
             {[...registros].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()).map(r => {
-              const dataObj = new Date(r.data);
+              const { dataHoraStr } = formatarDataHora(r.data, r.horarios);
               return (
                 <div key={r.id} className="bg-gray-900/40 p-5 rounded-2xl border border-gray-800 flex flex-col md:flex-row md:items-center justify-between gap-5 group hover:border-gray-600 transition-all shadow-sm">
                   <div>
@@ -318,7 +316,7 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
                     </div>
                     <div className="text-sm font-medium text-gray-400 flex items-center gap-2 mt-2">
                       <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                      {dataObj.toLocaleDateString()} {dataObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                      {dataHoraStr}
                     </div>
                     {/* Lista de itens do registro */}
                     <div className="mt-4 flex flex-col gap-2">

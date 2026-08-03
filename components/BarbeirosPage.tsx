@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useBarbeiros } from '../hooks/useBarbeiros';
 import { useBarbeariaConfig, Produto, Servico, Custo } from '../hooks/useBarbeariaConfig';
-import { useBarbeariaRegistros, useBarbeariaAgendamentos } from '../hooks/useBarbeariaRegistros';
+import { useBarbeariaRegistros, useBarbeariaAgendamentos, formatarDataHora } from '../hooks/useBarbeariaRegistros';
 import { UsersIcon, TrashIcon, PencilIcon, PlusIcon, TagIcon, CogIcon, CashIcon, DocumentTextIcon, ChartBarIcon, ClipboardListIcon, CheckCircleIcon, XCircleIcon, ChevronLeftIcon, ChevronRightIcon, InformationCircleIcon, XIcon } from './icons';
 import { Empresa, User } from '../types';
 import { API_BASE_URL } from '../constants';
@@ -1715,9 +1715,7 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
         ) : (
           <div className="flex flex-col gap-4 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar">
             {pendentes.map(a => {
-              const dataAgendada = new Date(a.dataAgendada);
-              const dataStr = dataAgendada.toLocaleDateString();
-              const horaStr = dataAgendada.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+              const { dataStr, horaStr } = formatarDataHora(a.dataAgendada, a.horarios);
               const barbeiro = barbeiros.find(b => b.id === a.barbeiroId)?.nome || 'Qualquer um';
               
               const servicosDoAgendamento: any[] = [];
@@ -1900,7 +1898,7 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
         ) : (
           <div className="grid grid-cols-1 gap-4 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar">
             {[...registros].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()).map(r => {
-              const dataObj = new Date(r.data);
+              const { dataHoraStr } = formatarDataHora(r.data, r.horarios);
               return (
                 <div key={r.id} className="bg-gray-900/40 p-5 rounded-2xl border border-gray-800 flex flex-col md:flex-row md:items-center justify-between gap-5 group hover:border-gray-600 transition-all shadow-sm">
                   <div>
@@ -1912,7 +1910,7 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                       <h3 className="font-bold text-white text-xl">{r.cliente}</h3>
                     </div>
                     <div className="flex items-center gap-3 mt-2">
-                      <p className="text-xs font-medium text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-500/20">{dataObj.toLocaleDateString()} {dataObj.toLocaleTimeString()}</p>
+                      <p className="text-xs font-medium text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-500/20">{dataHoraStr}</p>
                       <p className="text-xs text-gray-400 font-medium">Barbeiro: <span className="text-gray-300 ml-1">{r.barbeiroNome || 'N/A'}</span></p>
                     </div>
                     <div className="flex flex-wrap gap-2 mt-4">
