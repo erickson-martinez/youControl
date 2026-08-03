@@ -125,10 +125,17 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
                 if (response.ok) {
                    const barbers = await response.json();
                    const barber = barbers.find((b: any) => {
-                       if (!b.email) return false;
-                       const digits = Array.from(b.email).filter((c: any) => c >= '0' && c <= '9').join('');
+                       const bEmail = b.email || '';
+                       const bId = b.idEmail || '';
+                       if (userEmail && (bEmail === userEmail || bId === userEmail)) return true;
                        const cleanEmail = userEmail.replace(/\D/g, '');
-                       return digits === cleanEmail;
+                       if (cleanEmail) {
+                           const digitsE = bEmail.replace(/\D/g, '');
+                           const digitsId = bId.replace(/\D/g, '');
+                           if (digitsE && digitsE === cleanEmail) return true;
+                           if (digitsId && digitsId === cleanEmail) return true;
+                       }
+                       return false;
                    });
                    if (barber) {
                        await apiFetch(`${API_BASE_URL}/barbers/${barber.id || barber._id}`, { method: 'DELETE' });
@@ -150,22 +157,39 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
             if (response.ok) {
                 const barbers = await response.json();
                 const barber = barbers.find((b: any) => {
-                    if (!b.email) return false;
-                    const digits = Array.from(b.email).filter((c: any) => c >= '0' && c <= '9').join('');
-                    return digits === cleanEmail;
+                    const bEmail = b.email || '';
+                    const bId = b.idEmail || '';
+                    if (userEmail && (bEmail === userEmail || bId === userEmail)) return true;
+                    if (cleanEmail) {
+                        const digitsE = bEmail.replace(/\D/g, '');
+                        const digitsId = bId.replace(/\D/g, '');
+                        if (digitsE && digitsE === cleanEmail) return true;
+                        if (digitsId && digitsId === cleanEmail) return true;
+                    }
+                    return false;
                 });
                 
                 if (role === 'Barbeiro') {
                     if (!barber) {
                         let userName = "Barbeiro";
-                        let currentIdEmail = cleanEmail;
+                        let currentIdEmail = userEmail;
+                        let actualEmail = userEmail;
                         try {
                             const resUsers = await apiFetch(`${API_BASE_URL}/users`);
                             if (resUsers.ok) {
                                 const allUsers = await resUsers.json();
-                                const found = allUsers.users ? allUsers.users.find((u: any) => (u.email || '').replace(/\D/g, '') === cleanEmail) : allUsers.find((u: any) => (u.email || '').replace(/\D/g, '') === cleanEmail);
-                                if (found && found.name) userName = found.name;
-                                if (found && (found.idEmail || found.id)) currentIdEmail = found.idEmail || found.id;
+                                const usersList = Array.isArray(allUsers) ? allUsers : (allUsers.users || []);
+                                const found = usersList.find((u: any) => 
+                                    u.idEmail === userEmail || 
+                                    u.email === userEmail || 
+                                    u.id === userEmail || 
+                                    (cleanEmail && (u.email || '').replace(/\D/g, '') === cleanEmail)
+                                );
+                                if (found) {
+                                    if (found.name) userName = found.name;
+                                    if (found.idEmail || found.id) currentIdEmail = found.idEmail || found.id;
+                                    if (found.email) actualEmail = found.email;
+                                }
                             }
                         } catch(e) {}
                         
@@ -175,8 +199,9 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
                                     nome: userName,
-                                    email: currentIdEmail,
-                                    telefone: cleanEmail,
+                                    email: actualEmail,
+                                    idEmail: currentIdEmail,
+                                    telefone: cleanEmail || actualEmail,
                                     comissao: 10,
                                     corte: 50,
                                     diasTrabalhados: ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'],
@@ -191,7 +216,7 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
                             // Fetch current permissions first to append instead of replace
                             let currentPerms: string[] = [];
                             try {
-                                const permRes = await apiFetch(`${API_BASE_URL}/permissions?idEmail=${currentIdEmail}${cleanEmail ? `&email=${encodeURIComponent(cleanEmail)}` : ''}`);
+                                const permRes = await apiFetch(`${API_BASE_URL}/permissions?idEmail=${currentIdEmail}${actualEmail ? `&email=${encodeURIComponent(actualEmail)}` : ''}`);
                                 if (permRes.ok) {
                                     const pData = await permRes.json();
                                     currentPerms = pData.permissions || [];
@@ -206,7 +231,7 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
                                     },
                                     body: JSON.stringify({
                                         idEmail: currentIdEmail,
-                                        email: cleanEmail,
+                                        email: actualEmail,
                                         permissions: ['barbeiroAgenda']
                                     })
                                 });
