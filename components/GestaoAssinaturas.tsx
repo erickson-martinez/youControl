@@ -347,7 +347,16 @@ export const GestaoAssinaturas: React.FC<GestaoAssinaturasProps> = ({
       return;
     }
 
-    const payload = {
+    const isEdit = Boolean(editingSubscriberId);
+
+    const now = new Date();
+    const nextMonth = new Date(now);
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+
+    const matchedPlan = plans.find((p) => (p.id || p._id) === subPlanoId);
+    const planValor = matchedPlan?.valor || 0;
+
+    const payload: any = {
       nome: cleanNome,
       telefone: cleanTelefone,
       email: cleanEmail,
@@ -356,9 +365,23 @@ export const GestaoAssinaturas: React.FC<GestaoAssinaturasProps> = ({
       linkId: resolvedLinkId,
     };
 
+    if (!isEdit) {
+      payload.status = 'pendente';
+      payload.dataFim = nextMonth.toISOString();
+      payload.pagamento = {
+        status: 'pago',
+        formas: [],
+        desconto: 0,
+        subtotalServicos: 0,
+        subtotalProdutos: 0,
+        valorOriginal: planValor,
+        valorCobrado: planValor,
+        dataPagamento: now.toISOString(),
+      };
+    }
+
     setSubmitting(true);
     try {
-      const isEdit = Boolean(editingSubscriberId);
       const urlPrimary = isEdit
         ? `${API_BASE_URL}/subscription-clients/${editingSubscriberId}`
         : `${API_BASE_URL}/subscription-clients`;

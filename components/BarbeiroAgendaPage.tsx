@@ -371,8 +371,11 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
   };
 
   const handleConcluir = async (a: any) => {
-    if (!a.servicosIds || a.servicosIds.length === 0) {
-      setErrorAlert('É necessário ter pelo menos 1 serviço vinculado para concluir o agendamento.');
+    const hasServicos = (a.servicosIds && a.servicosIds.length > 0) || Boolean(a.servicoId);
+    const hasProdutos = (a.produtosIds && a.produtosIds.length > 0);
+
+    if (!hasServicos && !hasProdutos) {
+      setErrorAlert('É necessário ter pelo menos 1 serviço ou produto vinculado para concluir o agendamento.');
       return;
     }
 

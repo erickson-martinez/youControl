@@ -8,14 +8,17 @@ import MonthNavigator from './MonthNavigator';
 import { CustomDatePicker } from './CustomDatePicker';
 
 export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empresa; user?: User }) {
-  const empresaId = empresa?.id || empresa?.linkId;
-  const { agendamentos, updateAgendamento, loadAgendamentos } = useBarbeariaAgendamentos(empresaId);
+  const empresaId = empresa?.id || empresa?.linkId || (user as any)?.empresaId || (user as any)?.linkId;
+  const { agendamentos, updateAgendamento, updateStatus, loadAgendamentos } = useBarbeariaAgendamentos(empresaId);
   const { registros, addRegistro } = useBarbeariaRegistros(empresaId);
   const { barbeiros, reloadBarbeiros } = useBarbeiros(empresaId);
   const { servicos, loadConfig, produtos, updateProduto, taxas } = useBarbeariaConfig(empresaId);
 
   const pendentes = agendamentos
-    .filter(a => a.status === 'finalizado')
+    .filter(a => {
+      const st = (a.status || '').toLowerCase();
+      return st === 'finalizado' || st === 'concluido' || st === 'atendido' || st === 'aguardando_pagamento' || st === 'pendente_pagamento';
+    })
     .sort((a, b) => new Date(a.dataAgendada).getTime() - new Date(b.dataAgendada).getTime());
 
   const [activeSubTab, setActiveSubTab] = useState<'aguardando' | 'historico'>('aguardando');
@@ -111,23 +114,31 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
   };
 
   const handleConcluir = async (a: any, pagamentosFinalizados: {tipo:string, valor:number}[]) => {
+    const activePagamentos = pagamentosFinalizados.filter(p => p.valor > 0);
+    const formas = activePagamentos.map(p => p.tipo);
+
     // Save types inside the agendamento update as stringified JSON format
-    const tipos = pagamentosFinalizados
-      .filter(p => p.valor > 0)
-      .map(p => {
-         let key = '';
-         if (p.tipo === 'Dinheiro') key = 'dinheiro';
-         else if (p.tipo === 'Pix') key = 'pix';
-         else if (p.tipo === 'Crédito') key = 'credito';
-         else if (p.tipo === 'Débito') key = 'debito';
+    const tipos = activePagamentos.map(p => {
+       let key = '';
+       if (p.tipo === 'Dinheiro') key = 'dinheiro';
+       else if (p.tipo === 'Pix') key = 'pix';
+       else if (p.tipo === 'Crédito') key = 'credito';
+       else if (p.tipo === 'Débito') key = 'debito';
 
-         const taxa = key && taxas && taxas[key] ? taxas[key] : 0;
-         const valorDescontado = p.valor - (p.valor * taxa / 100);
+       const taxa = key && taxas && taxas[key] ? taxas[key] : 0;
+       const valorDescontado = p.valor - (p.valor * taxa / 100);
 
-         return JSON.stringify({ ...p, valorOriginal: p.valor, taxaAplicada: taxa, valor: Number(valorDescontado.toFixed(2)) });
-      });
+       return JSON.stringify({ ...p, valorOriginal: p.valor, taxaAplicada: taxa, valor: Number(valorDescontado.toFixed(2)) });
+    });
 
-    await updateAgendamento(a.id, { ...a, status: 'pago', tipoPagamento: tipos });
+    const valorTotal = calcularValorTotal(a);
+
+    await updateStatus(a.id, 'pago', a.barbeiroId, {
+      formas,
+      valorRecebido: valorTotal,
+      troco: 0,
+      tipoPagamento: tipos,
+    });
     
     // Atualiza o estoque do produto se houver
     if (a.produtosIds && a.produtosIds.length > 0) {

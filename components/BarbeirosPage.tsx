@@ -1370,7 +1370,10 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
     loadConfig();
   };
 
-  const pendentes = agendamentos.filter(a => a.status === 'finalizado').sort((a, b) => new Date(a.dataAgendada).getTime() - new Date(b.dataAgendada).getTime());
+  const pendentes = agendamentos.filter(a => {
+    const st = (a.status || '').toLowerCase();
+    return st === 'finalizado' || st === 'concluido' || st === 'atendido' || st === 'aguardando_pagamento' || st === 'pendente_pagamento';
+  }).sort((a, b) => new Date(a.dataAgendada).getTime() - new Date(b.dataAgendada).getTime());
   
   const handleConcluir = async (a: any) => {
     await updateStatus(a.id, 'pago');

@@ -261,29 +261,38 @@ export const useBarbeariaAgendamentos = (empresaId?: string) => {
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const key = empresaId ? `barbearia_agendamentos_${empresaId}` : 'barbearia_agendamentos';
 
-  const loadAgendamentos = useCallback(async () => {
+  const loadAgendamentos = useCallback(async (bypassCache = false) => {
     if (!empresaId) {
       setAgendamentos([]);
       return;
     }
     const url = `${API_BASE_URL}/appointment-barbers?linkId=${empresaId}`;
+    if (bypassCache) {
+      promiseCache.delete(url);
+    }
     try {
       if (!promiseCache.has(url)) {
         promiseCache.set(url, fetch(url).then(async (r) => {
-          if (!r.ok) throw new Error('Erro ao buscar agendamentos');
+          if (!r.ok) {
+            const fallbackRes = await fetch(`/api/v1/appointment-barbers?linkId=${empresaId}`).catch(() => null);
+            if (fallbackRes && fallbackRes.ok) return fallbackRes.json();
+            throw new Error('Erro ao buscar agendamentos');
+          }
           return r.json();
         }).finally(() => {
           setTimeout(() => promiseCache.delete(url), 100);
         }));
       }
       const data = await promiseCache.get(url);
-      const mapped = data.map((a: any) => ({ 
-        ...a, 
-        id: a.id || a._id,
-        cliente: a.clienteNome || a.cliente,
-        telefone: a.clienteTelefone || a.telefone,
-      }));
-      setAgendamentos(mapped);
+      if (Array.isArray(data)) {
+        const mapped = data.map((a: any) => ({ 
+          ...a, 
+          id: a.id || a._id,
+          cliente: a.clienteNome || a.cliente,
+          telefone: a.clienteTelefone || a.telefone,
+        }));
+        setAgendamentos(mapped);
+      }
     } catch (e) {
       console.error('Erro ao carregar agendamentos:', e);
     }
@@ -291,21 +300,34 @@ export const useBarbeariaAgendamentos = (empresaId?: string) => {
 
   useEffect(() => {
     loadAgendamentos();
-    const handleSync = () => loadAgendamentos();
+    const handleSync = () => {
+      promiseCache.clear();
+      loadAgendamentos(true);
+    };
     window.addEventListener('agendamentos_sync', handleSync);
     return () => window.removeEventListener('agendamentos_sync', handleSync);
   }, [loadAgendamentos]);
 
   const addAgendamento = async (agendamentoData: any) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/appointment-barbers`, {
+      promiseCache.clear();
+      let response = await fetch(`${API_BASE_URL}/appointment-barbers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(agendamentoData),
-      });
-      if (response.ok) {
+      }).catch(() => null);
+
+      if (!response || !response.ok) {
+        response = await fetch(`/api/v1/appointment-barbers`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(agendamentoData),
+        }).catch(() => null);
+      }
+
+      if (response && response.ok) {
         const data = await response.json();
-        loadAgendamentos();
+        loadAgendamentos(true);
         window.dispatchEvent(new Event('agendamentos_sync'));
         return data;
       } else {
@@ -318,9 +340,17 @@ export const useBarbeariaAgendamentos = (empresaId?: string) => {
     }
   };
 
-  const updateStatus = async (id: string, status: Agendamento['status'], barbeiroId?: string) => {
+  const updateStatus = async (id: string, status: Agendamento['status'], barbeiroId?: string, extraData?: any) => {
+    setAgendamentos((prev) =>
+      prev.map((a) =>
+        (a.id === id || (a as any)._id === id)
+          ? { ...a, status, ...(barbeiroId ? { barbeiroId } : {}), ...(extraData || {}) }
+          : a
+      )
+    );
     try {
-      const body: any = { status };
+      promiseCache.clear();
+      const body: any = { status, ...(extraData || {}) };
       if (barbeiroId) body.barbeiroId = barbeiroId;
       
       const isCancel = status === 'cancelado';
@@ -328,35 +358,56 @@ export const useBarbeariaAgendamentos = (empresaId?: string) => {
         ? `${API_BASE_URL}/appointment-barbers/${id}/cancel`
         : `${API_BASE_URL}/appointment-barbers/${id}/status`;
 
-      const response = await fetch(url, {
+      let response = await fetch(url, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-      });
-      if (response.ok) {
-        loadAgendamentos();
-        window.dispatchEvent(new Event('agendamentos_sync'));
-      } else {
-        console.error('Erro ao atualizar status do agendamento via API');
+      }).catch(() => null);
+
+      if (!response || !response.ok) {
+        const fallbackUrl = isCancel 
+          ? `/api/v1/appointment-barbers/${id}/cancel`
+          : `/api/v1/appointment-barbers/${id}/status`;
+        response = await fetch(fallbackUrl, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        }).catch(() => null);
       }
+
+      loadAgendamentos(true);
+      window.dispatchEvent(new Event('agendamentos_sync'));
     } catch (e) {
       console.error('Erro de conexão ao atualizar status:', e);
     }
   };
 
   const updateAgendamento = async (id: string, updates: Partial<Agendamento>) => {
+    setAgendamentos((prev) =>
+      prev.map((a) =>
+        (a.id === id || (a as any)._id === id)
+          ? { ...a, ...updates }
+          : a
+      )
+    );
     try {
-      const response = await fetch(`${API_BASE_URL}/appointment-barbers/${id}`, {
+      promiseCache.clear();
+      let response = await fetch(`${API_BASE_URL}/appointment-barbers/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
-      });
-      if (response.ok) {
-        loadAgendamentos();
-        window.dispatchEvent(new Event('agendamentos_sync'));
-      } else {
-        console.error('Erro ao atualizar agendamento via API');
+      }).catch(() => null);
+
+      if (!response || !response.ok) {
+        response = await fetch(`/api/v1/appointment-barbers/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        }).catch(() => null);
       }
+
+      loadAgendamentos(true);
+      window.dispatchEvent(new Event('agendamentos_sync'));
     } catch (e) {
       console.error('Erro de conexão ao atualizar:', e);
     }
