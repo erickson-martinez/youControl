@@ -21,6 +21,9 @@ export interface RegistroBarbearia {
   itens: RegistroItem[];
   total: number;
   tipoPagamento?: string[];
+  pagamento?: PagamentoAgendamento;
+  desconto?: number;
+  valorOriginal?: number;
 }
 
 export const formatarDataHora = (isoStr: string | undefined, horarios?: string[]) => {
@@ -68,12 +71,30 @@ export const formatarDataHora = (isoStr: string | undefined, horarios?: string[]
   return { dataStr, horaStr, dataHoraStr };
 };
 
+export interface PagamentoAgendamento {
+  status?: string;
+  formas?: string[];
+  desconto?: number;
+  subtotalServicos?: number;
+  subtotalProdutos?: number;
+  valorOriginal?: number;
+  valorCobrado?: number;
+}
+
+export interface AssinaturaAgendamento {
+  possui?: boolean;
+  planoNome?: string;
+  atendimentoNumero?: number;
+  codigoAtendimento?: string;
+}
+
 export interface Agendamento {
   id: string;
   dataCadastro: string;
   dataAgendada: string; // ISO string para o horario
   telefone: string;
   cliente: string;
+  email?: string;
   barbeiroId?: string;
   servicoId?: string;
   servicosIds?: string[];
@@ -84,7 +105,155 @@ export interface Agendamento {
   valorTotalPrevisto?: number;
   status: 'pendente' | 'atendendo' | 'finalizado' | 'pago' | 'cancelado';
   tipoPagamento?: string[];
+  pagamento?: PagamentoAgendamento;
+  assinatura?: AssinaturaAgendamento;
 }
+
+export const formatarMoeda = (valor: number = 0): string => {
+  const safeVal = isNaN(Number(valor)) ? 0 : Number(valor);
+  return safeVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+};
+
+export const NOMES_DIAS_SEMANA = [
+  'Domingo',
+  'Segunda-feira',
+  'Terça-feira',
+  'Quarta-feira',
+  'Quinta-feira',
+  'Sexta-feira',
+  'Sábado',
+];
+
+export const obterDiaSemanaApartirDeData = (dataStr: string | undefined): number => {
+  if (!dataStr) return new Date().getDay();
+  const datePart = dataStr.split('T')[0];
+  const parts = datePart.split('-');
+  if (parts.length === 3) {
+    const y = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10) - 1;
+    const d = parseInt(parts[2], 10);
+    if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+      return new Date(y, m, d, 12, 0, 0).getDay();
+    }
+  }
+  const dateObj = new Date(dataStr);
+  return isNaN(dateObj.getTime()) ? new Date().getDay() : dateObj.getDay();
+};
+
+export interface ResumoPagamentoAgendamento {
+  subtotalServicos: number;
+  subtotalProdutos: number;
+  valorOriginal: number;
+  desconto: number;
+  valorCobrado: number;
+  temAssinatura: boolean;
+  isSegundaAQuarta: boolean;
+  nomeDiaSemana: string;
+  mensagemDestaque?: string;
+  formasPagamento: string[];
+  planoNome?: string;
+  atendimentoNumero?: number;
+  codigoAtendimento?: string;
+}
+
+export const calcularResumoPagamento = (
+  dataAgendada: string,
+  subtotalServicosCalc: number = 0,
+  subtotalProdutosCalc: number = 0,
+  pagamentoBackend?: PagamentoAgendamento,
+  assinaturaBackend?: AssinaturaAgendamento,
+  possuirAssinaturaOverride?: boolean,
+  planoNomeOverride?: string
+): ResumoPagamentoAgendamento => {
+  const dayOfWeek = obterDiaSemanaApartirDeData(dataAgendada);
+  const isSegundaAQuarta = dayOfWeek === 1 || dayOfWeek === 2 || dayOfWeek === 3;
+  const nomeDiaSemana = NOMES_DIAS_SEMANA[dayOfWeek] || '';
+
+  const temAssinatura = Boolean(
+    assinaturaBackend?.possui ?? possuirAssinaturaOverride
+  );
+  const planoNome =
+    assinaturaBackend?.planoNome ||
+    planoNomeOverride ||
+    (temAssinatura ? 'Plano VIP Assinatura' : undefined);
+  const atendimentoNumero = assinaturaBackend?.atendimentoNumero;
+  const codigoAtendimento = assinaturaBackend?.codigoAtendimento;
+
+  // Prioritize backend fields
+  const subtotalServicos =
+    pagamentoBackend?.subtotalServicos !== undefined
+      ? pagamentoBackend.subtotalServicos
+      : subtotalServicosCalc;
+
+  const subtotalProdutos =
+    pagamentoBackend?.subtotalProdutos !== undefined
+      ? pagamentoBackend.subtotalProdutos
+      : subtotalProdutosCalc;
+
+  const valorOriginal =
+    pagamentoBackend?.valorOriginal !== undefined
+      ? pagamentoBackend.valorOriginal
+      : subtotalServicos + subtotalProdutos;
+
+  let desconto = 0;
+  let valorCobrado = 0;
+  let mensagemDestaque: string | undefined = undefined;
+  let formasPagamento: string[] = pagamentoBackend?.formas || [];
+
+  if (temAssinatura) {
+    if (pagamentoBackend?.desconto !== undefined) {
+      desconto = pagamentoBackend.desconto;
+    } else {
+      desconto = 0;
+    }
+
+    if (pagamentoBackend?.valorCobrado !== undefined) {
+      valorCobrado = pagamentoBackend.valorCobrado;
+    } else {
+      valorCobrado = Math.max(0, subtotalProdutos);
+    }
+
+    if (!formasPagamento.includes('Assinatura')) {
+      formasPagamento = ['Assinatura', ...formasPagamento];
+    }
+
+    mensagemDestaque = 'Serviços cobertos pela assinatura';
+  } else {
+    if (pagamentoBackend?.desconto !== undefined) {
+      desconto = pagamentoBackend.desconto;
+    } else if (isSegundaAQuarta && subtotalServicos > 0) {
+      desconto = Math.min(5, subtotalServicos);
+    } else {
+      desconto = 0;
+    }
+
+    if (pagamentoBackend?.valorCobrado !== undefined) {
+      valorCobrado = pagamentoBackend.valorCobrado;
+    } else {
+      valorCobrado = Math.max(0, valorOriginal - desconto);
+    }
+
+    if (isSegundaAQuarta) {
+      mensagemDestaque = 'Desconto de R$ 5,00 aplicado (Segunda a Quarta: dias promocionais)';
+    }
+  }
+
+  return {
+    subtotalServicos,
+    subtotalProdutos,
+    valorOriginal,
+    desconto,
+    valorCobrado,
+    temAssinatura,
+    isSegundaAQuarta,
+    nomeDiaSemana,
+    mensagemDestaque,
+    formasPagamento,
+    planoNome,
+    atendimentoNumero,
+    codigoAtendimento,
+  };
+};
 
 const promiseCache = new Map<string, Promise<any>>();
 
@@ -212,21 +381,22 @@ export const useBarbeariaRegistros = (empresaId?: string) => {
     const pagos = agendamentos.filter(a => a.status === 'pago');
     const logs = pagos.map(a => {
       const itens: RegistroItem[] = [];
-      let total = 0;
+      let subtotalServicos = 0;
+      let subtotalProdutos = 0;
       
       if (a.servicosIds && a.servicosIds.length > 0) {
         a.servicosIds.forEach(id => {
           const s = servicos.find(x => x.id === id);
           if (s) {
             itens.push({ idItem: s.id, nome: s.nome, tipo: 'servico', valor: s.valor });
-            total += s.valor;
+            subtotalServicos += s.valor;
           }
         });
       } else if (a.servicoId) {
         const s = servicos.find(x => x.id === a.servicoId);
         if (s) {
           itens.push({ idItem: s.id, nome: s.nome, tipo: 'servico', valor: s.valor });
-          total += s.valor;
+          subtotalServicos += s.valor;
         }
       }
 
@@ -235,14 +405,28 @@ export const useBarbeariaRegistros = (empresaId?: string) => {
           const p = produtos.find(x => x.id === id);
           if (p) {
             itens.push({ idItem: p.id, nome: p.nome, tipo: 'produto', valor: p.precoVenda });
-            total += p.precoVenda;
+            subtotalProdutos += p.precoVenda;
           }
         });
       }
+
+      const resumo = calcularResumoPagamento(
+        a.dataAgendada,
+        subtotalServicos,
+        subtotalProdutos,
+        a.pagamento,
+        a.assinatura
+      );
+
+      let total = resumo.valorCobrado;
       
-      // Se não achou na config (pode ter sido apagado), usa fallback se houver valorTotalPrevisto
-      if (itens.length === 0 && a.valorTotalPrevisto) {
-        total = a.valorTotalPrevisto;
+      // Se não achou na config (pode ter sido apagado), usa fallback
+      if (itens.length === 0) {
+        if (a.pagamento?.valorCobrado !== undefined) {
+          total = a.pagamento.valorCobrado;
+        } else if (a.valorTotalPrevisto) {
+          total = a.valorTotalPrevisto;
+        }
       }
 
       const barbeiro = barbeiros.find(b => b.id === a.barbeiroId);
@@ -257,6 +441,9 @@ export const useBarbeariaRegistros = (empresaId?: string) => {
         barbeiroNome: barbeiro ? barbeiro.nome : 'Qualquer um',
         itens,
         total,
+        desconto: resumo.desconto,
+        valorOriginal: resumo.valorOriginal,
+        pagamento: a.pagamento,
         tipoPagamento: a.tipoPagamento
       };
     });

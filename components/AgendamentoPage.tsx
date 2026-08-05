@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useBarbeiros } from "../hooks/useBarbeiros";
 import { useBarbeariaConfig } from "../hooks/useBarbeariaConfig";
-import { useBarbeariaAgendamentos } from "../hooks/useBarbeariaRegistros";
+import { useBarbeariaAgendamentos, formatarMoeda, calcularResumoPagamento } from "../hooks/useBarbeariaRegistros";
+import { API_BASE_URL } from "../constants";
 
 const HORARIOS = [
   "14:00",
@@ -33,7 +34,8 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
   const { agendamentos, addAgendamento, loadAgendamentos } =
     useBarbeariaAgendamentos(selectedEmpresaId);
 
-  const [email, setEmail] = useState("");
+  const [clienteEmail, setClienteEmail] = useState("");
+  const [clienteTelefone, setClienteTelefone] = useState("");
   const [nome, setNome] = useState("");
   const [barbeiroId, setBarbeiroId] = useState("");
   const [servicosSelecionados, setServicosSelecionados] = useState<string[]>(
@@ -58,6 +60,58 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
   const [quantidadePessoas, setQuantidadePessoas] = useState(1);
   const [nomesAcompanhantes, setNomesAcompanhantes] = useState("");
   const [agendado, setAgendado] = useState(false);
+  const [createdResult, setCreatedResult] = useState<any>(null);
+
+  // Subscriptions & Plans State for checking subscriber
+  const [subscribers, setSubscribers] = useState<any[]>([]);
+  const [plans, setPlans] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchSubscribersAndPlans = async () => {
+      if (!selectedEmpresaId) return;
+      try {
+        let resSub = await fetch(`${API_BASE_URL}/subscription-clients?linkId=${selectedEmpresaId}`).catch(() => null);
+        if (!resSub || !resSub.ok || !(resSub.headers.get('content-type') || '').includes('application/json')) {
+          resSub = await fetch(`/api/v1/subscription-clients?linkId=${selectedEmpresaId}`);
+        }
+        if (resSub && resSub.ok && (resSub.headers.get('content-type') || '').includes('application/json')) {
+          const dataSub = await resSub.json();
+          const listSub = Array.isArray(dataSub) ? dataSub : dataSub.clients || dataSub.subscribers || dataSub.data || [];
+          setSubscribers(listSub.filter((s: any) => s.ativo !== false));
+        }
+
+        let resPlan = await fetch(`${API_BASE_URL}/subscription-plans?linkId=${selectedEmpresaId}`).catch(() => null);
+        if (!resPlan || !resPlan.ok || !(resPlan.headers.get('content-type') || '').includes('application/json')) {
+          resPlan = await fetch(`/api/v1/subscription-plans?linkId=${selectedEmpresaId}`);
+        }
+        if (resPlan && resPlan.ok && (resPlan.headers.get('content-type') || '').includes('application/json')) {
+          const dataPlan = await resPlan.json();
+          const listPlan = Array.isArray(dataPlan) ? dataPlan : dataPlan.plans || dataPlan.data || [];
+          setPlans(listPlan);
+        }
+      } catch (e) {
+        console.warn("Erro ao buscar assinantes na tela de agendamento:", e);
+      }
+    };
+    fetchSubscribersAndPlans();
+  }, [selectedEmpresaId]);
+
+  // Identify Active Subscriber by Phone
+  const matchedSubscriber = useMemo(() => {
+    const cleanTel = (clienteTelefone || '').replace(/\D/g, '');
+    if (!cleanTel || cleanTel.length < 8) return null;
+    return subscribers.find((s: any) => {
+      const subTel = (s.telefone || '').replace(/\D/g, '');
+      return subTel === cleanTel && s.ativo !== false;
+    });
+  }, [clienteTelefone, subscribers]);
+
+  const matchedPlanName = useMemo(() => {
+    if (!matchedSubscriber) return null;
+    if (matchedSubscriber.planoNome) return matchedSubscriber.planoNome;
+    const p = plans.find((p: any) => (p.id || p._id) === matchedSubscriber.planoId);
+    return p?.nome || 'Plano de Assinatura';
+  }, [matchedSubscriber, plans]);
 
   useEffect(() => {
     if (!hasInitialized) {
@@ -81,11 +135,22 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
       const bId = urlParams.get('barbeiroId');
       if (bId) setBarbeiroId(bId);
 
-      const uStr = localStorage.getItem("currentUser");
-      if (uStr) {
-        const u = JSON.parse(uStr);
-        if (u.email && !email) setEmail(u.email);
-        if (u.name && !nome) setNome(u.name);
+      const storedUser = localStorage.getItem("currentUser");
+      if (storedUser) {
+        try {
+          const currentUser = JSON.parse(storedUser);
+          if (currentUser?.email) {
+            setClienteEmail((emailAtual) => emailAtual || currentUser.email);
+          }
+          if (currentUser?.name) {
+            setNome((nomeAtual) => nomeAtual || currentUser.name);
+          }
+          if (currentUser?.phone || currentUser?.telefone) {
+            setClienteTelefone((telAtual) => telAtual || currentUser.phone || currentUser.telefone || "");
+          }
+        } catch (error) {
+          console.warn("currentUser inválido no localStorage");
+        }
       }
     } catch (e) {}
   }, []);
@@ -93,18 +158,24 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
   const totalServicos = useMemo(() => {
     return servicosSelecionados.reduce((acc, id) => {
       const s = servicos.find((x) => x.id === id);
-      return acc + (s ? s.valor : 0);
+      return acc + (s ? Number(s.valor || 0) : 0);
     }, 0);
   }, [servicosSelecionados, servicos]);
 
   const totalProdutos = useMemo(() => {
     return produtosSelecionados.reduce((acc, id) => {
       const p = produtos.find((x) => x.id === id);
-      return acc + (p ? p.precoVenda : 0);
+      return acc + (p ? Number(p.precoVenda || 0) : 0);
     }, 0);
   }, [produtosSelecionados, produtos]);
 
-  const totalGeral = totalServicos + totalProdutos;
+  const resumo = useMemo(() => {
+    return calcularResumoPagamento(
+      data,
+      totalServicos,
+      totalProdutos
+    );
+  }, [data, totalServicos, totalProdutos]);
 
   const handleReload = () => {
     reloadBarbeiros();
@@ -113,18 +184,16 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
   };
 
   const handleEmailBlur = () => {
-    if (!email) return;
-    const existente = agendamentos.find((a) => a.email === email);
+    if (!clienteEmail) return;
+    const existente = agendamentos.find((a) => a.email === clienteEmail || a.clienteEmail === clienteEmail);
     if (existente && !nome) {
-      setNome(existente.cliente);
+      setNome(existente.cliente || existente.clienteNome || "");
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // ... rest of submit
     if (
-      !email.trim() ||
       !nome.trim() ||
       !data ||
       horariosSelecionados.length === 0
@@ -135,9 +204,8 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
       return;
     }
 
-    const justNumbers = email.replace(/\D/g, "");
-    if (justNumbers.length < 10 || justNumbers.length > 11) {
-      alert("Por favor, insira um email válido com código de área (DDD) contendo 10 ou 11 dígitos.");
+    if (!clienteEmail.trim() && !clienteTelefone.trim()) {
+      alert("Preencha pelo menos o E-mail ou o Telefone do cliente para realizar o agendamento.");
       return;
     }
 
@@ -168,15 +236,11 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
       }
     }
 
-    const totalPrevisto = 
-      servicos.filter(s => servicosSelecionados.includes(s.id)).reduce((a, b) => a + Number(b.preco || 0), 0) +
-      produtos.filter(p => produtosSelecionados.includes(p.idItem)).reduce((a, b) => a + Number(b.preco || 0), 0);
-
     const payload = {
       clienteNome: nome,
-      clienteEmail: email,
-      clienteTelefone: email,
-      barbeiroId: barbeiroId || "",
+      clienteEmail: clienteEmail || "",
+      clienteTelefone: clienteTelefone || "",
+      barbeiroId: barbeiroId || (barbeiros.length > 0 ? barbeiros[0].id : ""),
       servicosIds: servicosSelecionados,
       produtosIds: produtosSelecionados,
       dataAgendada: `${data}T${horariosSelecionados[0]}:00`,
@@ -184,12 +248,21 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
       status: "pendente",
       quantidadePessoas,
       nomesAcompanhantes: quantidadePessoas > 1 ? nomesAcompanhantes : "",
-      valorTotalPrevisto: totalPrevisto,
-      linkId: selectedEmpresaId
+      valorTotalPrevisto: resumo.valorCobrado,
+      linkId: selectedEmpresaId,
+      pagamento: {
+        status: "pendente",
+        formas: resumo.formasPagamento,
+        desconto: resumo.desconto,
+        subtotalServicos: resumo.subtotalServicos,
+        subtotalProdutos: resumo.subtotalProdutos,
+        valorOriginal: resumo.valorOriginal,
+        valorCobrado: resumo.valorCobrado,
+      }
     };
 
-    addAgendamento(payload);
-
+    const result = await addAgendamento(payload);
+    setCreatedResult(result);
     setAgendado(true);
   };
 
@@ -312,15 +385,37 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
   }
 
   if (agendado) {
+    const hasAssinatura = createdResult?.assinatura?.possui || (createdResult as any)?.possuiAssinatura || Boolean(matchedSubscriber);
+    const planoAssinaturaNome = createdResult?.assinatura?.planoNome || matchedPlanName;
+    const codigoAtendimentoAssinatura = createdResult?.assinatura?.codigoAtendimento || matchedSubscriber?.codigoAtendimento || matchedSubscriber?.codigo;
+
     return (
       <div className="p-5 md:p-8 max-w-lg mx-auto text-center space-y-6">
-        <div className="bg-green-600/20 text-green-400 p-5 md:p-8 rounded-xl border border-green-500/30">
-          <h2 className="text-2xl font-bold mb-4">Agendamento Confirmado!</h2>
-          <p>Seu horário foi reservado com sucesso.</p>
+        <div className="bg-green-600/20 text-green-400 p-5 md:p-8 rounded-xl border border-green-500/30 space-y-4">
+          <h2 className="text-2xl font-bold">Agendamento Confirmado!</h2>
+          <p className="text-gray-200">Seu horário foi reservado com sucesso.</p>
+
+          {hasAssinatura && (
+            <div className="p-4 bg-purple-900/40 border border-purple-500/40 rounded-xl text-purple-200 text-left text-xs space-y-1.5 mt-4">
+              <div className="font-bold text-sm text-purple-300 flex items-center gap-1.5">
+                <span>⭐</span> Serviços cobertos pela assinatura
+              </div>
+              {planoAssinaturaNome && <div>Plano: <strong className="text-white">{planoAssinaturaNome}</strong></div>}
+              {codigoAtendimentoAssinatura && <div>Código de Atendimento: <span className="font-mono bg-purple-950 px-2 py-0.5 rounded border border-purple-700/50 text-purple-200">{codigoAtendimentoAssinatura}</span></div>}
+              {produtosSelecionados.length > 0 && (
+                <div className="text-amber-300 pt-1 border-t border-purple-700/40 font-semibold">
+                  ⚠️ Produtos não são cobertos pela assinatura.
+                </div>
+              )}
+            </div>
+          )}
+
           <button
             onClick={() => {
               setAgendado(false);
-              setEmail("");
+              setCreatedResult(null);
+              setClienteEmail("");
+              setClienteTelefone("");
               setNome("");
               setData("");
               setHorariosSelecionados([]);
@@ -330,7 +425,7 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
               setQuantidadePessoas(1);
               setNomesAcompanhantes("");
             }}
-            className="mt-6 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-500 transition"
+            className="mt-6 px-6 py-2.5 bg-green-600 text-white font-bold rounded-xl hover:bg-green-500 transition shadow-md"
           >
             Fazer Novo Agendamento
           </button>
@@ -391,26 +486,6 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm text-gray-400 mb-1">
-                  Email (Obrigatório) *
-                </label>
-                <input
-                  type="tel"
-                  required
-                  value={email}
-                  onChange={(e) => {
-                    let val = e.target.value.replace(/\D/g, "");
-                    if (val.length > 11) val = val.substring(0, 11);
-                    if (val.length > 2) val = `(${val.substring(0, 2)}) ${val.substring(2)}`;
-                    if (val.length > 9) val = `${val.substring(0, 10)}-${val.substring(10)}`;
-                    setEmail(val);
-                  }}
-                  onBlur={handleEmailBlur}
-                  className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-blue-500"
-                  placeholder="(DDD) 99999-9999"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">
                   Seu Nome *
                 </label>
                 <input
@@ -422,9 +497,6 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
                   placeholder="Como gostaria de ser chamado?"
                 />
               </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm text-gray-400 mb-1">
                   Barbeiro (Opcional)
@@ -443,6 +515,77 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
                 </select>
               </div>
             </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={clienteEmail}
+                  onChange={(e) => setClienteEmail(e.target.value)}
+                  onBlur={handleEmailBlur}
+                  className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-blue-500"
+                  placeholder="seu.email@exemplo.com"
+                />
+                <span className="text-[11px] text-gray-400 mt-1 block">
+                  Informe o Email ou o Telefone do cliente
+                </span>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">
+                  Telefone / Celular
+                </label>
+                <input
+                  type="tel"
+                  value={clienteTelefone}
+                  onChange={(e) => {
+                    let val = e.target.value.replace(/\D/g, "");
+                    if (val.length > 11) val = val.substring(0, 11);
+                    if (val.length > 2) val = `(${val.substring(0, 2)}) ${val.substring(2)}`;
+                    if (val.length > 9) val = `${val.substring(0, 10)}-${val.substring(10)}`;
+                    setClienteTelefone(val);
+                  }}
+                  className={`w-full bg-gray-700 text-white border rounded px-3 py-2 focus:outline-none ${
+                    matchedSubscriber ? 'border-purple-500 ring-1 ring-purple-500' : 'border-gray-600 focus:border-blue-500'
+                  }`}
+                  placeholder="(DDD) 99999-9999"
+                />
+                {matchedSubscriber ? (
+                  <span className="text-[11px] font-bold text-purple-400 mt-1 block">
+                    ⭐ Assinante ativo identificado!
+                  </span>
+                ) : clienteTelefone.trim() ? (
+                  <span className="text-[11px] text-gray-400 mt-1 block">
+                    Opcional, mas necessário para identificar assinatura
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-gray-400 mt-1 block">
+                    Sem telefone, a assinatura não será identificada automaticamente.
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Banner de Assinante Ativo */}
+            {matchedSubscriber && (
+              <div className="p-4 bg-purple-900/30 border border-purple-500/40 rounded-xl text-purple-200 shadow-lg animate-fadeIn">
+                <div className="flex items-center gap-2 text-purple-300 font-bold text-sm mb-1">
+                  <span>⭐</span> Cliente possui assinatura ativa
+                </div>
+                <div className="text-xs space-y-1 text-gray-300">
+                  <div>Assinante: <strong className="text-white">{matchedSubscriber.nome}</strong></div>
+                  <div>Plano: <strong className="text-purple-300">{matchedPlanName}</strong></div>
+                  <div>
+                    Código: <span className="font-mono bg-purple-950 px-2 py-0.5 rounded border border-purple-700/50 text-purple-200 text-xs">
+                      {matchedSubscriber.codigoAtendimento || matchedSubscriber.codigo || matchedSubscriber.id}
+                    </span>
+                  </div>
+                  {matchedSubscriber.email && <div>E-mail: <span className="text-gray-400">{matchedSubscriber.email}</span></div>}
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -608,59 +751,118 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
           </form>
         </div>
 
-        {/* Catálogo de Serviços e Produtos */}
+        {/* Resumo do Agendamento */}
         <div className="space-y-6">
-          {(servicosSelecionados.length > 0 ||
-            produtosSelecionados.length > 0) && (
-            <div className="bg-gray-800 p-6 rounded-xl border border-blue-500/30 shadow-lg">
-              <h3 className="text-xl font-bold text-white mb-4">
+          <div className="bg-gray-800 p-6 rounded-xl border border-blue-500/30 shadow-lg space-y-4">
+            <div className="flex justify-between items-center border-b border-gray-700/80 pb-3">
+              <h3 className="text-xl font-bold text-white">
                 Resumo do Agendamento
               </h3>
-              <div className="space-y-2 mb-4">
-                {servicosSelecionados.map((id) => {
-                  const s = servicos.find((x) => x.id === id);
-                  if (!s) return null;
-                  return (
-                    <div
-                      key={id}
-                      className="flex justify-between items-center text-sm"
-                    >
-                      <span className="text-gray-300">{s.nome}</span>
-                      <span className="text-green-400 font-medium">
-                        R$ {s.valor.toFixed(2)}
+              <span className="text-xs px-2.5 py-1 bg-gray-900 text-indigo-300 rounded-lg border border-indigo-500/30 font-medium">
+                📅 {resumo.nomeDiaSemana}
+              </span>
+            </div>
+
+            {/* Listagem de itens */}
+            <div className="space-y-2 pb-3 border-b border-gray-700/60 text-sm">
+              {servicosSelecionados.length === 0 && produtosSelecionados.length === 0 && (
+                <p className="text-gray-400 text-xs italic">Nenhum serviço ou produto selecionado.</p>
+              )}
+              {servicosSelecionados.map((id) => {
+                const s = servicos.find((x) => x.id === id);
+                if (!s) return null;
+                return (
+                  <div key={id} className="flex justify-between items-center">
+                    <span className="text-gray-300 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
+                      {s.nome}
+                    </span>
+                    <span className={`font-medium ${resumo.temAssinatura ? 'text-purple-400 line-through text-xs' : 'text-emerald-400'}`}>
+                      {formatarMoeda(s.valor)}
+                    </span>
+                  </div>
+                );
+              })}
+              {produtosSelecionados.map((id) => {
+                const p = produtos.find((x) => x.id === id);
+                if (!p) return null;
+                return (
+                  <div key={id} className="flex justify-between items-center">
+                    <span className="text-gray-300 flex items-center gap-1.5">
+                      <span className="text-[10px] px-1 text-blue-400 bg-blue-500/10 rounded border border-blue-500/20">
+                        Prod
                       </span>
-                    </div>
-                  );
-                })}
-                {produtosSelecionados.map((id) => {
-                  const p = produtos.find((x) => x.id === id);
-                  if (!p) return null;
-                  return (
-                    <div
-                      key={id}
-                      className="flex justify-between items-center text-sm"
-                    >
-                      <span className="text-gray-300">
-                        <span className="text-xs px-1 text-blue-400 bg-blue-500/10 rounded mr-1 leading-none inline-block pb-0.5">
-                          Prod
-                        </span>{" "}
-                        {p.nome}
-                      </span>
-                      <span className="text-blue-300 font-medium">
-                        R$ {p.precoVenda.toFixed(2)}
-                      </span>
-                    </div>
-                  );
-                })}
+                      {p.nome}
+                    </span>
+                    <span className="text-blue-300 font-medium">
+                      {formatarMoeda(p.precoVenda)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Detalhamento financeiro */}
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between items-center text-gray-400">
+                <span>Subtotal de serviços</span>
+                <span className="font-medium text-gray-200">{formatarMoeda(resumo.subtotalServicos)}</span>
               </div>
-              <div className="flex justify-between items-center pt-3 border-t border-gray-700 font-bold">
-                <span className="text-white">Total</span>
-                <span className="text-green-400 text-lg">
-                  R$ {totalGeral.toFixed(2)}
+              <div className="flex justify-between items-center text-gray-400">
+                <span>Subtotal de produtos</span>
+                <span className="font-medium text-gray-200">{formatarMoeda(resumo.subtotalProdutos)}</span>
+              </div>
+              <div className="flex justify-between items-center text-gray-400">
+                <span>Valor original</span>
+                <span className="font-medium text-gray-200">{formatarMoeda(resumo.valorOriginal)}</span>
+              </div>
+
+              {resumo.desconto > 0 && (
+                <div className="flex justify-between items-center text-emerald-400 font-medium">
+                  <span>Desconto</span>
+                  <span>- {formatarMoeda(resumo.desconto)}</span>
+                </div>
+              )}
+
+              {resumo.temAssinatura && (
+                <div className="flex justify-between items-center text-purple-300 font-medium">
+                  <span>Forma de Pagamento</span>
+                  <span className="px-2 py-0.5 bg-purple-500/20 border border-purple-500/40 rounded text-xs font-bold text-purple-200">
+                    Assinatura
+                  </span>
+                </div>
+              )}
+
+              {/* Mensagens de destaque */}
+              {resumo.temAssinatura ? (
+                <div className="p-3 bg-purple-500/15 border border-purple-500/30 rounded-xl text-purple-300 text-xs space-y-1">
+                  <div className="font-bold flex items-center gap-1.5 text-purple-200">
+                    <span>⭐ Serviços cobertos pela assinatura</span>
+                  </div>
+                  {resumo.subtotalProdutos > 0 && (
+                    <p className="text-[11px] text-purple-300/80">
+                      Produtos mantêm cobrança normal ({formatarMoeda(resumo.subtotalProdutos)}).
+                    </p>
+                  )}
+                </div>
+              ) : resumo.isSegundaAQuarta ? (
+                <div className="p-3 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs font-bold flex items-center gap-1.5">
+                  <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Desconto de R$ 5,00 aplicado (Segunda a Quarta: dias promocionais)
+                </div>
+              ) : null}
+
+              {/* Valor final */}
+              <div className="flex justify-between items-center pt-3 border-t border-gray-700 font-bold text-base">
+                <span className="text-white">Valor final</span>
+                <span className="text-emerald-400 text-xl font-black">
+                  {formatarMoeda(resumo.valorCobrado)}
                 </span>
               </div>
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useBarbeiros } from '../hooks/useBarbeiros';
 import { useBarbeariaConfig, Produto, Servico, Custo } from '../hooks/useBarbeariaConfig';
-import { useBarbeariaRegistros, useBarbeariaAgendamentos, formatarDataHora } from '../hooks/useBarbeariaRegistros';
+import { useBarbeariaRegistros, useBarbeariaAgendamentos, formatarDataHora, calcularResumoPagamento } from '../hooks/useBarbeariaRegistros';
 import { UsersIcon, TrashIcon, PencilIcon, PlusIcon, TagIcon, CogIcon, CashIcon, DocumentTextIcon, ChartBarIcon, ClipboardListIcon, CheckCircleIcon, XCircleIcon, ChevronLeftIcon, ChevronRightIcon, InformationCircleIcon, XIcon } from './icons';
 import { Empresa, User } from '../types';
 import { API_BASE_URL } from '../constants';
@@ -9,6 +9,7 @@ import { CustomDatePicker } from './CustomDatePicker';
 import MonthNavigator from './MonthNavigator';
 import ConfirmationModal from './ConfirmationModal';
 import BarbeiroAgendaPage from './BarbeiroAgendaPage';
+import { CadastrarAssinaturaForm } from './CadastrarAssinaturaForm';
 
 const DIAS_SEMANA = [
   'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'
@@ -20,7 +21,7 @@ interface BarbeirosPageProps {
 }
 
 const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user, empresa }) => {
-  const [activeTab, setActiveTab] = useState<'agenda' | 'barbeiros' | 'produtos' | 'servicos' | 'custos' | 'metas' | 'registros'>('agenda');
+  const [activeTab, setActiveTab] = useState<'agenda' | 'barbeiros' | 'produtos' | 'servicos' | 'custos' | 'metas' | 'registros' | 'assinaturas'>('agenda');
   const tabsRef = useRef<HTMLDivElement>(null);
 
   const scrollTabs = (direction: 'left' | 'right') => {
@@ -77,6 +78,14 @@ const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user, empresa }) => {
             }`}
           >
             <ClipboardListIcon className="w-4 h-4" /> Agenda Geral
+          </button>
+          <button
+            onClick={() => setActiveTab('assinaturas')}
+            className={`flex items-center justify-center gap-2 py-3 px-6 text-sm font-semibold rounded-xl transition-all whitespace-nowrap ${
+              activeTab === 'assinaturas' ? 'bg-purple-600 text-white shadow-md' : 'text-purple-400 hover:text-white hover:bg-purple-900/40'
+            }`}
+          >
+            <span>⭐</span> Cadastrar Assinatura
           </button>
           <button
             onClick={() => setActiveTab('barbeiros')}
@@ -140,6 +149,14 @@ const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user, empresa }) => {
         <div className="-mx-4 md:-mx-8 -mt-4">
           <BarbeiroAgendaPage user={user} empresa={empresa} isAdmin={true} linkId={empresa?.id} />
         </div>
+      )}
+      {activeTab === 'assinaturas' && (
+        <CadastrarAssinaturaForm
+          linkId={empresa?.id || empresa?.linkId || ''}
+          onSuccess={() => {
+            alert('Assinatura cadastrada com sucesso!');
+          }}
+        />
       )}
       {activeTab === 'barbeiros' && <TabBarbeiros empresa={empresa} user={user} empresaId={empresa?.id} />}
       {activeTab === 'produtos' && <TabProdutos empresaId={empresa?.id} />}
@@ -1100,10 +1117,16 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
   let totalComissoesPagas = 0;
   registros.forEach(r => {
       const barbeiro = barbeiros.find(b => b.id === r.barbeiroId);
+      const subtotalServicos = r.itens.filter(i => i.tipo === 'servico').reduce((acc, i) => acc + (i.valor || 0), 0);
+      const desconto = r.desconto ?? r.pagamento?.desconto ?? 0;
+      const servicosValorCobrado = Math.max(0, subtotalServicos - Math.min(desconto, subtotalServicos));
+      const factorServico = subtotalServicos > 0 ? servicosValorCobrado / subtotalServicos : 0;
+
       r.itens.forEach((item: any) => {
          if (item.tipo === 'servico') {
              const comissao = barbeiro ? barbeiro.corte : comissaoMediaPerc;
-             totalComissoesPagas += item.valor * (comissao / 100);
+             const valComDesconto = item.valor * factorServico;
+             totalComissoesPagas += valComDesconto * (comissao / 100);
          } else if (item.tipo === 'produto') {
              let comissaoProd = barbeiro ? barbeiro.comissao : 0; // fallback pra geral
              totalComissoesPagas += item.valor * (comissaoProd / 100);
@@ -1415,14 +1438,22 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
 
       registrosBarbeiro.forEach(r => {
         let totalItem = 0;
+        const subtotalServicos = r.itens.filter(i => i.tipo === 'servico').reduce((acc, i) => acc + (i.valor || 0), 0);
+        const desconto = r.desconto ?? r.pagamento?.desconto ?? 0;
+        const servicosValorCobrado = Math.max(0, subtotalServicos - Math.min(desconto, subtotalServicos));
+        const factorServico = subtotalServicos > 0 ? servicosValorCobrado / subtotalServicos : 0;
+
         r.itens.forEach((item: any) => {
-          faturamentoTotal += item.valor;
-          totalItem += item.valor;
           if (item.tipo === 'servico') {
-            totalServicos += item.valor;
-            comissaoServicos += item.valor * (barbeiro.corte / 100);
+            const servicoValorComDesconto = item.valor * factorServico;
+            faturamentoTotal += servicoValorComDesconto;
+            totalServicos += servicoValorComDesconto;
+            totalItem += servicoValorComDesconto;
+            comissaoServicos += servicoValorComDesconto * (barbeiro.corte / 100);
           } else if (item.tipo === 'produto') {
+            faturamentoTotal += item.valor;
             totalProdutos += item.valor;
+            totalItem += item.valor;
             const produtoObj = produtos.find(p => p.id === item.idItem);
             const override = produtoObj && Number(produtoObj.comissao) > 0 ? Number(produtoObj.comissao) : Number(barbeiro.comissao);
             comissaoProdutos += item.valor * ((override || 0) / 100);
@@ -1719,20 +1750,22 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
               const barbeiro = barbeiros.find(b => b.id === a.barbeiroId)?.nome || 'Qualquer um';
               
               const servicosDoAgendamento: any[] = [];
-              let valorTotal = 0;
+              let subtotalServicos = 0;
+              let subtotalProdutos = 0;
+
               if (a.servicosIds && a.servicosIds.length > 0) {
                 a.servicosIds.forEach((sId: string) => {
                   const s = servicos.find(x => x.id === sId);
                   if (s) {
                     servicosDoAgendamento.push(s);
-                    valorTotal += s.valor;
+                    subtotalServicos += s.valor;
                   }
                 });
               } else if (a.servicoId) {
                 const s = servicos.find(x => x.id === a.servicoId);
                 if (s) {
                   servicosDoAgendamento.push(s);
-                  valorTotal += s.valor;
+                  subtotalServicos += s.valor;
                 }
               }
 
@@ -1742,10 +1775,22 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                   const p = produtos.find(x => x.id === pId);
                   if (p) {
                     produtosDoAgendamento.push(p);
-                    valorTotal += p.precoVenda;
+                    subtotalProdutos += p.precoVenda;
                   }
                 });
               }
+
+              const resumoPag = calcularResumoPagamento(
+                a.dataAgendada,
+                subtotalServicos,
+                subtotalProdutos,
+                a.pagamento,
+                a.assinatura
+              );
+
+              const valorTotal = a.pagamento?.valorCobrado ?? resumoPag.valorCobrado;
+              const valorDesconto = a.pagamento?.desconto ?? resumoPag.desconto;
+              const valorOriginal = a.pagamento?.valorOriginal ?? resumoPag.valorOriginal;
               
               return (
                 <div key={a.id} className="bg-gray-800/90 p-5 lg:p-6 rounded-2xl border border-gray-700 flex flex-col gap-5 lg:gap-6 shadow-sm hover:border-blue-500/50 transition-all group overflow-hidden">
@@ -1790,8 +1835,20 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                   {/* Rodapé: Total e Ações */}
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pt-5 lg:pt-6 border-t border-gray-700/50 bg-gray-800/30 -mx-5 -mb-5 px-5 pb-5 lg:-mx-6 lg:-mb-6 lg:px-6 lg:pb-6 rounded-b-2xl mt-1">
                     <div className="flex flex-col items-center sm:items-start w-full sm:w-auto">
-                      <span className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Total a Pagar</span>
-                      <span className="text-3xl lg:text-4xl font-black text-white">R$ {valorTotal.toFixed(2)}</span>
+                      <span className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Total a Pagar</span>
+                      {valorDesconto > 0 && (
+                        <span className="text-xs text-emerald-400 font-semibold mb-0.5">
+                          🏷️ Desconto: - R$ {valorDesconto.toFixed(2)}
+                        </span>
+                      )}
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-3xl lg:text-4xl font-black text-white">R$ {valorTotal.toFixed(2)}</span>
+                        {valorDesconto > 0 && (
+                          <span className="text-sm text-gray-500 line-through font-semibold">
+                            R$ {valorOriginal.toFixed(2)}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-center gap-3 w-full sm:w-auto">
@@ -1899,6 +1956,10 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
           <div className="grid grid-cols-1 gap-4 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar">
             {[...registros].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()).map(r => {
               const { dataHoraStr } = formatarDataHora(r.data, r.horarios);
+              const valorDesconto = r.desconto ?? r.pagamento?.desconto ?? 0;
+              const valorOriginal = r.valorOriginal ?? r.pagamento?.valorOriginal ?? (r.total + valorDesconto);
+              const temDesconto = valorDesconto > 0;
+
               return (
                 <div key={r.id} className="bg-gray-900/40 p-5 rounded-2xl border border-gray-800 flex flex-col md:flex-row md:items-center justify-between gap-5 group hover:border-gray-600 transition-all shadow-sm">
                   <div>
@@ -1913,6 +1974,11 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                       <p className="text-xs font-medium text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-500/20">{dataHoraStr}</p>
                       <p className="text-xs text-gray-400 font-medium">Barbeiro: <span className="text-gray-300 ml-1">{r.barbeiroNome || 'N/A'}</span></p>
                     </div>
+                    {temDesconto && (
+                      <div className="mt-2 text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/20 w-fit flex items-center gap-1.5">
+                        🏷️ Desconto aplicado: - R$ {valorDesconto.toFixed(2)} (Subtotal: R$ {valorOriginal.toFixed(2)})
+                      </div>
+                    )}
                     <div className="flex flex-wrap gap-2 mt-4">
                       {r.itens.map((item, idx) => (
                         <span key={idx} className="bg-gray-800 border border-gray-700 text-gray-200 font-medium text-xs px-3 py-1.5 rounded-lg">
@@ -1943,7 +2009,16 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                     )}
                   </div>
                   <div className="flex items-center justify-between md:flex-col md:items-end gap-2 border-t md:border-t-0 md:border-l border-gray-800 pt-4 md:pt-0 md:pl-5 min-w-40">
-                    <span className="text-green-400 font-black text-2xl bg-green-500/10 px-3.5 py-1.5 rounded-xl border border-green-500/20">R$ {r.total.toFixed(2)}</span>
+                    <div className="flex flex-col items-end">
+                      <span className="text-green-400 font-black text-2xl bg-green-500/10 px-3.5 py-1.5 rounded-xl border border-green-500/20">
+                        R$ {r.total.toFixed(2)}
+                      </span>
+                      {temDesconto && (
+                        <span className="text-xs text-gray-500 line-through mt-1 font-semibold">
+                          R$ {valorOriginal.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
                     <button onClick={() => removeRegistro(r.id)} className="text-gray-500 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all bg-gray-800 p-2 rounded-lg mt-2">
                       <TrashIcon className="w-5 h-5" />
                     </button>

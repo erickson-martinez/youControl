@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useBarbeiros } from '../hooks/useBarbeiros';
-import { useBarbeariaRegistros, useBarbeariaAgendamentos, formatarDataHora } from '../hooks/useBarbeariaRegistros';
+import { useBarbeariaRegistros, useBarbeariaAgendamentos, formatarDataHora, calcularResumoPagamento } from '../hooks/useBarbeariaRegistros';
 import { useBarbeariaConfig } from '../hooks/useBarbeariaConfig';
 import { CheckCircleIcon, XCircleIcon, ClockIcon, ScissorsIcon } from './icons';
 import { User, Empresa } from '../types';
 import { CustomDatePicker } from './CustomDatePicker';
 import ConfirmationModal from './ConfirmationModal';
 import { API_BASE_URL } from '../constants';
+import { CadastrarAssinaturaModal } from './CadastrarAssinaturaModal';
 
 interface BarbeiroAgendaPageProps {
   user: User;
@@ -37,6 +38,8 @@ const HORARIOS = [
 ];
 
 const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, isAdmin }) => {
+  const [clienteAssinaturaSelected, setClienteAssinaturaSelected] = useState<{ nome: string; telefone: string; email: string } | null>(null);
+  const [isAssinaturaModalOpen, setIsAssinaturaModalOpen] = useState(false);
 
 
   const resolvedCompanyId = empresa?.id;
@@ -62,6 +65,44 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
   const [errorAlert, setErrorAlert] = useState<string>('');
   const [isFinalizarCaixaOpen, setIsFinalizarCaixaOpen] = useState(false);
   const [isFinalizando, setIsFinalizando] = useState(false);
+
+  const [isAddClienteModalOpen, setIsAddClienteModalOpen] = useState(false);
+  const [addClienteNome, setAddClienteNome] = useState('');
+  const [addClienteEmail, setAddClienteEmail] = useState('');
+  const [addClienteTelefone, setAddClienteTelefone] = useState('');
+  const [addClienteServicos, setAddClienteServicos] = useState<string[]>([]);
+  const [addClienteProdutos, setAddClienteProdutos] = useState<string[]>([]);
+  const [addClienteData, setAddClienteData] = useState<string>(todayStr);
+  const [addClienteHora, setAddClienteHora] = useState('');
+  const [addClienteDescricao, setAddClienteDescricao] = useState('');
+  const [addClienteBarbeiroId, setAddClienteBarbeiroId] = useState<string>('');
+
+  // Subscriptions State for modal check
+  const [subscribers, setSubscribers] = useState<any[]>([]);
+
+  React.useEffect(() => {
+    const fetchSubscribers = async () => {
+      if (!resolvedCompanyId) return;
+      try {
+        let res = await fetch(`${API_BASE_URL}/subscription-clients?linkId=${resolvedCompanyId}`).catch(() => null);
+        if (!res || !res.ok || !(res.headers.get('content-type') || '').includes('application/json')) {
+          res = await fetch(`/api/v1/subscription-clients?linkId=${resolvedCompanyId}`);
+        }
+        if (res && res.ok && (res.headers.get('content-type') || '').includes('application/json')) {
+          const data = await res.json();
+          const list = Array.isArray(data) ? data : data.clients || data.subscribers || data.data || [];
+          setSubscribers(list.filter((s: any) => s.ativo !== false));
+        }
+      } catch (e) {}
+    };
+    fetchSubscribers();
+  }, [resolvedCompanyId]);
+
+  const modalMatchedSubscriber = React.useMemo(() => {
+    const cleanTel = (addClienteTelefone || '').replace(/\D/g, '');
+    if (!cleanTel || cleanTel.length < 8) return null;
+    return subscribers.find((s: any) => (s.telefone || '').replace(/\D/g, '') === cleanTel && s.ativo !== false);
+  }, [addClienteTelefone, subscribers]);
 
   const userEmailNumbers = user?.email?.replace(/\D/g, '');
   const barbeiroLogado = barbeiros.find(b => b.email && b.email.replace(/\D/g, '') === userEmailNumbers);
@@ -114,14 +155,47 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
     let comissaoServicos = 0;
     let comissaoProdutos = 0;
 
+    let subtotalServicos = 0;
+    let subtotalProdutos = 0;
+
     if (agendamento.servicosIds && agendamento.servicosIds.length > 0) {
       agendamento.servicosIds.forEach((sId: string) => {
         const s = servicos.find(x => x.id === sId);
-        if (s) comissaoServicos += s.valor * ((barbeiro.corte || 0) / 100);
+        if (s) subtotalServicos += s.valor;
       });
     } else if (agendamento.servicoId) {
       const s = servicos.find(x => x.id === agendamento.servicoId);
-      if (s) comissaoServicos += s.valor * ((barbeiro.corte || 0) / 100);
+      if (s) subtotalServicos += s.valor;
+    }
+
+    if (agendamento.produtosIds && agendamento.produtosIds.length > 0) {
+      agendamento.produtosIds.forEach((pId: string) => {
+        const p = produtos.find(prod => prod.id === pId);
+        if (p) subtotalProdutos += p.precoVenda;
+      });
+    }
+
+    const resumo = calcularResumoPagamento(
+      agendamento.dataAgendada,
+      subtotalServicos,
+      subtotalProdutos,
+      agendamento.pagamento,
+      agendamento.assinatura,
+      agendamento.assinaturaAplicada
+    );
+
+    const descontoAplicado = agendamento.pagamento?.desconto ?? resumo.desconto;
+    const servicosValorCobrado = Math.max(0, subtotalServicos - Math.min(descontoAplicado, subtotalServicos));
+    const factorServico = subtotalServicos > 0 ? servicosValorCobrado / subtotalServicos : 0;
+
+    if (agendamento.servicosIds && agendamento.servicosIds.length > 0) {
+      agendamento.servicosIds.forEach((sId: string) => {
+        const s = servicos.find(x => x.id === sId);
+        if (s) comissaoServicos += (s.valor * factorServico) * ((barbeiro.corte || 0) / 100);
+      });
+    } else if (agendamento.servicoId) {
+      const s = servicos.find(x => x.id === agendamento.servicoId);
+      if (s) comissaoServicos += (s.valor * factorServico) * ((barbeiro.corte || 0) / 100);
     }
 
     if (agendamento.produtosIds && agendamento.produtosIds.length > 0) {
@@ -357,29 +431,25 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
     }
   };
 
-  const [isAddClienteModalOpen, setIsAddClienteModalOpen] = useState(false);
-  const [addClienteNome, setAddClienteNome] = useState('');
-  const [addClienteEmail, setAddClienteEmail] = useState('');
-  const [addClienteServicos, setAddClienteServicos] = useState<string[]>([]);
-  const [addClienteProdutos, setAddClienteProdutos] = useState<string[]>([]);
-  const [addClienteData, setAddClienteData] = useState<string>(todayStr);
-  const [addClienteHora, setAddClienteHora] = useState('');
-  const [addClienteDescricao, setAddClienteDescricao] = useState('');
-  const [addClienteBarbeiroId, setAddClienteBarbeiroId] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'proximos' | 'historico' | 'resumoMensal'>('proximos');
 
-  const addClienteTotal = React.useMemo(() => {
-    let total = 0;
+  const addClienteResumo = React.useMemo(() => {
+    let subtotalServicos = 0;
     addClienteServicos.forEach(id => {
       const s = servicos.find(x => x.id === id);
-      if (s) total += s.valor;
+      if (s) subtotalServicos += s.valor;
     });
+
+    let subtotalProdutos = 0;
     addClienteProdutos.forEach(id => {
       const p = produtos.find(x => x.id === id);
-      if (p) total += p.precoVenda;
+      if (p) subtotalProdutos += p.precoVenda;
     });
-    return total;
-  }, [addClienteServicos, addClienteProdutos, servicos, produtos]);
+
+    return calcularResumoPagamento(addClienteData, subtotalServicos, subtotalProdutos);
+  }, [addClienteData, addClienteServicos, addClienteProdutos, servicos, produtos]);
+
+  const addClienteTotal = addClienteResumo.valorCobrado;
 
   const availableHorariosAddCliente = React.useMemo(() => {
     if (!addClienteData) return HORARIOS;
@@ -405,14 +475,13 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
   }, [loadAgendamentos]);
 
   const handleAddClienteSubmit = async (statusFinal: 'atendendo' | 'finalizado') => {
-    if (!addClienteEmail || !addClienteHora || !addClienteData) {
-      alert("Preencha email, data e hora.");
+    if (!addClienteHora || !addClienteData) {
+      alert("Preencha data e hora.");
       return;
     }
-    
-    const justNumbers = addClienteEmail.replace(/\D/g, "");
-    if (justNumbers.length < 10 || justNumbers.length > 11) {
-      alert("Por favor, insira um email válido com código de área (DDD) contendo 10 ou 11 dígitos.");
+
+    if (!addClienteEmail.trim() && !addClienteTelefone.trim()) {
+      alert("Preencha pelo menos o E-mail ou o Telefone do cliente.");
       return;
     }
 
@@ -423,8 +492,8 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
 
     const agendamentoData: any = {
       clienteNome: addClienteNome || "Cliente Avulso",
-      clienteEmail: addClienteEmail,
-      clienteTelefone: addClienteEmail,
+      clienteEmail: addClienteEmail || "",
+      clienteTelefone: addClienteTelefone || "",
       barbeiroId: addClienteBarbeiroId || (selectedBarbeiroId === 'todos' ? '' : selectedBarbeiroId),
       servicosIds: addClienteServicos,
       produtosIds: addClienteProdutos,
@@ -434,8 +503,25 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
       quantidadePessoas: 1,
       nomesAcompanhantes: "",
       descricao: addClienteDescricao,
-      linkId: resolvedCompanyId
+      linkId: resolvedCompanyId,
+      valorTotalPrevisto: addClienteResumo.valorCobrado,
+      assinaturaAplicada: Boolean(modalMatchedSubscriber),
+      pagamento: {
+        desconto: addClienteResumo.desconto,
+        subtotalServicos: addClienteResumo.subtotalServicos,
+        subtotalProdutos: addClienteResumo.subtotalProdutos,
+        valorOriginal: addClienteResumo.valorOriginal,
+        valorCobrado: addClienteResumo.valorCobrado,
+      }
     };
+
+    if (modalMatchedSubscriber) {
+      agendamentoData.assinatura = {
+        possui: true,
+        planoNome: modalMatchedSubscriber.planoNome || 'Plano VIP Assinatura',
+        codigoAtendimento: modalMatchedSubscriber.codigoAtendimento || modalMatchedSubscriber.codigo || modalMatchedSubscriber.id
+      };
+    }
 
     const added = await addAgendamento(agendamentoData);
     
@@ -640,20 +726,56 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                   </button>
                 </div>
                 <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-1">Email / Celular</label>
-                    <input 
-                      type="tel" value={addClienteEmail} onChange={e => {
-                        let val = e.target.value.replace(/\D/g, "");
-                        if (val.length > 11) val = val.substring(0, 11);
-                        if (val.length > 2) val = `(${val.substring(0, 2)}) ${val.substring(2)}`;
-                        if (val.length > 9) val = `${val.substring(0, 10)}-${val.substring(10)}`;
-                        setAddClienteEmail(val);
-                      }}
-                      className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-3 text-sm focus:border-blue-500 focus:outline-none"
-                      placeholder="(DD) 99999-9999"
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1">Email</label>
+                      <input 
+                        type="email" value={addClienteEmail} onChange={e => setAddClienteEmail(e.target.value)}
+                        className="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-3 text-sm focus:border-blue-500 focus:outline-none"
+                        placeholder="cliente@email.com"
+                      />
+                      <span className="text-[11px] text-gray-400 mt-1 block">
+                        Email ou Telefone obrigatório
+                      </span>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1">Telefone / Celular</label>
+                      <input 
+                        type="tel" value={addClienteTelefone} onChange={e => {
+                          let val = e.target.value.replace(/\D/g, "");
+                          if (val.length > 11) val = val.substring(0, 11);
+                          if (val.length > 2) val = `(${val.substring(0, 2)}) ${val.substring(2)}`;
+                          if (val.length > 9) val = `${val.substring(0, 10)}-${val.substring(10)}`;
+                          setAddClienteTelefone(val);
+                        }}
+                        className={`w-full bg-gray-800 text-white border rounded-xl px-4 py-3 text-sm focus:outline-none ${
+                          modalMatchedSubscriber ? 'border-purple-500 ring-1 ring-purple-500' : 'border-gray-700 focus:border-blue-500'
+                        }`}
+                        placeholder="(DDD) 99999-9999"
+                      />
+                      {modalMatchedSubscriber ? (
+                        <span className="text-[11px] font-bold text-purple-400 mt-1 block">
+                          ⭐ Assinante ativo: {modalMatchedSubscriber.nome}
+                        </span>
+                      ) : addClienteTelefone.trim() ? (
+                        <span className="text-[11px] text-gray-400 mt-1 block">
+                          Necessário para identificar assinatura
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-gray-400 mt-1 block">
+                          Sem telefone, assinatura não é identificada
+                        </span>
+                      )}
+                    </div>
                   </div>
+
+                  {modalMatchedSubscriber && (
+                    <div className="p-3 bg-purple-900/30 border border-purple-500/40 rounded-xl text-purple-200 text-xs space-y-1">
+                      <div className="font-bold text-purple-300">⭐ Cliente possui assinatura ativa</div>
+                      <div>Plano: <strong className="text-white">{modalMatchedSubscriber.planoNome || 'Plano Ativo'}</strong></div>
+                      <div>Código: <span className="font-mono bg-purple-950 px-1.5 py-0.5 rounded border border-purple-700/40">{modalMatchedSubscriber.codigoAtendimento || modalMatchedSubscriber.codigo || modalMatchedSubscriber.id}</span></div>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-sm text-gray-400 mb-1">Barbeiro</label>
                     <select 
@@ -772,9 +894,44 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                     />
                   </div>
 
-                  <div className="flex justify-end items-center mb-4 mt-2">
-                    <span className="text-gray-300 font-medium">Total:</span>
-                    <span className="text-xl font-bold text-emerald-400 ml-3">R$ {addClienteTotal.toFixed(2)}</span>
+                  {addClienteResumo.isSegundaAQuarta && (
+                    <div className="p-3 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs font-bold flex items-center gap-1.5 my-2">
+                      <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Desconto de R$ 5,00 aplicado (Segunda a Quarta: dias promocionais)
+                    </div>
+                  )}
+
+                  <div className="bg-gray-800/60 p-3 rounded-xl border border-gray-700/50 space-y-1.5 my-3">
+                    {addClienteResumo.desconto > 0 && (
+                      <>
+                        <div className="flex justify-between items-center text-xs text-gray-400">
+                          <span>Subtotal serviços:</span>
+                          <span>R$ {addClienteResumo.subtotalServicos.toFixed(2)}</span>
+                        </div>
+                        {addClienteResumo.subtotalProdutos > 0 && (
+                          <div className="flex justify-between items-center text-xs text-gray-400">
+                            <span>Subtotal produtos:</span>
+                            <span>R$ {addClienteResumo.subtotalProdutos.toFixed(2)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center text-xs text-gray-400">
+                          <span>Valor original:</span>
+                          <span>R$ {addClienteResumo.valorOriginal.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs text-emerald-400 font-medium">
+                          <span>Desconto:</span>
+                          <span>- R$ {addClienteResumo.desconto.toFixed(2)}</span>
+                        </div>
+                      </>
+                    )}
+                    <div className="flex justify-between items-center font-bold pt-1">
+                      <span className="text-gray-300 text-sm">Total:</span>
+                      <span className="text-xl font-black text-emerald-400">
+                        R$ {addClienteResumo.valorCobrado.toFixed(2)}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="flex gap-3 pt-4 border-t border-gray-800">
@@ -909,7 +1066,8 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                       const dataObj = new Date(a.dataAgendada);
 
                       const servicosDoAgendamento: any[] = [];
-                      let valorTotal = 0;
+                      let subtotalServicos = 0;
+                      let subtotalProdutos = 0;
 
                       // Serviços
                       if (a.servicosIds && a.servicosIds.length > 0) {
@@ -918,7 +1076,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
 
                           if (s) {
                             servicosDoAgendamento.push(s);
-                            valorTotal += s.valor;
+                            subtotalServicos += s.valor;
                           }
                         });
                       } else if (a.servicoId) {
@@ -926,7 +1084,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
 
                         if (s) {
                           servicosDoAgendamento.push(s);
-                          valorTotal += s.valor;
+                          subtotalServicos += s.valor;
                         }
                       }
 
@@ -936,10 +1094,22 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                           const p = produtos.find(prod => prod.id === pId);
 
                           if (p) {
-                            valorTotal += p.precoVenda;
+                            subtotalProdutos += p.precoVenda;
                           }
                         });
                       }
+
+                      const resumoPag = calcularResumoPagamento(
+                        a.dataAgendada,
+                        subtotalServicos,
+                        subtotalProdutos,
+                        a.pagamento,
+                        a.assinatura
+                      );
+
+                      const valorTotalCobrado = a.pagamento?.valorCobrado ?? resumoPag.valorCobrado;
+                      const descontoAplicado = a.pagamento?.desconto ?? resumoPag.desconto;
+                      const valorOriginal = a.pagamento?.valorOriginal ?? resumoPag.valorOriginal;
 
                       return (
                         <div
@@ -963,9 +1133,25 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                                 {a.cliente}
                               </h3>
 
-                              <p className="text-xs text-gray-400 font-mono tracking-tight bg-gray-800/80 w-fit px-2 py-1 rounded-md border border-gray-700/50">
-                                {a.email}
-                              </p>
+                              <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                                <p className="text-xs text-gray-400 font-mono tracking-tight bg-gray-800/80 w-fit px-2 py-0.5 rounded-md border border-gray-700/50">
+                                  {a.email}
+                                </p>
+                                <button
+                                  onClick={() => {
+                                    setClienteAssinaturaSelected({
+                                      nome: a.cliente || '',
+                                      telefone: a.clienteTelefone || a.email || '',
+                                      email: a.email || '',
+                                    });
+                                    setIsAssinaturaModalOpen(true);
+                                  }}
+                                  className="text-[11px] font-semibold px-2.5 py-0.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 rounded-md transition-all flex items-center gap-1 shadow-sm"
+                                  title="Cadastrar Assinatura para este cliente"
+                                >
+                                  ⭐ Cadastrar Assinatura
+                                </button>
+                              </div>
 
                               {isAdmin ? (
                                 <select
@@ -1062,15 +1248,30 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                                 );
                               })}
 
-                            {valorTotal > 0 && (
-                              <div className="flex justify-between items-center text-sm px-3 py-2 border-t border-gray-700/50 mt-1">
-                                <span className="text-gray-400 font-medium">
-                                  Total
-                                </span>
+                            {(subtotalServicos > 0 || subtotalProdutos > 0) && (
+                              <div className="flex flex-col gap-1.5 border-t border-gray-700/50 pt-2 mt-1">
+                                {descontoAplicado > 0 && (
+                                  <div className="flex justify-between items-center text-xs text-emerald-400 font-medium px-3 py-1 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+                                    <span>🏷️ Desconto aplicado:</span>
+                                    <span>- R$ {descontoAplicado.toFixed(2)}</span>
+                                  </div>
+                                )}
+                                <div className="flex justify-between items-center text-sm px-3 py-1">
+                                  <span className="text-gray-400 font-medium">
+                                    Total
+                                  </span>
 
-                                <span className="text-emerald-400 font-bold text-base">
-                                  R$ {valorTotal.toFixed(2)}
-                                </span>
+                                  <div className="flex items-baseline gap-2">
+                                    <span className="text-emerald-400 font-bold text-base">
+                                      R$ {valorTotalCobrado.toFixed(2)}
+                                    </span>
+                                    {descontoAplicado > 0 && (
+                                      <span className="text-xs text-gray-500 line-through">
+                                        R$ {valorOriginal.toFixed(2)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
                             )}
                           </div>
@@ -1344,6 +1545,16 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
         onConfirm={handleFinalizarCaixa}
         title="Finalizar Caixa Diário"
         message={`Tem certeza que deseja enviar o valor total de R$ ${totalComissaoDia.toFixed(2)} das comissões de hoje para o fluxo de caixa? Isso criará uma transação de Receita.`}
+      />
+
+      <CadastrarAssinaturaModal
+        isOpen={isAssinaturaModalOpen}
+        onClose={() => setIsAssinaturaModalOpen(false)}
+        linkId={resolvedCompanyId || (empresa?.id as string) || (empresa?.linkId as string) || ''}
+        initialCliente={clienteAssinaturaSelected || undefined}
+        onSuccess={() => {
+          alert('Assinatura cadastrada com sucesso!');
+        }}
       />
     </div>
   );
