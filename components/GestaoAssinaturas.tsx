@@ -30,6 +30,8 @@ export interface SubscriptionClient {
   observacao?: string;
   linkId: string;
   ativo?: boolean;
+  status?: string;
+  pagamento?: any;
   dataInicio?: string;
   dataFim?: string;
   createdAt?: string;
@@ -62,7 +64,7 @@ export const GestaoAssinaturas: React.FC<GestaoAssinaturasProps> = ({
 
   // Search & Filters for Subscribers
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'todos' | 'ativos' | 'cancelados'>('todos');
+  const [statusFilter, setStatusFilter] = useState<'todos' | 'pendentes' | 'ativos' | 'cancelados'>('todos');
 
   // Subscriber Form State
   const [editingSubscriberId, setEditingSubscriberId] = useState<string | null>(null);
@@ -71,6 +73,7 @@ export const GestaoAssinaturas: React.FC<GestaoAssinaturasProps> = ({
   const [subEmail, setSubEmail] = useState(initialCliente?.email || '');
   const [subPlanoId, setSubPlanoId] = useState('');
   const [subObservacao, setSubObservacao] = useState('');
+  const [subStatus, setSubStatus] = useState<'pendente' | 'ativo' | 'cancelado'>('pendente');
   const [subFormOpen, setSubFormOpen] = useState(Boolean(initialCliente?.nome || initialCliente?.email));
 
   // Plan Form State
@@ -311,6 +314,7 @@ export const GestaoAssinaturas: React.FC<GestaoAssinaturasProps> = ({
     setSubEmail('');
     setSubPlanoId(plans.length > 0 ? (plans[0].id || plans[0]._id || '') : '');
     setSubObservacao('');
+    setSubStatus('pendente');
     setSubFormOpen(true);
   };
 
@@ -322,6 +326,7 @@ export const GestaoAssinaturas: React.FC<GestaoAssinaturasProps> = ({
     setSubEmail(sub.email || '');
     setSubPlanoId(sub.planoId);
     setSubObservacao(sub.observacao || '');
+    setSubStatus((sub.status as any) || (sub.ativo !== false ? 'ativo' : 'cancelado'));
     setSubFormOpen(true);
   };
 
@@ -366,18 +371,21 @@ export const GestaoAssinaturas: React.FC<GestaoAssinaturasProps> = ({
     };
 
     if (!isEdit) {
-      payload.status = 'pendente';
+      payload.status = 'finalizado';
       payload.dataFim = nextMonth.toISOString();
       payload.pagamento = {
-        status: 'pago',
+        status: 'pendente',
         formas: [],
         desconto: 0,
         subtotalServicos: 0,
         subtotalProdutos: 0,
         valorOriginal: planValor,
-        valorCobrado: planValor,
+        valorCobrado: 0,
         dataPagamento: now.toISOString(),
       };
+    } else {
+      payload.status = subStatus;
+      payload.ativo = subStatus !== 'cancelado';
     }
 
     setSubmitting(true);
@@ -413,6 +421,7 @@ export const GestaoAssinaturas: React.FC<GestaoAssinaturasProps> = ({
         setSuccessMsg(isEdit ? 'Assinatura atualizada com sucesso!' : 'Assinatura cadastrada com sucesso!');
         setSubFormOpen(false);
         fetchSubscribers();
+        window.dispatchEvent(new Event('agendamentos_sync'));
         if (onSuccess) onSuccess();
       } else {
         const data = res ? await res.json().catch(() => ({})) : {};
@@ -421,6 +430,55 @@ export const GestaoAssinaturas: React.FC<GestaoAssinaturasProps> = ({
     } catch (err) {
       console.error("Erro ao salvar assinante:", err);
       setErrorMsg('Erro de conexão ao salvar assinatura.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleActivateSubscriber = async (subId: string, subName: string) => {
+    clearAlerts();
+    setSubmitting(true);
+    try {
+      const matchedSub = subscribers.find(s => (s.id || s._id) === subId);
+      const matchedPlan = plans.find(p => (p.id || p._id) === matchedSub?.planoId);
+      const val = matchedPlan?.valor || matchedSub?.pagamento?.valorOriginal || matchedSub?.valor || 0;
+
+      const urlPrimary = `${API_BASE_URL}/subscription-clients/${subId}`;
+      const urlFallback = `/api/v1/subscription-clients/${subId}`;
+      const payload = {
+        status: 'ativo',
+        ativo: true,
+        pagamento: {
+          status: 'pago',
+          valorOriginal: val,
+          valorCobrado: val,
+          dataPagamento: new Date().toISOString()
+        },
+      };
+
+      let res = await fetch(urlPrimary, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }).catch(() => null);
+
+      if (!res || !res.ok) {
+        res = await fetch(urlFallback, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }).catch(() => null);
+      }
+
+      if (res && res.ok) {
+        setSuccessMsg(`Assinatura de "${subName}" ativada/paga com sucesso!`);
+        fetchSubscribers();
+        window.dispatchEvent(new Event('agendamentos_sync'));
+      } else {
+        setErrorMsg('Erro ao atualizar status da assinatura.');
+      }
+    } catch (err) {
+      setErrorMsg('Erro de conexão ao ativar assinatura.');
     } finally {
       setSubmitting(false);
     }
@@ -520,9 +578,13 @@ export const GestaoAssinaturas: React.FC<GestaoAssinaturasProps> = ({
   const filteredSubscribers = useMemo(() => {
     return subscribers.filter((sub) => {
       // Status filter
-      const isAtivo = sub.ativo !== false;
+      const isCancelado = sub.ativo === false || sub.status === 'cancelado' || sub.status === 'inativo';
+      const isPendente = sub.status === 'pendente' || sub.pagamento?.status === 'pendente';
+      const isAtivo = !isCancelado && !isPendente;
+
+      if (statusFilter === 'pendentes' && !isPendente) return false;
       if (statusFilter === 'ativos' && !isAtivo) return false;
-      if (statusFilter === 'cancelados' && isAtivo) return false;
+      if (statusFilter === 'cancelados' && !isCancelado) return false;
 
       // Search term
       if (!searchTerm.trim()) return true;
@@ -629,7 +691,8 @@ export const GestaoAssinaturas: React.FC<GestaoAssinaturasProps> = ({
                 className="bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:border-purple-500 focus:outline-none"
               >
                 <option value="todos">Todos os Status</option>
-                <option value="ativos">Apenas Ativos</option>
+                <option value="pendentes">Pendentes</option>
+                <option value="ativos">Ativos</option>
                 <option value="cancelados">Cancelados / Inativos</option>
               </select>
             </div>
@@ -766,7 +829,10 @@ export const GestaoAssinaturas: React.FC<GestaoAssinaturasProps> = ({
             <div className="grid grid-cols-1 gap-3">
               {filteredSubscribers.map((sub) => {
                 const subId = sub.id || sub._id || (sub as any).subscriptionClientId || (sub as any).clientId || '';
-                const isAtivo = sub.ativo !== false;
+                const isCancelado = sub.ativo === false || sub.status === 'cancelado' || sub.status === 'inativo';
+                const isPendente = sub.status === 'pendente' || sub.pagamento?.status === 'pendente';
+                const isAtivo = !isCancelado && !isPendente;
+
                 const matchedPlan = plans.find((p) => (p.id || p._id) === sub.planoId);
                 const planName = sub.planoNome || matchedPlan?.nome || 'Plano Personalizado';
                 const codigo = sub.codigoAtendimento || sub.codigo || (subId ? subId.slice(-6).toUpperCase() : 'N/A');
@@ -775,21 +841,29 @@ export const GestaoAssinaturas: React.FC<GestaoAssinaturasProps> = ({
                   <div
                     key={subId || sub.telefone}
                     className={`bg-gray-800/60 p-4 sm:p-5 rounded-2xl border ${
-                      isAtivo ? 'border-purple-500/30 hover:border-purple-500/60' : 'border-gray-700/60 opacity-75'
+                      isPendente
+                        ? 'border-amber-500/40 hover:border-amber-500/70'
+                        : isAtivo
+                        ? 'border-purple-500/30 hover:border-purple-500/60'
+                        : 'border-gray-700/60 opacity-75'
                     } flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all shadow-sm`}
                   >
                     <div className="space-y-1.5 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-bold text-lg text-white">{sub.nome}</span>
-                        <span
-                          className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
-                            isAtivo
-                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                              : 'bg-red-500/20 text-red-300 border-red-500/40'
-                          }`}
-                        >
-                          {isAtivo ? 'ATIVO' : 'CANCELADO / INATIVO'}
-                        </span>
+                        {isPendente ? (
+                          <span className="text-xs font-bold px-2.5 py-0.5 rounded-full border bg-amber-500/20 text-amber-300 border-amber-500/40">
+                            PENDENTE
+                          </span>
+                        ) : isAtivo ? (
+                          <span className="text-xs font-bold px-2.5 py-0.5 rounded-full border bg-emerald-500/20 text-emerald-300 border-emerald-500/40">
+                            ATIVO
+                          </span>
+                        ) : (
+                          <span className="text-xs font-bold px-2.5 py-0.5 rounded-full border bg-red-500/20 text-red-300 border-red-500/40">
+                            CANCELADO / INATIVO
+                          </span>
+                        )}
                         <span className="text-xs font-mono bg-purple-950/80 text-purple-300 border border-purple-700/40 px-2 py-0.5 rounded-lg">
                           Cód: {codigo}
                         </span>
@@ -814,6 +888,16 @@ export const GestaoAssinaturas: React.FC<GestaoAssinaturasProps> = ({
 
                     {/* Actions */}
                     <div className="flex items-center gap-2 shrink-0 border-t md:border-t-0 md:border-l border-gray-700/60 pt-3 md:pt-0 md:pl-4 justify-end">
+                      {isPendente && (
+                        <button
+                          onClick={() => handleActivateSubscriber(subId, sub.nome)}
+                          title="Ativar / Confirmar Pagamento"
+                          className="p-2 bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 border border-emerald-500/40 rounded-xl transition text-xs font-semibold flex items-center gap-1 shadow-sm"
+                        >
+                          <CheckCircleIcon className="w-4 h-4" /> Ativar
+                        </button>
+                      )}
+
                       <button
                         onClick={() => handleOpenEditSubscriber(sub)}
                         title="Editar Assinante"

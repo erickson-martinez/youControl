@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useBarbeariaRegistros, useBarbeariaAgendamentos, formatarDataHora } from '../hooks/useBarbeariaRegistros';
+import { useBarbeariaRegistros, useBarbeariaAgendamentos, formatarDataHora, calcularResumoPagamento } from '../hooks/useBarbeariaRegistros';
 import { useBarbeiros } from '../hooks/useBarbeiros';
 import { useBarbeariaConfig } from '../hooks/useBarbeariaConfig';
 import { CheckCircleIcon, XCircleIcon, ClipboardListIcon } from './icons';
@@ -17,11 +17,29 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
   const pendentes = agendamentos
     .filter(a => {
       const st = (a.status || '').toLowerCase();
+      const pagSt = (a.pagamento?.status || '').toLowerCase();
+      if (st === 'pago' || pagSt === 'pago' || st === 'cancelado' || st === 'inativo') return false;
       return st === 'finalizado' || st === 'concluido' || st === 'atendido' || st === 'aguardando_pagamento' || st === 'pendente_pagamento';
     })
     .sort((a, b) => new Date(a.dataAgendada).getTime() - new Date(b.dataAgendada).getTime());
 
   const [activeSubTab, setActiveSubTab] = useState<'aguardando' | 'historico'>('aguardando');
+
+  const [historicoDate, setHistoricoDate] = useState<Date>(new Date());
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const anoMesStr = `${historicoDate.getFullYear()}-${String(historicoDate.getMonth() + 1).padStart(2, '0')}`;
+  const registrosMes = registros.filter(r => r.data.startsWith(anoMesStr));
+
+  const registrosFiltrados = registrosMes.filter(r => {
+    if (!searchTerm.trim()) return true;
+    const term = searchTerm.toLowerCase().trim();
+    const cliente = (r.cliente || '').toLowerCase();
+    const telefone = (r.telefone || '').toLowerCase();
+    const email = (r.email || '').toLowerCase();
+    const barbeiro = (r.barbeiroNome || '').toLowerCase();
+    return cliente.includes(term) || telefone.includes(term) || email.includes(term) || barbeiro.includes(term);
+  });
 
   const [pagamentoAgendamento, setPagamentoAgendamento] = useState<any>(null);
   const [pagamentoModalOpen, setPagamentoModalOpen] = useState(false);
@@ -39,23 +57,52 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
   };
 
   const calcularValorTotal = (a: any) => {
-    let valorTotal = 0;
+    let subtotalServicos = 0;
     if (a.servicosIds && Array.isArray(a.servicosIds)) {
       a.servicosIds.forEach((sId: string) => {
         const serv = servicos.find(s => s.id === sId);
-        if (serv) valorTotal += serv.valor;
+        if (serv) subtotalServicos += serv.valor;
       });
-    } else if (a.servicoId) {
+    } else if (a.servicoId && a.servicoId !== 'assinatura') {
       const serv = servicos.find(s => s.id === a.servicoId);
-      if (serv) valorTotal += serv.valor;
+      if (serv) subtotalServicos += serv.valor;
     }
+
+    let subtotalProdutos = 0;
     if (a.produtosIds && Array.isArray(a.produtosIds)) {
       a.produtosIds.forEach((pId: string) => {
         const prod = produtos.find(p => p.id === pId);
-        if (prod) valorTotal += prod.precoVenda;
+        if (prod) subtotalProdutos += prod.precoVenda;
       });
     }
-    return valorTotal;
+
+    const valorOriginal = subtotalServicos + subtotalProdutos;
+
+    const resumo = calcularResumoPagamento(
+      a.dataAgendada || a.data || '',
+      subtotalServicos,
+      subtotalProdutos,
+      a.pagamento ? { ...a.pagamento, desconto: a.pagamento.desconto ?? a.desconto } : ({ desconto: a.desconto } as any),
+      a.assinatura,
+      a.assinaturaAplicada
+    );
+
+    if (a.pagamento?.valorRecebido !== undefined && a.pagamento.valorRecebido > 0) {
+      return a.pagamento.valorRecebido;
+    }
+    if (a.pagamento?.valorCobrado !== undefined && a.pagamento.valorCobrado > 0) {
+      return a.pagamento.valorCobrado;
+    }
+    if (resumo.valorCobrado !== undefined && resumo.valorCobrado >= 0 && valorOriginal > 0) {
+      return resumo.valorCobrado;
+    }
+
+    const valorDesconto = a.desconto ?? a.pagamento?.desconto ?? resumo.desconto ?? 0;
+    if (valorOriginal > 0) {
+      return Math.max(0, valorOriginal - valorDesconto);
+    }
+
+    return a.pagamento?.valorOriginal || a.valorOriginal || a.valorTotalPrevisto || a.valorAssinatura || 0;
   };
 
   const handleOpenPagamento = (a: any) => {
@@ -211,33 +258,60 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
               const barbeiro = barbeiros.find(b => b.id === a.barbeiroId)?.nome || 'Qualquer um';
               
               const servicosDoAgendamento: any[] = [];
-              let valorTotal = 0;
+              let subtotalServicos = 0;
               if (a.servicosIds && a.servicosIds.length > 0) {
                 a.servicosIds.forEach((sId: string) => {
                   const s = servicos.find(x => x.id === sId);
                   if (s) {
                     servicosDoAgendamento.push(s);
-                    valorTotal += s.valor;
+                    subtotalServicos += s.valor;
                   }
                 });
-              } else if (a.servicoId) {
+              } else if (a.servicoId && a.servicoId !== 'assinatura') {
                 const s = servicos.find(x => x.id === a.servicoId);
                 if (s) {
                   servicosDoAgendamento.push(s);
-                  valorTotal += s.valor;
+                  subtotalServicos += s.valor;
                 }
               }
 
+              if (servicosDoAgendamento.length === 0 && (a.servicoNome || a.servicoId === 'assinatura' || a.isSubscription)) {
+                const val = a.pagamento?.valorOriginal || a.valorOriginal || a.valorTotalPrevisto || a.valorAssinatura || a.pagamento?.valorCobrado || 0;
+                servicosDoAgendamento.push({ nome: a.servicoNome || 'Plano Assinatura', valor: val });
+                subtotalServicos += val;
+              }
+
               const produtosDoAgendamento: any[] = [];
+              let subtotalProdutos = 0;
               if (a.produtosIds && a.produtosIds.length > 0) {
                 a.produtosIds.forEach((pId: string) => {
                   const p = produtos.find(x => x.id === pId);
                   if (p) {
                     produtosDoAgendamento.push(p);
-                    valorTotal += p.precoVenda;
+                    subtotalProdutos += p.precoVenda;
                   }
                 });
               }
+
+              const valorOriginal = subtotalServicos + subtotalProdutos;
+
+              const resumo = calcularResumoPagamento(
+                a.dataAgendada || a.data || '',
+                subtotalServicos,
+                subtotalProdutos,
+                a.pagamento ? { ...a.pagamento, desconto: a.pagamento.desconto ?? a.desconto } : ({ desconto: a.desconto } as any),
+                a.assinatura,
+                a.assinaturaAplicada
+              );
+
+              const valorDesconto = a.desconto ?? a.pagamento?.desconto ?? resumo.desconto ?? 0;
+              const valorTotalFinal = (a.pagamento?.valorRecebido && a.pagamento.valorRecebido > 0)
+                ? a.pagamento.valorRecebido
+                : (a.pagamento?.valorCobrado && a.pagamento.valorCobrado > 0)
+                ? a.pagamento.valorCobrado
+                : resumo.valorCobrado > 0
+                ? resumo.valorCobrado
+                : Math.max(0, valorOriginal - valorDesconto);
               
               return (
                 <div key={a.id} className="bg-gray-800/90 p-5 lg:p-6 rounded-2xl border border-gray-700 flex flex-col gap-5 lg:gap-6 shadow-sm hover:border-blue-500/50 transition-all group overflow-hidden">
@@ -277,13 +351,32 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
                           <span className="text-blue-400 font-bold whitespace-nowrap">R$ {p.precoVenda.toFixed(2)}</span>
                         </div>
                       ))}
+                      {valorDesconto > 0 && (
+                        <div className="text-sm text-emerald-400 bg-emerald-500/10 px-4 py-2.5 rounded-xl flex items-center justify-between gap-4 shadow-inner border border-emerald-500/20 shrink-0 font-bold">
+                          <span>
+                            {resumo.temAssinatura || a.assinatura?.possui || a.assinaturaAplicada || (a as any).isSubscription
+                              ? 'Desconto Assinatura'
+                              : resumo.isSegundaAQuinta || resumo.isSegundaAQuarta
+                              ? 'Desconto (Segunda a Quinta)'
+                              : 'Desconto'}
+                          </span>
+                          <span className="whitespace-nowrap">- R$ {valorDesconto.toFixed(2)}</span>
+                        </div>
+                      )}
                   </div>
 
                   {/* Rodapé: Total e Ações */}
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pt-5 lg:pt-6 border-t border-gray-700/50 bg-gray-800/30 -mx-5 -mb-5 px-5 pb-5 lg:-mx-6 lg:-mb-6 lg:px-6 lg:pb-6 rounded-b-2xl mt-1">
                     <div className="flex flex-col items-center sm:items-start w-full sm:w-auto">
                       <span className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Total a Pagar</span>
-                      <span className="text-3xl lg:text-4xl font-black text-white">R$ {valorTotal.toFixed(2)}</span>
+                      <div className="flex items-baseline gap-3">
+                        <span className="text-3xl lg:text-4xl font-black text-white">R$ {valorTotalFinal.toFixed(2)}</span>
+                        {valorDesconto > 0 && (
+                          <span className="text-sm font-semibold text-gray-500 line-through">
+                            R$ {valorOriginal.toFixed(2)}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-center gap-3 w-full sm:w-auto">
@@ -304,28 +397,71 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
       )}
 
       {activeSubTab === 'historico' && (
-      <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
-        <h2 className="text-xl font-bold text-white mb-6">Histórico de Registros <span className="text-gray-500 text-sm font-normal ml-2">(Vendas/Cortes)</span></h2>
-        {registros.length === 0 ? (
+      <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl space-y-6">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+          <div>
+            <h2 className="text-xl font-bold text-white">Histórico de Registros <span className="text-gray-500 text-sm font-normal ml-2">(Vendas/Cortes do Mês)</span></h2>
+            <p className="text-sm text-gray-400 mt-1">Total no mês: <span className="text-green-400 font-bold">R$ {registrosMes.reduce((acc, r) => acc + (r.total || 0), 0).toFixed(2)}</span> ({registrosMes.length} pagamentos)</p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+            {/* Navegador de Mês */}
+            <MonthNavigator currentDate={historicoDate} setCurrentDate={setHistoricoDate} className="w-full sm:w-auto" />
+
+            {/* Campo de Busca por Nome, Telefone ou Email */}
+            <div className="relative flex-1 sm:w-80">
+              <input
+                type="text"
+                placeholder="Buscar por nome, telefone ou email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-gray-900 border border-gray-700 text-white placeholder-gray-500 text-sm rounded-xl py-2.5 pl-10 pr-9 focus:outline-none focus:border-blue-500 transition-all"
+              />
+              <svg className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                >
+                  <XCircleIcon className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {registrosFiltrados.length === 0 ? (
           <div className="w-full bg-gray-900/50 p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center">
             <ClipboardListIcon className="w-16 h-16 mb-4 text-gray-700" />
-            <p className="text-lg">Nenhum registro encontrado no histórico.</p>
+            <p className="text-lg">
+              {searchTerm ? 'Nenhum registro encontrado para a busca especificada.' : 'Nenhum registro pago encontrado neste mês.'}
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar">
-            {[...registros].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()).map(r => {
+            {[...registrosFiltrados].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()).map(r => {
               const { dataHoraStr } = formatarDataHora(r.data, r.horarios);
               return (
                 <div key={r.id} className="bg-gray-900/40 p-5 rounded-2xl border border-gray-800 flex flex-col md:flex-row md:items-center justify-between gap-5 group hover:border-gray-600 transition-all shadow-sm">
                   <div>
-                    <div className="flex items-center gap-3 mb-2">
+                    <div className="flex items-center gap-3 mb-1">
                       <div className="bg-emerald-500/10 text-emerald-400 font-bold text-xs px-2.5 py-1 rounded-md border border-emerald-500/20 uppercase tracking-widest flex items-center gap-1.5 shadow-sm">
                         <CheckCircleIcon className="w-3.5 h-3.5" />
                          PAGO
                       </div>
                       <h3 className="font-bold text-white text-xl">{r.cliente}</h3>
                     </div>
-                    <div className="text-sm font-medium text-gray-400 flex items-center gap-2 mt-2">
+
+                    {(r.telefone || r.email) && (
+                      <div className="text-xs text-gray-400 flex flex-wrap gap-3 my-1 font-medium">
+                        {r.telefone && <span>📞 {r.telefone}</span>}
+                        {r.email && <span>✉️ {r.email}</span>}
+                      </div>
+                    )}
+
+                    <div className="text-sm font-medium text-gray-400 flex items-center gap-2 mt-1">
                       <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                       {dataHoraStr}
                     </div>

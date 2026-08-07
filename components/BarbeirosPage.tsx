@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useBarbeiros } from '../hooks/useBarbeiros';
 import { useBarbeariaConfig, Produto, Servico, Custo } from '../hooks/useBarbeariaConfig';
 import { useBarbeariaRegistros, useBarbeariaAgendamentos, formatarDataHora, calcularResumoPagamento } from '../hooks/useBarbeariaRegistros';
@@ -9,7 +9,7 @@ import { CustomDatePicker } from './CustomDatePicker';
 import MonthNavigator from './MonthNavigator';
 import ConfirmationModal from './ConfirmationModal';
 import BarbeiroAgendaPage from './BarbeiroAgendaPage';
-import { CadastrarAssinaturaForm } from './CadastrarAssinaturaForm';
+import { CadastrarAssinaturaForm, SubscriptionPlan, SubscriptionClient } from './CadastrarAssinaturaForm';
 
 const DIAS_SEMANA = [
   'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'
@@ -1054,6 +1054,9 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
   const { barbeiros, reloadBarbeiros } = useBarbeiros(empresaId);
   const { registros } = useBarbeariaRegistros(empresaId);
   
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [subscribers, setSubscribers] = useState<SubscriptionClient[]>([]);
+
   const [localMetaLucro, setLocalMetaLucro] = useState(String(metaLucro));
   const [localImposto, setLocalImposto] = useState(String(imposto));
 
@@ -1061,6 +1064,39 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
     setLocalMetaLucro(String(metaLucro));
     setLocalImposto(String(imposto));
   }, [metaLucro, imposto]);
+
+  const loadPlansAndSubscribers = useCallback(async () => {
+    const resolvedLinkId = empresaId || 'barbearia-default';
+    try {
+      // Fetch Plans
+      let resP = await fetch(`${API_BASE_URL}/subscription-plans?linkId=${resolvedLinkId}`).catch(() => null);
+      if (!resP || !resP.ok || !(resP.headers.get('content-type') || '').includes('application/json')) {
+        resP = await fetch(`/api/v1/subscription-plans?linkId=${resolvedLinkId}`);
+      }
+      if (resP && resP.ok && (resP.headers.get('content-type') || '').includes('application/json')) {
+        const dataP = await resP.json();
+        const listP = Array.isArray(dataP) ? dataP : dataP.plans || dataP.data || [];
+        setPlans(listP);
+      }
+
+      // Fetch Subscribers
+      let resS = await fetch(`${API_BASE_URL}/subscription-clients?linkId=${resolvedLinkId}`).catch(() => null);
+      if (!resS || !resS.ok || !(resS.headers.get('content-type') || '').includes('application/json')) {
+        resS = await fetch(`/api/v1/subscription-clients?linkId=${resolvedLinkId}`);
+      }
+      if (resS && resS.ok && (resS.headers.get('content-type') || '').includes('application/json')) {
+        const dataS = await resS.json();
+        const listS = Array.isArray(dataS) ? dataS : dataS.clients || dataS.subscribers || dataS.data || [];
+        setSubscribers(listS);
+      }
+    } catch (err) {
+      console.error("Erro ao carregar assinaturas na Meta:", err);
+    }
+  }, [empresaId]);
+
+  useEffect(() => {
+    loadPlansAndSubscribers();
+  }, [loadPlansAndSubscribers]);
 
   const saveConfig = () => {
     updateCompanyConfig({
@@ -1072,6 +1108,7 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
   const handleReload = () => {
     loadConfig();
     reloadBarbeiros();
+    loadPlansAndSubscribers();
   };
 
   const numMeta = Number(localMetaLucro) || 0;
@@ -1081,37 +1118,60 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
   const custoVarTotal = custos.filter(c => c.tipo === 'variavel').reduce((acc, c) => acc + c.valor, 0);
   const custosTotais = custoFixoTotal + custoVarTotal;
 
-  // Calculo de Medias (Ticket e Comissao)
-  const ticketMedioServico = servicos.length > 0 ? servicos.reduce((acc, s) => acc + s.valor, 0) / servicos.length : 0;
+  // Calculo de Medias considerando Servicos E Planos de Assinatura
+  const valoresServicos = servicos.map(s => Number(s.valor) || 0);
+  const valoresPlanos = plans.map(p => Number(p.valorMensal) || 0);
+  const todosValores = [...valoresServicos, ...valoresPlanos];
+
+  const ticketMedioServicoApenas = valoresServicos.length > 0 ? valoresServicos.reduce((acc, v) => acc + v, 0) / valoresServicos.length : 0;
+  const ticketMedioPlanosApenas = valoresPlanos.length > 0 ? valoresPlanos.reduce((acc, v) => acc + v, 0) / valoresPlanos.length : 0;
+  
+  // Ticket Medio Geral (servicos + planos)
+  const ticketMedioGeral = todosValores.length > 0 ? todosValores.reduce((acc, v) => acc + v, 0) / todosValores.length : ticketMedioServicoApenas;
+  const ticketMedioServico = ticketMedioGeral > 0 ? ticketMedioGeral : ticketMedioServicoApenas;
+
   const comissaoMediaPerc = barbeiros.length > 0 ? barbeiros.reduce((acc, b) => acc + b.corte, 0) / barbeiros.length : 0;
   
   const custoComissaoMedia = ticketMedioServico * (comissaoMediaPerc / 100);
   const lucroBrutoMedioPorServico = ticketMedioServico - custoComissaoMedia;
 
-  // Meta de Servicos (ignora imposto inicialmente para o calculo base)
-  let qtdServicosMes = 0;
+  // Assinantes Ativos & Receita Recorrente
+  const assinantesAtivos = subscribers.filter(s => s.status === 'ativo' || s.ativo === true);
+  const receitaAssinaturasRecorrente = assinantesAtivos.reduce((acc, sub) => {
+    const plan = plans.find(p => (p.id === sub.planoId || p._id === sub.planoId));
+    const val = sub.pagamento?.valor || plan?.valorMensal || 0;
+    return acc + Number(val);
+  }, 0);
+
+  // Meta de Faturamento Necessario
   let faturamentoNecessario = 0;
 
   if (lucroBrutoMedioPorServico > 0) {
-    qtdServicosMes = (numMeta + custosTotais) / lucroBrutoMedioPorServico;
-    faturamentoNecessario = qtdServicosMes * ticketMedioServico;
+    const totalMetaECustos = numMeta + custosTotais;
+    let qtdServicosTemp = totalMetaECustos / lucroBrutoMedioPorServico;
+    faturamentoNecessario = qtdServicosTemp * ticketMedioServico;
 
     // Se o faturamento passar de 5000, precisamos compensar o imposto
     if (faturamentoNecessario > 5000 && numImposto > 0) {
-        // lucro_liquido = Faturamento - Custos - Comissoes - Imposto
-        // Imposto = Faturamento * (numImposto/100)
-        // lucro_liquido = Qtd * TicketMedio - Custos - Qtd * CustoComissao - Qtd * TicketMedio * (Imposto/100)
-        // Qtd = (lucro_liquido + Custos) / (TicketMedio - CustoComissao - TicketMedio * (Imposto/100))
         const lucroPorServicoPosImposto = ticketMedioServico - custoComissaoMedia - (ticketMedioServico * (numImposto/100));
         if (lucroPorServicoPosImposto > 0) {
-           qtdServicosMes = (numMeta + custosTotais) / lucroPorServicoPosImposto;
-           faturamentoNecessario = qtdServicosMes * ticketMedioServico;
+           qtdServicosTemp = totalMetaECustos / lucroPorServicoPosImposto;
+           faturamentoNecessario = qtdServicosTemp * ticketMedioServico;
         }
     }
   }
 
+  // Meta de Servicos Restantes Abatendo Assinaturas Recorrentes
+  let faturamentoRestanteParaServicos = Math.max(0, faturamentoNecessario - receitaAssinaturasRecorrente);
+  let qtdServicosMes = 0;
+  if (lucroBrutoMedioPorServico > 0) {
+    qtdServicosMes = faturamentoRestanteParaServicos / lucroBrutoMedioPorServico;
+  }
+
   // Calculando o progresso atual com as regrinhas: subtrair comissões e impostos
-  const faturamentoAtual = registros.reduce((acc, r) => acc + r.total, 0);
+  const faturamentoRegistros = registros.reduce((acc, r) => acc + r.total, 0);
+  const temRegistroAssinatura = registros.some(r => r.servicoId === 'assinatura' || r.itens?.some(i => i.tipo === 'assinatura' || i.nome?.toLowerCase().includes('assinatura')));
+  const faturamentoAtual = faturamentoRegistros + (temRegistroAssinatura ? 0 : receitaAssinaturasRecorrente);
   
   // Calcular comissoes pagas nos registros para subtrair
   let totalComissoesPagas = 0;
@@ -1163,7 +1223,7 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
           </button>
         </div>
         <p className="text-gray-400 mb-8 border-b border-gray-700/50 pb-6 text-sm">
-          Descubra quantos serviços você precisa realizar para cobrir todos os seus custos e atingir a sua meta de lucro líquido desejado. Neste resumo, você confere o progresso atual.
+          Descubra quantos serviços você precisa realizar para cobrir todos os seus custos e atingir a sua meta de lucro líquido desejado, considerando também a receita de assinaturas e o valor dos planos.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 max-w-2xl">
@@ -1231,7 +1291,7 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 md:p-8">
         {/* Resumo Financeiro */}
-        <div className="bg-gray-800/80 p-5 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
+        <div className="bg-gray-800/80 p-5 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit space-y-4">
           <h3 className="text-xl font-bold text-white mb-6">Resumo Financeiro Mensal</h3>
           
           <div className="space-y-3">
@@ -1247,6 +1307,27 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
               <span className="text-gray-300 font-medium">Meta de Lucro Líquido</span>
               <span className="text-green-400 font-bold bg-green-500/10 px-2 py-1 rounded-lg">R$ {numMeta.toFixed(2)}</span>
             </div>
+
+            {/* Informações de Assinaturas */}
+            <div className="p-4 rounded-xl bg-purple-900/30 border border-purple-800/60 space-y-2">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-purple-300 font-semibold flex items-center gap-1.5">
+                  <span>💎 Planos de Assinatura ({plans.length})</span>
+                </span>
+                <span className="text-purple-200 font-bold">
+                  {plans.length > 0 ? `Méd: R$ ${ticketMedioPlanosApenas.toFixed(2)}` : 'Nenhum plano'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-sm pt-2 border-t border-purple-800/40">
+                <span className="text-purple-300 font-semibold flex items-center gap-1.5">
+                  <span>👥 Assinantes Ativos ({assinantesAtivos.length})</span>
+                </span>
+                <span className="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                  + R$ {receitaAssinaturasRecorrente.toFixed(2)} / mês
+                </span>
+              </div>
+            </div>
+
             <div className="mt-6 flex justify-between items-center p-5 rounded-2xl bg-blue-600/10 border border-blue-500/30">
               <span className="text-blue-100 font-semibold tracking-wide">Faturamento Necessário</span>
               <span className="text-blue-400 font-black text-2xl">R$ {faturamentoNecessario.toFixed(2)}</span>
@@ -1268,14 +1349,31 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
             </div>
           ) : (
             <div className="space-y-6 relative z-10">
-              <div className="text-sm text-gray-300 bg-gray-900/50 p-5 rounded-xl border border-gray-800 leading-relaxed">
-                <div className="flex justify-between mb-2"><span>Ticket Médio de Serviço:</span> <strong className="text-white">R$ {ticketMedioServico.toFixed(2)}</strong></div>
-                <div className="flex justify-between mb-2"><span>Média de Comissão:</span> <strong className="text-white">{comissaoMediaPerc.toFixed(1)}%</strong></div>
-                <div className="flex justify-between pt-2 border-t border-gray-800 mt-2"><span>Lucro Médio por Serviço:</span> <strong className="text-green-400">R$ {lucroBrutoMedioPorServico.toFixed(2)}</strong></div>
+              <div className="text-sm text-gray-300 bg-gray-900/50 p-5 rounded-xl border border-gray-800 leading-relaxed space-y-2">
+                <div className="flex justify-between">
+                  <span>Ticket Médio (Serviços e Planos):</span> 
+                  <strong className="text-white">R$ {ticketMedioServico.toFixed(2)}</strong>
+                </div>
+                {plans.length > 0 && (
+                  <div className="text-xs text-purple-400 flex justify-between pl-2">
+                    <span>(Serviços: R$ {ticketMedioServicoApenas.toFixed(2)} | Planos: R$ {ticketMedioPlanosApenas.toFixed(2)})</span>
+                  </div>
+                )}
+                <div className="flex justify-between"><span>Média de Comissão:</span> <strong className="text-white">{comissaoMediaPerc.toFixed(1)}%</strong></div>
+                <div className="flex justify-between pt-2 border-t border-gray-800"><span>Lucro Médio por Serviço:</span> <strong className="text-green-400">R$ {lucroBrutoMedioPorServico.toFixed(2)}</strong></div>
+                
+                {receitaAssinaturasRecorrente > 0 && (
+                  <div className="mt-3 pt-3 border-t border-gray-800 text-xs text-purple-300 flex justify-between items-center bg-purple-900/30 p-2.5 rounded-lg border border-purple-800/50 font-medium">
+                    <span>Receita de Assinantes Abatida:</span>
+                    <strong className="text-purple-200 font-bold">- R$ {receitaAssinaturasRecorrente.toFixed(2)} / mês</strong>
+                  </div>
+                )}
               </div>
 
               <div>
-                <p className="text-gray-400 text-sm mb-4 font-medium">Meta de serviços para atingir o Ponto de Equilíbrio e Lucro Livre:</p>
+                <p className="text-gray-400 text-sm mb-4 font-medium">
+                  Meta de serviços para atingir o Ponto de Equilíbrio e Lucro Livre {receitaAssinaturasRecorrente > 0 ? '(após deduzir assinaturas)' : ''}:
+                </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                   <div className="bg-gray-900/80 p-4 rounded-xl text-center border-b-2 border-blue-500 shadow-inner">
                     <div className="text-2xl md:text-3xl font-black text-white">{Math.ceil(qtdServicosMes)}</div>
@@ -1372,6 +1470,8 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
 
   const pendentes = agendamentos.filter(a => {
     const st = (a.status || '').toLowerCase();
+    const pagSt = (a.pagamento?.status || '').toLowerCase();
+    if (st === 'pago' || pagSt === 'pago' || st === 'cancelado' || st === 'inativo') return false;
     return st === 'finalizado' || st === 'concluido' || st === 'atendido' || st === 'aguardando_pagamento' || st === 'pendente_pagamento';
   }).sort((a, b) => new Date(a.dataAgendada).getTime() - new Date(b.dataAgendada).getTime());
   
@@ -1429,6 +1529,40 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
   const registrosFiltradosDia = registros.filter(r => r.data.startsWith(dataFiltro));
   const registrosFiltradosMes = registros.filter(r => r.data.startsWith(dataFiltro.substring(0, 7)));
 
+  const calcularTotaisGerais = (registrosBase: any[]) => {
+    let faturamentoGeral = 0;
+    let totalTaxasGeral = 0;
+
+    registrosBase.forEach(r => {
+      faturamentoGeral += r.total || 0;
+
+      if (r.tipoPagamento && r.tipoPagamento.length > 0) {
+        r.tipoPagamento.forEach((pStr: string) => {
+          try {
+            const p = JSON.parse(pStr);
+            if (p.valor > 0) {
+              if (p.valorOriginal !== undefined) {
+                totalTaxasGeral += (p.valorOriginal - p.valor);
+              } else {
+                if (p.tipo === 'Pix' || p.tipo.toLowerCase() === 'pix') {
+                  totalTaxasGeral += p.valor * ((taxas?.pix || 0) / 100);
+                } else if (p.tipo === 'Crédito' || p.tipo.toLowerCase() === 'crédito') {
+                  totalTaxasGeral += p.valor * ((taxas?.credito || 0) / 100);
+                } else if (p.tipo === 'Débito' || p.tipo.toLowerCase() === 'débito') {
+                  totalTaxasGeral += p.valor * ((taxas?.debito || 0) / 100);
+                } else if (p.tipo === 'Dinheiro' || p.tipo.toLowerCase() === 'dinheiro') {
+                  totalTaxasGeral += p.valor * ((taxas?.dinheiro || 0) / 100);
+                }
+              }
+            }
+          } catch (e) {}
+        });
+      }
+    });
+
+    return { faturamentoGeral, totalTaxasGeral };
+  };
+
   const calcularComissoes = (registrosBase: any[]) => {
     return barbeiros.filter(b => b.linkId === empresaId).map(barbeiro => {
       const registrosBarbeiro = registrosBase.filter(r => r.barbeiroId === barbeiro.id);
@@ -1446,22 +1580,44 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
         const servicosValorCobrado = Math.max(0, subtotalServicos - Math.min(desconto, subtotalServicos));
         const factorServico = subtotalServicos > 0 ? servicosValorCobrado / subtotalServicos : 0;
 
-        r.itens.forEach((item: any) => {
-          if (item.tipo === 'servico') {
-            const servicoValorComDesconto = item.valor * factorServico;
-            faturamentoTotal += servicoValorComDesconto;
-            totalServicos += servicoValorComDesconto;
-            totalItem += servicoValorComDesconto;
-            comissaoServicos += servicoValorComDesconto * (barbeiro.corte / 100);
-          } else if (item.tipo === 'produto') {
-            faturamentoTotal += item.valor;
-            totalProdutos += item.valor;
-            totalItem += item.valor;
-            const produtoObj = produtos.find(p => p.id === item.idItem);
-            const override = produtoObj && Number(produtoObj.comissao) > 0 ? Number(produtoObj.comissao) : Number(barbeiro.comissao);
-            comissaoProdutos += item.valor * ((override || 0) / 100);
-          }
-        });
+        const isAssinatura = Boolean(r.temAssinatura || r.isSubscription || r.assinatura?.possui || r.itens?.some(i => i.idItem === 'assinatura' || (i.nome && i.nome.toLowerCase().includes('assinatura'))));
+
+        if (isAssinatura) {
+          // Cliente com assinatura possui comissão fixa de R$ 10 por agendamento
+          comissaoServicos += 10;
+          r.itens.forEach((item: any) => {
+            if (item.tipo === 'servico') {
+              const servicoValorComDesconto = item.valor * factorServico;
+              faturamentoTotal += servicoValorComDesconto;
+              totalServicos += servicoValorComDesconto;
+              totalItem += servicoValorComDesconto;
+            } else if (item.tipo === 'produto') {
+              faturamentoTotal += item.valor;
+              totalProdutos += item.valor;
+              totalItem += item.valor;
+              const produtoObj = produtos.find(p => p.id === item.idItem);
+              const override = produtoObj && Number(produtoObj.comissao) > 0 ? Number(produtoObj.comissao) : Number(barbeiro.comissao);
+              comissaoProdutos += item.valor * ((override || 0) / 100);
+            }
+          });
+        } else {
+          r.itens.forEach((item: any) => {
+            if (item.tipo === 'servico') {
+              const servicoValorComDesconto = item.valor * factorServico;
+              faturamentoTotal += servicoValorComDesconto;
+              totalServicos += servicoValorComDesconto;
+              totalItem += servicoValorComDesconto;
+              comissaoServicos += servicoValorComDesconto * (barbeiro.corte / 100);
+            } else if (item.tipo === 'produto') {
+              faturamentoTotal += item.valor;
+              totalProdutos += item.valor;
+              totalItem += item.valor;
+              const produtoObj = produtos.find(p => p.id === item.idItem);
+              const override = produtoObj && Number(produtoObj.comissao) > 0 ? Number(produtoObj.comissao) : Number(barbeiro.comissao);
+              comissaoProdutos += item.valor * ((override || 0) / 100);
+            }
+          });
+        }
 
         // Compute taxas
         if (r.tipoPagamento && r.tipoPagamento.length > 0) {
@@ -1469,11 +1625,9 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
              try {
                const p = JSON.parse(pStr);
                if (p.valor > 0) {
-                 // Use valorOriginal if present to calculate exact tax amount that was applied
                  if (p.valorOriginal !== undefined) {
                     totalTaxas += (p.valorOriginal - p.valor);
                  } else {
-                    // Fallback for old records
                     if (p.tipo === 'Pix' || p.tipo.toLowerCase() === 'pix') {
                        totalTaxas += p.valor * ((taxas?.pix || 0) / 100);
                     } else if (p.tipo === 'Crédito' || p.tipo.toLowerCase() === 'crédito') {
@@ -1506,6 +1660,9 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
 
   const comissoesDia = calcularComissoes(registrosFiltradosDia).sort((a, b) => b.totalComissao - a.totalComissao);
   const comissoesMes = calcularComissoes(registrosFiltradosMes).sort((a, b) => b.totalComissao - a.totalComissao);
+
+  const totaisDiaGeral = calcularTotaisGerais(registrosFiltradosDia);
+  const totaisMesGeral = calcularTotaisGerais(registrosFiltradosMes);
 
   return (
     <div className="space-y-6">
@@ -1583,7 +1740,7 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                     allowPast={true} 
                   />
               </div>
-                {comissoesDia.length === 0 ? (
+                {registrosFiltradosDia.length === 0 ? (
                   <div className="w-full bg-gray-900/50 p-6 rounded-2xl border border-gray-800 text-center text-gray-500 mt-4">
                     <p>Nenhuma venda ou serviço registrado para esta data.</p>
                   </div>
@@ -1598,7 +1755,7 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                            Caixa Barbearia
                         </h3>
                         <div className="text-sm text-blue-300">
-                          Fat. Bruto Geral: <strong className="text-white">R$ {comissoesDia.reduce((sum, c) => sum + c.faturamentoTotal, 0).toFixed(2)}</strong>
+                          Fat. Bruto Geral: <strong className="text-white">R$ {totaisDiaGeral.faturamentoGeral.toFixed(2)}</strong>
                         </div>
                       </div>
 
@@ -1609,18 +1766,18 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                         </div>
                         <div className="flex flex-col sm:border-l border-blue-900/50 sm:pl-6">
                           <span className="text-blue-200/70 text-[10px] font-bold uppercase tracking-wider mb-1">Taxas (Cartão)</span>
-                          <span className="text-orange-400/90 font-semibold">- R$ {comissoesDia.reduce((sum, c) => sum + (c.totalTaxas || 0), 0).toFixed(2)}</span>
+                          <span className="text-orange-400/90 font-semibold">- R$ {totaisDiaGeral.totalTaxasGeral.toFixed(2)}</span>
                         </div>
                         <div className="flex flex-col sm:border-l border-blue-900/50 sm:pl-6">
                           <span className="text-blue-200 text-[10px] font-bold uppercase tracking-wider mb-1">Lucro Barbearia</span>
-                          <span className="text-blue-400 font-bold text-2xl">R$ {comissoesDia.reduce((sum, c) => sum + c.caixaBarbearia, 0).toFixed(2)}</span>
+                          <span className="text-blue-400 font-bold text-2xl">R$ {(totaisDiaGeral.faturamentoGeral - comissoesDia.reduce((sum, c) => sum + c.totalComissao, 0) - totaisDiaGeral.totalTaxasGeral).toFixed(2)}</span>
                         </div>
                       </div>
 
                       <button 
                         onClick={() => {
-                          const faturamentoBrutoTotal = comissoesDia.reduce((sum, c) => sum + c.faturamentoTotal, 0);
-                          const caixaTotal = comissoesDia.reduce((sum, c) => sum + c.caixaBarbearia, 0);
+                          const faturamentoBrutoTotal = totaisDiaGeral.faturamentoGeral;
+                          const caixaTotal = totaisDiaGeral.faturamentoGeral - comissoesDia.reduce((sum, c) => sum + c.totalComissao, 0) - totaisDiaGeral.totalTaxasGeral;
                           setReceitaData({ isBarbearia: true, faturamentoBrutoTotal, caixaBarbearia: caixaTotal });
                           setIsFinalizarCaixaOpen(true);
                         }}
@@ -1764,12 +1921,18 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                     subtotalServicos += s.valor;
                   }
                 });
-              } else if (a.servicoId) {
+              } else if (a.servicoId && a.servicoId !== 'assinatura') {
                 const s = servicos.find(x => x.id === a.servicoId);
                 if (s) {
                   servicosDoAgendamento.push(s);
                   subtotalServicos += s.valor;
                 }
+              }
+
+              if (servicosDoAgendamento.length === 0 && (a.servicoNome || a.servicoId === 'assinatura' || a.isSubscription)) {
+                const val = a.pagamento?.valorRecebido || a.pagamento?.valorOriginal || a.valorOriginal || a.valorTotalPrevisto || a.valorAssinatura || a.pagamento?.valorCobrado || 0;
+                servicosDoAgendamento.push({ nome: a.servicoNome || 'Plano Assinatura', valor: val });
+                subtotalServicos += val;
               }
 
               const produtosDoAgendamento: any[] = [];
@@ -1787,11 +1950,20 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                 a.dataAgendada,
                 subtotalServicos,
                 subtotalProdutos,
-                a.pagamento,
-                a.assinatura
+                a.pagamento ? { ...a.pagamento, desconto: a.pagamento.desconto ?? a.desconto } : ({ desconto: a.desconto } as any),
+                a.assinatura,
+                a.assinaturaAplicada
               );
 
-              const valorTotal = a.pagamento?.valorCobrado ?? resumoPag.valorCobrado;
+              const valorTotal = (a.pagamento?.valorRecebido && a.pagamento.valorRecebido > 0)
+                ? a.pagamento.valorRecebido
+                : (a.pagamento?.valorCobrado && a.pagamento.valorCobrado > 0)
+                ? a.pagamento.valorCobrado
+                : resumoPag.valorCobrado > 0
+                ? resumoPag.valorCobrado
+                : (a.pagamento?.valorOriginal && a.pagamento.valorOriginal > 0)
+                ? a.pagamento.valorOriginal
+                : (subtotalServicos + subtotalProdutos);
               const valorDesconto = a.pagamento?.desconto ?? resumoPag.desconto;
               const valorOriginal = a.pagamento?.valorOriginal ?? resumoPag.valorOriginal;
               
@@ -1841,7 +2013,7 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                       <span className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Total a Pagar</span>
                       {valorDesconto > 0 && (
                         <span className="text-xs text-emerald-400 font-semibold mb-0.5">
-                          🏷️ Desconto: - R$ {valorDesconto.toFixed(2)}
+                          🏷️ {resumoPag.temAssinatura || a.assinatura?.possui || a.assinaturaAplicada || (a as any).isSubscription ? 'Desconto Assinatura' : 'Desconto'}: - R$ {valorDesconto.toFixed(2)}
                         </span>
                       )}
                       <div className="flex items-baseline gap-2">
@@ -1872,9 +2044,9 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
       )}
 
       {activeSubTab === 'lucro' && (() => {
-        const faturamentoMes = comissoesMes.reduce((sum, c) => sum + c.faturamentoTotal, 0);
+        const faturamentoMes = totaisMesGeral.faturamentoGeral;
         const comissoesPagasMes = comissoesMes.reduce((sum, c) => sum + c.totalComissao, 0);
-        const totalTaxasMes = comissoesMes.reduce((sum, c) => sum + (c.totalTaxas || 0), 0);
+        const totalTaxasMes = totaisMesGeral.totalTaxasGeral;
         const custoFixoMes = custos.filter(c => c.tipo === 'fixo').reduce((sum, c) => sum + c.valor, 0);
         const custoVariavelMes = custos.filter(c => c.tipo === 'variavel').reduce((sum, c) => sum + c.valor, 0);
         const custosTotaisMes = custoFixoMes + custoVariavelMes + totalTaxasMes;
@@ -1950,14 +2122,14 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
       {activeSubTab === 'historico' && (
       <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
         <h2 className="text-xl font-bold text-white mb-6">Histórico de Registros <span className="text-gray-500 text-sm font-normal ml-2">(Vendas/Cortes)</span></h2>
-        {registros.length === 0 ? (
+        {registrosFiltradosDia.length === 0 ? (
           <div className="w-full bg-gray-900/50 p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center">
             <ClipboardListIcon className="w-16 h-16 mb-4 text-gray-700" />
-            <p className="text-lg">Nenhum registro encontrado no histórico.</p>
+            <p className="text-lg">Nenhum registro encontrado no histórico de hoje.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar">
-            {[...registros].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()).map(r => {
+            {[...registrosFiltradosDia].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()).map(r => {
               const { dataHoraStr } = formatarDataHora(r.data, r.horarios);
               const valorDesconto = r.desconto ?? r.pagamento?.desconto ?? 0;
               const valorOriginal = r.valorOriginal ?? r.pagamento?.valorOriginal ?? (r.total + valorDesconto);

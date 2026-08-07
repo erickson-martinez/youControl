@@ -106,6 +106,17 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
     });
   }, [clienteTelefone, subscribers]);
 
+  // Se o cliente for assinante e a data selecionada for Sexta, Sábado ou Domingo, reseta a data
+  useEffect(() => {
+    if (matchedSubscriber && data) {
+      const dow = new Date(data + "T12:00:00Z").getDay();
+      if (dow < 1 || dow > 4) {
+        setData("");
+        setHorariosSelecionados([]);
+      }
+    }
+  }, [matchedSubscriber, data]);
+
   const matchedPlanName = useMemo(() => {
     if (!matchedSubscriber) return null;
     if (matchedSubscriber.planoNome) return matchedSubscriber.planoNome;
@@ -217,6 +228,15 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
         `Você indicou ${quantidadePessoas} pessoas, por favor selecione pelo menos ${quantidadePessoas} horários.`,
       );
       return;
+    }
+
+    // Validar restrição de dia para clientes com assinatura (Segunda a Quinta apenas)
+    if (matchedSubscriber || resumo.temAssinatura) {
+      const dayOfWeek = new Date(data + "T12:00:00Z").getDay();
+      if (dayOfWeek < 1 || dayOfWeek > 4) {
+        alert("Clientes com assinatura só podem agendar de Segunda a Quinta-feira. Por favor, selecione uma data entre Segunda e Quinta-feira.");
+        return;
+      }
     }
 
     // Validar conflitos
@@ -570,8 +590,8 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
 
             {/* Banner de Assinante Ativo */}
             {matchedSubscriber && (
-              <div className="p-4 bg-purple-900/30 border border-purple-500/40 rounded-xl text-purple-200 shadow-lg animate-fadeIn">
-                <div className="flex items-center gap-2 text-purple-300 font-bold text-sm mb-1">
+              <div className="p-4 bg-purple-900/30 border border-purple-500/40 rounded-xl text-purple-200 shadow-lg animate-fadeIn space-y-2">
+                <div className="flex items-center gap-2 text-purple-300 font-bold text-sm">
                   <span>⭐</span> Cliente possui assinatura ativa
                 </div>
                 <div className="text-xs space-y-1 text-gray-300">
@@ -584,6 +604,23 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
                   </div>
                   {matchedSubscriber.email && <div>E-mail: <span className="text-gray-400">{matchedSubscriber.email}</span></div>}
                 </div>
+                {data && (() => {
+                  const dow = new Date(data + "T12:00:00Z").getDay();
+                  if (dow < 1 || dow > 4) {
+                    return (
+                      <div className="p-2.5 bg-red-500/20 border border-red-500/40 rounded-lg text-red-300 text-xs font-bold flex items-center gap-2">
+                        <span>⚠️</span>
+                        <span>Clientes com assinatura só podem agendar de Segunda a Quinta-feira. A data selecionada ({resumo.nomeDiaSemana}) não é permitida para assinantes.</span>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="p-2 bg-emerald-500/15 border border-emerald-500/30 rounded-lg text-emerald-300 text-xs font-medium flex items-center gap-2">
+                      <span>✓</span>
+                      <span>Agendamento por assinatura válido para {resumo.nomeDiaSemana} (Segunda a Quinta).</span>
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
@@ -682,7 +719,13 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
                               />
                               <div className="flex-1 flex justify-between items-center min-w-0">
                                 <span className="text-gray-200 font-medium truncate pr-2">{s.nome}</span>
-                                <span className="text-emerald-400 font-bold ml-2 whitespace-nowrap shrink-0">R$ {s.valor.toFixed(2)}</span>
+                                {matchedSubscriber ? (
+                                  <span className="text-purple-300 font-bold ml-2 whitespace-nowrap shrink-0 text-xs bg-purple-950/60 px-2 py-1 rounded border border-purple-800/40">
+                                    Incluso na Assinatura
+                                  </span>
+                                ) : (
+                                  <span className="text-emerald-400 font-bold ml-2 whitespace-nowrap shrink-0">R$ {s.valor.toFixed(2)}</span>
+                                )}
                               </div>
                             </label>
                          ))}
@@ -707,6 +750,7 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
                   onMonthChange={() => {
                     setHorariosSelecionados([]); // Reset on month change if needed
                   }}
+                  allowedDaysOfWeek={matchedSubscriber ? ['Segunda', 'Terça', 'Quarta', 'Quinta'] : undefined}
                 />
                 {data && availableHorarios.length === 0 && (
                   <p className="text-red-400 text-xs mt-2">
@@ -777,8 +821,8 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
                       {s.nome}
                     </span>
-                    <span className={`font-medium ${resumo.temAssinatura ? 'text-purple-400 line-through text-xs' : 'text-emerald-400'}`}>
-                      {formatarMoeda(s.valor)}
+                    <span className={`font-medium ${resumo.temAssinatura || matchedSubscriber ? 'text-purple-300 text-xs font-semibold' : 'text-emerald-400'}`}>
+                      {resumo.temAssinatura || matchedSubscriber ? 'Incluso na Assinatura' : formatarMoeda(s.valor)}
                     </span>
                   </div>
                 );
@@ -806,7 +850,13 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
             <div className="space-y-2 text-sm">
               <div className="flex justify-between items-center text-gray-400">
                 <span>Subtotal de serviços</span>
-                <span className="font-medium text-gray-200">{formatarMoeda(resumo.subtotalServicos)}</span>
+                <span className="font-medium text-gray-200">
+                  {resumo.temAssinatura || matchedSubscriber ? (
+                    <span className="text-purple-300 text-xs font-semibold">Incluso na Assinatura</span>
+                  ) : (
+                    formatarMoeda(resumo.subtotalServicos)
+                  )}
+                </span>
               </div>
               <div className="flex justify-between items-center text-gray-400">
                 <span>Subtotal de produtos</span>
@@ -850,7 +900,7 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
                   <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  Desconto de R$ 5,00 aplicado (Segunda a Quarta: dias promocionais)
+                  Desconto de R$ 5,00 aplicado (Segunda a Quinta: dias promocionais)
                 </div>
               ) : null}
 

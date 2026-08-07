@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useBarbeiros } from '../hooks/useBarbeiros';
-import { useBarbeariaRegistros, useBarbeariaAgendamentos, formatarDataHora, calcularResumoPagamento } from '../hooks/useBarbeariaRegistros';
+import { useBarbeariaRegistros, useBarbeariaAgendamentos, formatarDataHora, calcularResumoPagamento, obterDiaSemanaApartirDeData } from '../hooks/useBarbeariaRegistros';
 import { useBarbeariaConfig } from '../hooks/useBarbeariaConfig';
 import { CheckCircleIcon, XCircleIcon, ClockIcon, ScissorsIcon } from './icons';
 import { User, Empresa } from '../types';
@@ -188,14 +188,21 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
     const servicosValorCobrado = Math.max(0, subtotalServicos - Math.min(descontoAplicado, subtotalServicos));
     const factorServico = subtotalServicos > 0 ? servicosValorCobrado / subtotalServicos : 0;
 
-    if (agendamento.servicosIds && agendamento.servicosIds.length > 0) {
-      agendamento.servicosIds.forEach((sId: string) => {
-        const s = servicos.find(x => x.id === sId);
+    const isAssinatura = Boolean(resumo.temAssinatura || agendamento.assinatura?.possui || agendamento.assinaturaAplicada || agendamento.isSubscription);
+
+    if (isAssinatura) {
+      // Cliente com assinatura possui comissão fixa de R$ 10 por agendamento de serviço
+      comissaoServicos = 10;
+    } else {
+      if (agendamento.servicosIds && agendamento.servicosIds.length > 0) {
+        agendamento.servicosIds.forEach((sId: string) => {
+          const s = servicos.find(x => x.id === sId);
+          if (s) comissaoServicos += (s.valor * factorServico) * ((barbeiro.corte || 0) / 100);
+        });
+      } else if (agendamento.servicoId) {
+        const s = servicos.find(x => x.id === agendamento.servicoId);
         if (s) comissaoServicos += (s.valor * factorServico) * ((barbeiro.corte || 0) / 100);
-      });
-    } else if (agendamento.servicoId) {
-      const s = servicos.find(x => x.id === agendamento.servicoId);
-      if (s) comissaoServicos += (s.valor * factorServico) * ((barbeiro.corte || 0) / 100);
+      }
     }
 
     if (agendamento.produtosIds && agendamento.produtosIds.length > 0) {
@@ -493,6 +500,14 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
       return;
     }
 
+    if (modalMatchedSubscriber && addClienteData) {
+      const dayOfWeek = obterDiaSemanaApartirDeData(addClienteData);
+      if (dayOfWeek < 1 || dayOfWeek > 4) {
+        alert("Clientes com assinatura só podem agendar de Segunda a Quinta-feira. Por favor, escolha uma data entre Segunda e Quinta-feira.");
+        return;
+      }
+    }
+
     const agendamentoData: any = {
       clienteNome: addClienteNome || "Cliente Avulso",
       clienteEmail: addClienteEmail || "",
@@ -586,6 +601,17 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
 
   const barbeiroParaAgenda = barbeiros.find(b => b.id === selectedBarbeiroId);
   const allowedDays = barbeiroParaAgenda?.diasTrabalhados?.length > 0 ? barbeiroParaAgenda.diasTrabalhados : undefined;
+
+  const allowedDaysForModal = React.useMemo(() => {
+    if (modalMatchedSubscriber) {
+      const subDays = ['Segunda', 'Terça', 'Quarta', 'Quinta'];
+      if (allowedDays) {
+        return allowedDays.filter(d => subDays.includes(d));
+      }
+      return subDays;
+    }
+    return allowedDays;
+  }, [modalMatchedSubscriber, allowedDays]);
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8 pb-20">
@@ -777,6 +803,21 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                       <div className="font-bold text-purple-300">⭐ Cliente possui assinatura ativa</div>
                       <div>Plano: <strong className="text-white">{modalMatchedSubscriber.planoNome || 'Plano Ativo'}</strong></div>
                       <div>Código: <span className="font-mono bg-purple-950 px-1.5 py-0.5 rounded border border-purple-700/40">{modalMatchedSubscriber.codigoAtendimento || modalMatchedSubscriber.codigo || modalMatchedSubscriber.id}</span></div>
+                      {addClienteData && (() => {
+                        const dow = obterDiaSemanaApartirDeData(addClienteData);
+                        if (dow < 1 || dow > 4) {
+                          return (
+                            <div className="mt-2 p-2 bg-red-500/20 border border-red-500/40 rounded text-red-300 text-[11px] font-bold">
+                              ⚠️ Clientes com assinatura só podem agendar de Segunda a Quinta-feira. A data selecionada ({addClienteResumo.nomeDiaSemana}) não é permitida.
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className="mt-2 text-[11px] text-emerald-300 font-medium">
+                            ✓ Agendamento permitido para {addClienteResumo.nomeDiaSemana} (Segunda a Quinta).
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                   <div>
@@ -841,7 +882,12 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                               }}
                             />
                             <span className="text-sm font-medium text-gray-200">
-                              {s.nome} <span className="text-green-400">R$ {s.valor.toFixed(2)}</span>
+                              {s.nome}{' '}
+                              {modalMatchedSubscriber ? (
+                                <span className="text-purple-300 text-xs font-semibold bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-800/40">Incluso na Assinatura</span>
+                              ) : (
+                                <span className="text-green-400">R$ {s.valor.toFixed(2)}</span>
+                              )}
                             </span>
                           </label>
                         ))}
@@ -860,7 +906,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                       onMonthChange={() => {
                         setAddClienteHora('');
                       }}
-                      allowedDaysOfWeek={allowedDays}
+                      allowedDaysOfWeek={allowedDaysForModal}
                     />
                     {addClienteData && availableHorariosAddCliente.length === 0 && (
                       <p className="text-red-400 text-xs mt-2">Nenhum horário disponível para esta data hoje.</p>
@@ -902,7 +948,7 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
                       <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
-                      Desconto de R$ 5,00 aplicado (Segunda a Quarta: dias promocionais)
+                      Desconto de R$ 5,00 aplicado (Segunda a Quinta: dias promocionais)
                     </div>
                   )}
 
