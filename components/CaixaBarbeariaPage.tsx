@@ -84,12 +84,24 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
       subtotalProdutos,
       a.pagamento ? { ...a.pagamento, desconto: a.pagamento.desconto ?? a.desconto } : ({ desconto: a.desconto } as any),
       a.assinatura,
-      a.assinaturaAplicada
+      a.assinaturaAplicada || (a as any).isSubscription
+    );
+
+    const temAssinatura = Boolean(
+      resumo.temAssinatura ||
+      a.assinatura?.possui ||
+      a.assinaturaAplicada ||
+      (a as any).isSubscription
     );
 
     if (a.pagamento?.valorRecebido !== undefined && a.pagamento.valorRecebido > 0) {
       return a.pagamento.valorRecebido;
     }
+
+    if (temAssinatura) {
+      return Math.max(0, subtotalProdutos);
+    }
+
     if (a.pagamento?.valorCobrado !== undefined && a.pagamento.valorCobrado > 0) {
       return a.pagamento.valorCobrado;
     }
@@ -301,15 +313,27 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
                 subtotalProdutos,
                 a.pagamento ? { ...a.pagamento, desconto: a.pagamento.desconto ?? a.desconto } : ({ desconto: a.desconto } as any),
                 a.assinatura,
-                a.assinaturaAplicada
+                a.assinaturaAplicada || (a as any).isSubscription
               );
 
-              const valorDesconto = a.desconto ?? a.pagamento?.desconto ?? resumo.desconto ?? 0;
+              const temAssinatura = Boolean(
+                resumo.temAssinatura ||
+                a.assinatura?.possui ||
+                a.assinaturaAplicada ||
+                (a as any).isSubscription
+              );
+
+              const valorDesconto = temAssinatura
+                ? (subtotalServicos > 0 ? subtotalServicos : valorOriginal)
+                : (a.desconto ?? a.pagamento?.desconto ?? resumo.desconto ?? 0);
+
               const valorTotalFinal = (a.pagamento?.valorRecebido && a.pagamento.valorRecebido > 0)
                 ? a.pagamento.valorRecebido
-                : (a.pagamento?.valorCobrado && a.pagamento.valorCobrado > 0)
+                : temAssinatura
+                ? Math.max(0, subtotalProdutos)
+                : (a.pagamento?.valorCobrado !== undefined && a.pagamento.valorCobrado >= 0)
                 ? a.pagamento.valorCobrado
-                : resumo.valorCobrado > 0
+                : resumo.valorCobrado >= 0
                 ? resumo.valorCobrado
                 : Math.max(0, valorOriginal - valorDesconto);
               

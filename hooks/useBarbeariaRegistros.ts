@@ -206,14 +206,14 @@ export const calcularResumoPagamento = (
   let formasPagamento: string[] = pagamentoBackend?.formas || [];
 
   if (temAssinatura) {
-    if (pagamentoBackend?.desconto !== undefined) {
+    if (pagamentoBackend?.desconto !== undefined && pagamentoBackend.desconto > 0) {
       desconto = pagamentoBackend.desconto;
     } else {
-      desconto = 0;
+      desconto = subtotalServicos > 0 ? subtotalServicos : valorOriginal;
     }
 
-    if (pagamentoBackend?.valorCobrado !== undefined) {
-      valorCobrado = pagamentoBackend.valorCobrado;
+    if (pagamentoBackend?.valorRecebido !== undefined && pagamentoBackend.valorRecebido > 0) {
+      valorCobrado = pagamentoBackend.valorRecebido;
     } else {
       valorCobrado = Math.max(0, subtotalProdutos);
     }
@@ -621,17 +621,15 @@ export const useBarbeariaRegistros = (empresaId?: string) => {
         a.servicosIds.forEach(id => {
           const s = servicos.find(x => x.id === id);
           if (s) {
-            const valServico = isAssinatura ? 0 : s.valor;
-            itens.push({ idItem: s.id, nome: s.nome, tipo: 'servico', valor: valServico });
-            subtotalServicos += valServico;
+            itens.push({ idItem: s.id, nome: s.nome, tipo: 'servico', valor: s.valor });
+            subtotalServicos += s.valor;
           }
         });
       } else if (a.servicoId && a.servicoId !== 'assinatura') {
         const s = servicos.find(x => x.id === a.servicoId);
         if (s) {
-          const valServico = isAssinatura ? 0 : s.valor;
-          itens.push({ idItem: s.id, nome: s.nome, tipo: 'servico', valor: valServico });
-          subtotalServicos += valServico;
+          itens.push({ idItem: s.id, nome: s.nome, tipo: 'servico', valor: s.valor });
+          subtotalServicos += s.valor;
         }
       }
 

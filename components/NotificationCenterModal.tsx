@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { Transaction } from '../types';
 import { BellIcon, XIcon, CheckCircleIcon, XCircleIcon, ClockIcon, ShareIcon } from './icons';
 import { useNotifications } from '../hooks/useNotifications';
+import LembretesRecorrentesModal from './LembretesRecorrentesModal';
 
 interface NotificationCenterModalProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ interface NotificationCenterModalProps {
   onRejectPending: (id: string) => Promise<void>;
   onNavigateToTab: (tab: 'transactions' | 'shared') => void;
   userMap?: Record<string, string>;
+  currentUserEmail?: string;
 }
 
 const formatCurrency = (value: number | undefined | null) => {
@@ -32,8 +34,10 @@ const NotificationCenterModal: React.FC<NotificationCenterModalProps> = ({
   onRejectPending,
   onNavigateToTab,
   userMap = {},
+  currentUserEmail,
 }) => {
   const [activeTab, setActiveTab] = useState<'all' | 'overdue' | 'approvals' | 'shared'>('all');
+  const [isLembretesModalOpen, setIsLembretesModalOpen] = useState(false);
   const { permission, requestPermission } = useNotifications();
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
 
@@ -79,8 +83,8 @@ const NotificationCenterModal: React.FC<NotificationCenterModalProps> = ({
           </button>
         </div>
 
-        {/* Status das Notificações Push do Navegador */}
-        <div className="px-4 sm:px-6 py-2.5 bg-gray-900/40 border-b border-gray-800 flex items-center justify-between text-xs">
+        {/* Status das Notificações Push do Navegador & Botão Lembretes Recorrentes */}
+        <div className="px-4 sm:px-6 py-2.5 bg-gray-900/40 border-b border-gray-800 flex flex-wrap items-center justify-between gap-2 text-xs">
           <div className="flex items-center gap-2 text-gray-300">
             <span className={`w-2 h-2 rounded-full ${permission === 'granted' ? 'bg-green-400' : 'bg-yellow-400'}`}></span>
             <span>
@@ -90,14 +94,25 @@ const NotificationCenterModal: React.FC<NotificationCenterModalProps> = ({
               </strong>
             </span>
           </div>
-          {permission !== 'granted' && (
+
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => requestPermission()}
-              className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-md transition-colors"
+              onClick={() => setIsLembretesModalOpen(true)}
+              className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-md transition-colors flex items-center gap-1 shadow-sm"
             >
-              Ativar Notificações Push
+              <ClockIcon className="w-3.5 h-3.5" />
+              Lembretes Recorrentes
             </button>
-          )}
+
+            {permission !== 'granted' && (
+              <button
+                onClick={() => requestPermission()}
+                className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-md transition-colors"
+              >
+                Ativar Push
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Tabs */}
@@ -291,6 +306,12 @@ const NotificationCenterModal: React.FC<NotificationCenterModalProps> = ({
           </button>
         </div>
       </div>
+
+      <LembretesRecorrentesModal
+        isOpen={isLembretesModalOpen}
+        onClose={() => setIsLembretesModalOpen(false)}
+        currentUserEmail={currentUserEmail}
+      />
     </div>
   );
 };

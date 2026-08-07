@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { API_BASE_URL } from '../constants';
 import { useBarbeariaConfig, Servico } from '../hooks/useBarbeariaConfig';
-import { PlusIcon, PencilIcon, TrashIcon, XCircleIcon, CheckCircleIcon } from './icons';
+import { PlusIcon, PencilIcon, TrashIcon, XCircleIcon, CheckCircleIcon, ClockIcon } from './icons';
 import ConfirmationModal from './ConfirmationModal';
+import LembretesRecorrentesModal from './LembretesRecorrentesModal';
 
 export interface SubscriptionPlan {
   id?: string;
@@ -53,6 +54,7 @@ export const GestaoAssinaturas: React.FC<GestaoAssinaturasProps> = ({
   const { servicos } = useBarbeariaConfig(linkId);
 
   const [mainTab, setMainTab] = useState<'assinantes' | 'planos'>('assinantes');
+  const [isLembretesModalOpen, setIsLembretesModalOpen] = useState(false);
 
   // Subscription Clients State
   const [subscribers, setSubscribers] = useState<SubscriptionClient[]>([]);
@@ -630,27 +632,37 @@ export const GestaoAssinaturas: React.FC<GestaoAssinaturasProps> = ({
         )}
       </div>
 
-      {/* Main Tab Navigation */}
-      <div className="flex gap-2 bg-gray-800/80 p-1.5 rounded-xl border border-gray-700/60 w-fit">
+      {/* Main Tab Navigation & Lembretes Button */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex gap-2 bg-gray-800/80 p-1.5 rounded-xl border border-gray-700/60 w-fit">
+          <button
+            onClick={() => { setMainTab('assinantes'); clearAlerts(); }}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+              mainTab === 'assinantes'
+                ? 'bg-purple-600 text-white shadow-md'
+                : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+            }`}
+          >
+            Clientes Assinantes ({subscribers.length})
+          </button>
+          <button
+            onClick={() => { setMainTab('planos'); clearAlerts(); }}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+              mainTab === 'planos'
+                ? 'bg-purple-600 text-white shadow-md'
+                : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+            }`}
+          >
+            Planos de Assinatura ({plans.length})
+          </button>
+        </div>
+
         <button
-          onClick={() => { setMainTab('assinantes'); clearAlerts(); }}
-          className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-            mainTab === 'assinantes'
-              ? 'bg-purple-600 text-white shadow-md'
-              : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
-          }`}
+          onClick={() => setIsLembretesModalOpen(true)}
+          className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-lg"
         >
-          Clientes Assinantes ({subscribers.length})
-        </button>
-        <button
-          onClick={() => { setMainTab('planos'); clearAlerts(); }}
-          className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-            mainTab === 'planos'
-              ? 'bg-purple-600 text-white shadow-md'
-              : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
-          }`}
-        >
-          Planos de Assinatura ({plans.length})
+          <ClockIcon className="w-4 h-4" />
+          ⏰ Lembretes de Assinaturas
         </button>
       </div>
 
@@ -1164,6 +1176,12 @@ export const GestaoAssinaturas: React.FC<GestaoAssinaturasProps> = ({
         message={confirmModalState.message}
         onClose={() => setConfirmModalState((prev) => ({ ...prev, isOpen: false }))}
         onConfirm={confirmModalState.onConfirm}
+      />
+
+      <LembretesRecorrentesModal
+        isOpen={isLembretesModalOpen}
+        onClose={() => setIsLembretesModalOpen(false)}
+        initialType="assinatura"
       />
     </div>
   );

@@ -1411,6 +1411,11 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
 
   const [activeSubTab, setActiveSubTab] = useState<'aguardando' | 'diario' | 'mensal' | 'historico' | 'lucro'>('aguardando');
 
+  const [expandedBarbeiros, setExpandedBarbeiros] = useState<Record<string, boolean>>({});
+  const toggleExpandBarbeiro = (id: string) => {
+    setExpandedBarbeiros(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
   const [isFinalizarCaixaOpen, setIsFinalizarCaixaOpen] = useState(false);
   const [isFinalizando, setIsFinalizando] = useState(false);
   const [receitaData, setReceitaData] = useState<any>(null);
@@ -1573,18 +1578,81 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
       let comissaoProdutos = 0;
       let totalTaxas = 0;
 
-      registrosBarbeiro.forEach(r => {
-        let totalItem = 0;
-        const subtotalServicos = r.itens.filter(i => i.tipo === 'servico').reduce((acc, i) => acc + (i.valor || 0), 0);
+      const detalhesAtendimentos = registrosBarbeiro.map(r => {
+        const subtotalServicos = (r.itens || []).filter((i: any) => i.tipo === 'servico').reduce((acc: number, i: any) => acc + (i.valor || 0), 0);
+        const subtotalProdutos = (r.itens || []).filter((i: any) => i.tipo === 'produto').reduce((acc: number, i: any) => acc + (i.valor || 0), 0);
         const desconto = r.desconto ?? r.pagamento?.desconto ?? 0;
         const servicosValorCobrado = Math.max(0, subtotalServicos - Math.min(desconto, subtotalServicos));
         const factorServico = subtotalServicos > 0 ? servicosValorCobrado / subtotalServicos : 0;
 
-        const isAssinatura = Boolean(r.temAssinatura || r.isSubscription || r.assinatura?.possui || r.itens?.some(i => i.idItem === 'assinatura' || (i.nome && i.nome.toLowerCase().includes('assinatura'))));
+        const isAssinatura = Boolean(r.temAssinatura || r.isSubscription || r.assinatura?.possui || r.itens?.some((i: any) => i.idItem === 'assinatura' || (i.nome && i.nome.toLowerCase().includes('assinatura'))));
+
+        let comissaoServicoAtend = 0;
+        let comissaoProdutoAtend = 0;
 
         if (isAssinatura) {
-          // Cliente com assinatura possui comissão fixa de R$ 10 por agendamento
-          comissaoServicos += 10;
+          const valServicos = subtotalServicos > 0 ? subtotalServicos : (r.valorOriginal || 0);
+          if (valServicos > 30) {
+            comissaoServicoAtend = 17.5;
+          } else if (valServicos > 0) {
+            comissaoServicoAtend = 10;
+          }
+          (r.itens || []).forEach((item: any) => {
+            if (item.tipo === 'produto') {
+              const produtoObj = produtos.find(p => p.id === item.idItem);
+              const override = produtoObj && Number(produtoObj.comissao) > 0 ? Number(produtoObj.comissao) : Number(barbeiro.comissao);
+              comissaoProdutoAtend += item.valor * ((override || 0) / 100);
+            }
+          });
+        } else {
+          (r.itens || []).forEach((item: any) => {
+            if (item.tipo === 'servico') {
+              const servicoValorComDesconto = item.valor * factorServico;
+              comissaoServicoAtend += servicoValorComDesconto * (barbeiro.corte / 100);
+            } else if (item.tipo === 'produto') {
+              const produtoObj = produtos.find(p => p.id === item.idItem);
+              const override = produtoObj && Number(produtoObj.comissao) > 0 ? Number(produtoObj.comissao) : Number(barbeiro.comissao);
+              comissaoProdutoAtend += item.valor * ((override || 0) / 100);
+            }
+          });
+        }
+
+        const valorTotalAtend = servicosValorCobrado + subtotalProdutos;
+        const comissaoTotalAtend = comissaoServicoAtend + comissaoProdutoAtend;
+
+        return {
+          id: r.id,
+          cliente: r.cliente || r.nomeCliente || 'Cliente',
+          dataAgendada: r.dataAgendada || r.data,
+          horarios: r.horarios,
+          isAssinatura,
+          subtotalServicos: servicosValorCobrado,
+          subtotalProdutos,
+          valorTotalAtend,
+          comissaoServicoAtend,
+          comissaoProdutoAtend,
+          comissaoTotalAtend,
+          itens: r.itens || []
+        };
+      });
+
+      registrosBarbeiro.forEach(r => {
+        let totalItem = 0;
+        const subtotalServicos = r.itens.filter((i: any) => i.tipo === 'servico').reduce((acc: number, i: any) => acc + (i.valor || 0), 0);
+        const desconto = r.desconto ?? r.pagamento?.desconto ?? 0;
+        const servicosValorCobrado = Math.max(0, subtotalServicos - Math.min(desconto, subtotalServicos));
+        const factorServico = subtotalServicos > 0 ? servicosValorCobrado / subtotalServicos : 0;
+
+        const isAssinatura = Boolean(r.temAssinatura || r.isSubscription || r.assinatura?.possui || r.itens?.some((i: any) => i.idItem === 'assinatura' || (i.nome && i.nome.toLowerCase().includes('assinatura'))));
+
+        if (isAssinatura) {
+          // Assinatura: comissão por serviço é R$ 10 para agendamento até R$ 30, e R$ 17,50 acima de R$ 30
+          const valServicos = subtotalServicos > 0 ? subtotalServicos : (r.valorOriginal || 0);
+          if (valServicos > 30) {
+            comissaoServicos += 17.5;
+          } else if (valServicos > 0) {
+            comissaoServicos += 10;
+          }
           r.itens.forEach((item: any) => {
             if (item.tipo === 'servico') {
               const servicoValorComDesconto = item.valor * factorServico;
@@ -1652,6 +1720,7 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
         comissaoServicos,
         comissaoProdutos,
         totalTaxas,
+        detalhesAtendimentos,
         totalComissao: comissaoServicos + comissaoProdutos,
         caixaBarbearia: faturamentoTotal - (comissaoServicos + comissaoProdutos) - totalTaxas
       };
@@ -1747,74 +1816,195 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                 ) : (
                   <div className="flex flex-col gap-4 mt-4">
                     {/* Barbearia Card */}
-                    <div className="bg-blue-950/40 p-5 sm:p-6 rounded-2xl border border-blue-900/50 flex flex-col xl:flex-row xl:items-center justify-between gap-6 relative transition-all">
-                      
-                      <div className="flex flex-col gap-1 flex-1">
-                        <h3 className="font-bold text-blue-100 text-xl flex items-center gap-2">
-                           <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
-                           Caixa Barbearia
-                        </h3>
-                        <div className="text-sm text-blue-300">
-                          Fat. Bruto Geral: <strong className="text-white">R$ {totaisDiaGeral.faturamentoGeral.toFixed(2)}</strong>
+                    <div className="bg-blue-950/40 p-4 sm:p-6 rounded-2xl border border-blue-900/50 flex flex-col gap-4 transition-all shadow-md">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-blue-900/40 pb-3">
+                        <div>
+                          <h3 className="font-bold text-blue-100 text-lg sm:text-xl flex items-center gap-2">
+                             <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                             Caixa Barbearia
+                          </h3>
+                          <div className="text-xs sm:text-sm text-blue-300 mt-0.5">
+                            Fat. Bruto Geral: <strong className="text-white">R$ {totaisDiaGeral.faturamentoGeral.toFixed(2)}</strong>
+                          </div>
                         </div>
+
+                        <button 
+                          onClick={() => {
+                            const faturamentoBrutoTotal = totaisDiaGeral.faturamentoGeral;
+                            const caixaTotal = totaisDiaGeral.faturamentoGeral - comissoesDia.reduce((sum, c) => sum + c.totalComissao, 0) - totaisDiaGeral.totalTaxasGeral;
+                            setReceitaData({ isBarbearia: true, faturamentoBrutoTotal, caixaBarbearia: caixaTotal });
+                            setIsFinalizarCaixaOpen(true);
+                          }}
+                          className="flex items-center justify-center gap-2 px-3.5 py-2 bg-blue-800/60 hover:bg-blue-700/80 border border-blue-600/50 text-blue-100 text-xs sm:text-sm font-semibold rounded-xl transition-all shadow-sm shrink-0 w-full sm:w-auto"
+                          title="Fechar Barbearia (Criar Receita)"
+                        >
+                          <svg className="w-4 h-4 text-blue-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                          <span>Fechar Caixa Barbearia</span>
+                        </button>
                       </div>
 
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 sm:gap-8 flex-1 xl:justify-end">
-                        <div className="flex flex-col">
-                          <span className="text-blue-200/70 text-[10px] font-bold uppercase tracking-wider mb-1">Comissões Pagas</span>
-                          <span className="text-red-400/90 font-semibold">- R$ {comissoesDia.reduce((sum, c) => sum + c.totalComissao, 0).toFixed(2)}</span>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        <div className="bg-blue-900/20 p-3 rounded-xl border border-blue-800/40">
+                          <span className="text-blue-200/70 text-[10px] font-bold uppercase tracking-wider block mb-0.5">Comissões Pagas</span>
+                          <span className="text-red-400 font-semibold text-sm sm:text-base">- R$ {comissoesDia.reduce((sum, c) => sum + c.totalComissao, 0).toFixed(2)}</span>
                         </div>
-                        <div className="flex flex-col sm:border-l border-blue-900/50 sm:pl-6">
-                          <span className="text-blue-200/70 text-[10px] font-bold uppercase tracking-wider mb-1">Taxas (Cartão)</span>
-                          <span className="text-orange-400/90 font-semibold">- R$ {totaisDiaGeral.totalTaxasGeral.toFixed(2)}</span>
-                        </div>
-                        <div className="flex flex-col sm:border-l border-blue-900/50 sm:pl-6">
-                          <span className="text-blue-200 text-[10px] font-bold uppercase tracking-wider mb-1">Lucro Barbearia</span>
-                          <span className="text-blue-400 font-bold text-2xl">R$ {(totaisDiaGeral.faturamentoGeral - comissoesDia.reduce((sum, c) => sum + c.totalComissao, 0) - totaisDiaGeral.totalTaxasGeral).toFixed(2)}</span>
-                        </div>
-                      </div>
 
-                      <button 
-                        onClick={() => {
-                          const faturamentoBrutoTotal = totaisDiaGeral.faturamentoGeral;
-                          const caixaTotal = totaisDiaGeral.faturamentoGeral - comissoesDia.reduce((sum, c) => sum + c.totalComissao, 0) - totaisDiaGeral.totalTaxasGeral;
-                          setReceitaData({ isBarbearia: true, faturamentoBrutoTotal, caixaBarbearia: caixaTotal });
-                          setIsFinalizarCaixaOpen(true);
-                        }}
-                        className="absolute md:relative top-4 right-4 md:top-auto md:right-auto p-3 bg-blue-800/50 border border-blue-700/50 rounded-xl hover:bg-blue-700 hover:text-white transition-all shadow-md group z-20 shrink-0"
-                        title="Fechar Barbearia (Criar Receita)"
-                      >
-                        <svg className="w-6 h-6 text-blue-300 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-                      </button>
-                  </div>
-                  {/* Fim Barbearia Card */}
-                  {comissoesDia.map((c, idx) => (
-                    <div key={idx} className="bg-gray-900/40 p-5 sm:p-6 rounded-2xl border border-gray-800/60 flex flex-col xl:flex-row xl:items-center justify-between gap-6 relative transition-all hover:bg-gray-800/50">
-                      
-                      <div className="flex flex-col gap-1 flex-1">
-                        <h3 className="font-bold text-white text-lg z-10">{c.barbeiro.nome}</h3>
-                        <div className="text-sm text-gray-500">Fat. Bruto: <span className="text-gray-300">R$ {c.faturamentoTotal.toFixed(2)}</span></div>
-                      </div>
-                      
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 sm:gap-8 flex-1 xl:justify-end">
-                        <div className="flex flex-col">
-                          <span className="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-1">Comissão a Pagar</span>
-                          <span className="text-emerald-400 font-bold text-2xl">R$ {c.totalComissao.toFixed(2)}</span>
+                        <div className="bg-blue-900/20 p-3 rounded-xl border border-blue-800/40">
+                          <span className="text-blue-200/70 text-[10px] font-bold uppercase tracking-wider block mb-0.5">Taxas (Cartão)</span>
+                          <span className="text-amber-400 font-semibold text-sm sm:text-base">- R$ {totaisDiaGeral.totalTaxasGeral.toFixed(2)}</span>
+                        </div>
+
+                        <div className="bg-blue-900/40 p-3 rounded-xl border border-blue-700/50 col-span-2 sm:col-span-1">
+                          <span className="text-blue-200 text-[10px] font-bold uppercase tracking-wider block mb-0.5">Lucro Barbearia</span>
+                          <span className="text-blue-300 font-bold text-lg sm:text-xl">R$ {(totaisDiaGeral.faturamentoGeral - comissoesDia.reduce((sum, c) => sum + c.totalComissao, 0) - totaisDiaGeral.totalTaxasGeral).toFixed(2)}</span>
                         </div>
                       </div>
-
-                      <button 
-                        onClick={() => {
-                          setReceitaData({ ...c, nome: c.barbeiro.nome });
-                          setIsFinalizarCaixaOpen(true);
-                        }}
-                        className="absolute md:relative top-4 right-4 md:top-auto md:right-auto p-3 bg-gray-800/80 border border-gray-700/80 rounded-xl hover:bg-gray-700 hover:text-green-400 hover:border-green-500/50 transition-all shadow-md group z-20 shrink-0"
-                        title="Finalizar Caixa (Criar Receita)"
-                      >
-                        <svg className="w-6 h-6 text-gray-400 group-hover:text-green-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      </button>
                     </div>
-                  ))}
+                    {/* Fim Barbearia Card */}
+
+                    {comissoesDia.map((c, idx) => {
+                      const expandKey = c.barbeiro.id + '_d';
+                      const isExpanded = Boolean(expandedBarbeiros[expandKey]);
+                      return (
+                        <div key={idx} className="bg-gray-900/80 p-4 sm:p-6 rounded-2xl border border-gray-800 flex flex-col gap-4 sm:gap-5 transition-all hover:border-gray-700/80 shadow-lg">
+                          {/* Header Row */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800/60 pb-3">
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="font-bold text-white text-lg sm:text-xl">{c.barbeiro.nome}</h3>
+                                <span className="text-[11px] sm:text-xs bg-blue-900/40 text-blue-300 font-medium px-2 py-0.5 rounded border border-blue-800/40 shrink-0">
+                                  Corte {c.barbeiro.corte}% • Prod {c.barbeiro.comissao}%
+                                </span>
+                              </div>
+                              <div className="text-xs sm:text-sm text-gray-400 flex items-center gap-2.5 flex-wrap">
+                                <span>Fat. do Barbeiro: <strong className="text-white">R$ {c.faturamentoTotal.toFixed(2)}</strong></span>
+                                <span className="text-gray-600">•</span>
+                                <span>Atendimentos: <strong className="text-gray-200">{c.detalhesAtendimentos?.length || 0}</strong></span>
+                              </div>
+                            </div>
+
+                            <button 
+                              onClick={() => {
+                                setReceitaData({ ...c, nome: c.barbeiro.nome });
+                                setIsFinalizarCaixaOpen(true);
+                              }}
+                              className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-emerald-950/60 hover:bg-emerald-900/80 border border-emerald-500/50 text-emerald-300 text-xs sm:text-sm font-semibold rounded-xl transition-all shadow-sm hover:border-emerald-400 shrink-0 w-full sm:w-auto mt-1 sm:mt-0"
+                              title="Finalizar Caixa (Criar Receita)"
+                            >
+                              <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                              <span>Lançar no Caixa</span>
+                            </button>
+                          </div>
+
+                          {/* Metrics Grid */}
+                          <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-4">
+                            <div className="bg-gray-800/60 p-3 sm:p-4 rounded-xl border border-gray-700/50 flex flex-col justify-between gap-1">
+                              <span className="text-gray-400 text-[10px] sm:text-xs font-bold uppercase tracking-wider block">Comissão Serviços</span>
+                              <div className="flex items-baseline justify-between gap-1 flex-wrap">
+                                <span className="text-[10px] sm:text-xs text-gray-400">Fat: R$ {c.totalServicos.toFixed(2)}</span>
+                                <span className="text-blue-400 font-bold text-sm sm:text-base">R$ {c.comissaoServicos.toFixed(2)}</span>
+                              </div>
+                            </div>
+
+                            <div className="bg-gray-800/60 p-3 sm:p-4 rounded-xl border border-gray-700/50 flex flex-col justify-between gap-1">
+                              <span className="text-gray-400 text-[10px] sm:text-xs font-bold uppercase tracking-wider block">Comissão Produtos</span>
+                              <div className="flex items-baseline justify-between gap-1 flex-wrap">
+                                <span className="text-[10px] sm:text-xs text-gray-400">Fat: R$ {c.totalProdutos.toFixed(2)}</span>
+                                <span className="text-purple-400 font-bold text-sm sm:text-base">R$ {c.comissaoProdutos.toFixed(2)}</span>
+                              </div>
+                            </div>
+
+                            <div className="bg-emerald-950/40 p-3 sm:p-4 rounded-xl border border-emerald-500/40 col-span-2 lg:col-span-1 flex items-center justify-between gap-3">
+                              <div>
+                                <span className="text-emerald-400 text-[10px] sm:text-xs font-bold uppercase tracking-wider block">Comissão Total</span>
+                                <span className="text-[10px] sm:text-xs text-emerald-300/70 block">Líquido do Barbeiro</span>
+                              </div>
+                              <span className="text-emerald-400 font-extrabold text-lg sm:text-2xl shrink-0">R$ {c.totalComissao.toFixed(2)}</span>
+                            </div>
+                          </div>
+
+                          {/* Accordion Extrato */}
+                          <div className="pt-1">
+                            <button
+                              onClick={() => toggleExpandBarbeiro(expandKey)}
+                              className="w-full flex items-center justify-between py-2 px-3.5 bg-gray-800/40 hover:bg-gray-800/80 border border-gray-700/50 rounded-xl text-xs font-semibold text-gray-300 hover:text-white transition-all"
+                            >
+                              <span className="flex items-center gap-2 truncate">
+                                <svg className="w-4 h-4 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                                <span className="truncate">{isExpanded ? 'Ocultar extrato de atendimentos' : `Ver extrato de atendimentos (${c.detalhesAtendimentos?.length || 0})`}</span>
+                              </span>
+                              <span className="text-[11px] bg-gray-700/60 px-2 py-0.5 rounded text-gray-200 shrink-0 ml-2">
+                                {isExpanded ? '▲ Ocultar' : '▼ Extrato'}
+                              </span>
+                            </button>
+
+                            {isExpanded && (
+                              <div className="mt-3 bg-gray-950/80 p-3.5 sm:p-4 rounded-xl border border-gray-800 flex flex-col gap-3">
+                                <div className="flex justify-between items-center border-b border-gray-800 pb-2">
+                                  <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400">
+                                    Extrato Detalhado ({c.barbeiro.nome})
+                                  </h4>
+                                  <span className="text-xs text-gray-500">
+                                    {c.detalhesAtendimentos?.length || 0} atendimento(s)
+                                  </span>
+                                </div>
+
+                                {(!c.detalhesAtendimentos || c.detalhesAtendimentos.length === 0) ? (
+                                  <p className="text-xs text-gray-500 py-2">Nenhum atendimento no período.</p>
+                                ) : (
+                                  <div className="divide-y divide-gray-800/80">
+                                    {c.detalhesAtendimentos.map((atend: any, idxAt: number) => {
+                                      const { dataStr, horaStr } = formatarDataHora(atend.dataAgendada, atend.horarios);
+                                      return (
+                                        <div key={atend.id || idxAt} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+                                          <div className="flex flex-col gap-1 min-w-[150px]">
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                              <span className="font-semibold text-gray-300 bg-gray-800 px-2 py-0.5 rounded border border-gray-700 text-[11px]">
+                                                {dataStr} {horaStr ? `• ${horaStr}` : ''}
+                                              </span>
+                                              {atend.isAssinatura && (
+                                                <span className="bg-purple-900/50 text-purple-300 font-bold px-2 py-0.5 rounded border border-purple-700/50 text-[10px]">
+                                                  🏷️ VIP
+                                                </span>
+                                              )}
+                                            </div>
+                                            <span className="font-bold text-white text-sm">{atend.cliente}</span>
+                                          </div>
+
+                                          <div className="flex-1 flex flex-wrap gap-1.5 my-0.5 sm:my-0">
+                                            {atend.itens?.map((it: any, iIdx: number) => (
+                                              <span key={iIdx} className={`px-2 py-0.5 rounded border text-[11px] font-medium ${
+                                                it.tipo === 'servico' 
+                                                  ? 'bg-blue-950/50 text-blue-300 border-blue-800/50' 
+                                                  : 'bg-amber-950/50 text-amber-300 border-amber-800/50'
+                                              }`}>
+                                                {it.nome || (it.tipo === 'servico' ? 'Serviço' : 'Produto')} (R$ {Number(it.valor || 0).toFixed(2)})
+                                              </span>
+                                            ))}
+                                          </div>
+
+                                          <div className="flex items-center justify-between sm:justify-end gap-3 min-w-[170px] pt-1 sm:pt-0 border-t sm:border-t-0 border-gray-800/60">
+                                            <div className="text-right">
+                                              <span className="text-[10px] text-gray-500 uppercase font-bold block">Valor Total</span>
+                                              <span className="text-gray-300 font-semibold">R$ {atend.valorTotalAtend.toFixed(2)}</span>
+                                            </div>
+
+                                            <div className="text-right bg-emerald-950/40 px-2.5 py-1 rounded-lg border border-emerald-800/50">
+                                              <span className="text-[10px] text-emerald-400/90 uppercase font-bold block">Comissão</span>
+                                              <span className="text-emerald-400 font-bold text-sm">R$ {atend.comissaoTotalAtend.toFixed(2)}</span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                 </div>
               )}
             </div>
@@ -1851,33 +2041,148 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                   </div>
                 ) : (
                   <div className="flex flex-col gap-4 mt-4">
-                    {comissoesMes.map((c, idx) => (
-                      <div key={idx} className="bg-gray-900/40 p-5 sm:p-6 rounded-2xl border border-gray-800/60 flex flex-col xl:flex-row xl:items-center justify-between gap-6 relative transition-all hover:bg-gray-800/50">
-                        
-                        <div className="flex flex-col gap-1 flex-1">
-                          <h3 className="font-bold text-white text-lg z-10">{c.barbeiro.nome}</h3>
-                          <div className="text-sm text-gray-500">Fat. Bruto: <span className="text-gray-300">R$ {c.faturamentoTotal.toFixed(2)}</span></div>
-                        </div>
-                        
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 sm:gap-8 flex-1 xl:justify-end">
-                          <div className="flex flex-col">
-                            <span className="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-1">Comissão Mensal</span>
-                            <span className="text-emerald-400 font-bold text-2xl">R$ {c.totalComissao.toFixed(2)}</span>
+                    {comissoesMes.map((c, idx) => {
+                      const expandKey = c.barbeiro.id + '_m';
+                      const isExpanded = Boolean(expandedBarbeiros[expandKey]);
+                      return (
+                        <div key={idx} className="bg-gray-900/80 p-4 sm:p-6 rounded-2xl border border-gray-800 flex flex-col gap-4 sm:gap-5 transition-all hover:border-gray-700/80 shadow-lg">
+                          {/* Header Row */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800/60 pb-3">
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="font-bold text-white text-lg sm:text-xl">{c.barbeiro.nome}</h3>
+                                <span className="text-[11px] sm:text-xs bg-blue-900/40 text-blue-300 font-medium px-2 py-0.5 rounded border border-blue-800/40 shrink-0">
+                                  Corte {c.barbeiro.corte}% • Prod {c.barbeiro.comissao}%
+                                </span>
+                              </div>
+                              <div className="text-xs sm:text-sm text-gray-400 flex items-center gap-2.5 flex-wrap">
+                                <span>Fat. do Barbeiro: <strong className="text-white">R$ {c.faturamentoTotal.toFixed(2)}</strong></span>
+                                <span className="text-gray-600">•</span>
+                                <span>Atendimentos: <strong className="text-gray-200">{c.detalhesAtendimentos?.length || 0}</strong></span>
+                              </div>
+                            </div>
+
+                            <button 
+                              onClick={() => {
+                                setReceitaData({ ...c, nome: c.barbeiro.nome });
+                                setIsFinalizarCaixaOpen(true);
+                              }}
+                              className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-emerald-950/60 hover:bg-emerald-900/80 border border-emerald-500/50 text-emerald-300 text-xs sm:text-sm font-semibold rounded-xl transition-all shadow-sm hover:border-emerald-400 shrink-0 w-full sm:w-auto mt-1 sm:mt-0"
+                              title="Finalizar Caixa (Criar Receita)"
+                            >
+                              <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                              <span>Lançar no Caixa</span>
+                            </button>
+                          </div>
+
+                          {/* Metrics Grid */}
+                          <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-4">
+                            <div className="bg-gray-800/60 p-3 sm:p-4 rounded-xl border border-gray-700/50 flex flex-col justify-between gap-1">
+                              <span className="text-gray-400 text-[10px] sm:text-xs font-bold uppercase tracking-wider block">Comissão Serviços</span>
+                              <div className="flex items-baseline justify-between gap-1 flex-wrap">
+                                <span className="text-[10px] sm:text-xs text-gray-400">Fat: R$ {c.totalServicos.toFixed(2)}</span>
+                                <span className="text-blue-400 font-bold text-sm sm:text-base">R$ {c.comissaoServicos.toFixed(2)}</span>
+                              </div>
+                            </div>
+
+                            <div className="bg-gray-800/60 p-3 sm:p-4 rounded-xl border border-gray-700/50 flex flex-col justify-between gap-1">
+                              <span className="text-gray-400 text-[10px] sm:text-xs font-bold uppercase tracking-wider block">Comissão Produtos</span>
+                              <div className="flex items-baseline justify-between gap-1 flex-wrap">
+                                <span className="text-[10px] sm:text-xs text-gray-400">Fat: R$ {c.totalProdutos.toFixed(2)}</span>
+                                <span className="text-purple-400 font-bold text-sm sm:text-base">R$ {c.comissaoProdutos.toFixed(2)}</span>
+                              </div>
+                            </div>
+
+                            <div className="bg-emerald-950/40 p-3 sm:p-4 rounded-xl border border-emerald-500/40 col-span-2 lg:col-span-1 flex items-center justify-between gap-3">
+                              <div>
+                                <span className="text-emerald-400 text-[10px] sm:text-xs font-bold uppercase tracking-wider block">Comissão Mensal</span>
+                                <span className="text-[10px] sm:text-xs text-emerald-300/70 block">Líquido do Barbeiro</span>
+                              </div>
+                              <span className="text-emerald-400 font-extrabold text-lg sm:text-2xl shrink-0">R$ {c.totalComissao.toFixed(2)}</span>
+                            </div>
+                          </div>
+
+                          <div className="border-t border-gray-800/80 pt-3">
+                            <button
+                              onClick={() => toggleExpandBarbeiro(expandKey)}
+                              className="w-full flex items-center justify-between py-2 px-4 bg-gray-800/40 hover:bg-gray-800/80 border border-gray-700/50 rounded-xl text-xs font-semibold text-gray-300 hover:text-white transition-all"
+                            >
+                              <span className="flex items-center gap-2">
+                                <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 012-2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                                {isExpanded ? 'Ocultar extrato de atendimentos' : `Ver detalhe de cada valor/atendimento (${c.detalhesAtendimentos?.length || 0})`}
+                              </span>
+                              <span className="text-[11px] bg-gray-700/60 px-2 py-0.5 rounded text-gray-200">
+                                {isExpanded ? '▲ Ocultar' : '▼ Expandir Extrato'}
+                              </span>
+                            </button>
+
+                            {isExpanded && (
+                              <div className="mt-3 bg-gray-950/80 p-4 rounded-xl border border-gray-800 flex flex-col gap-3">
+                                <div className="flex justify-between items-center border-b border-gray-800 pb-2">
+                                  <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400">
+                                    Extrato Detalhado de Comissões ({c.barbeiro.nome})
+                                  </h4>
+                                  <span className="text-xs text-gray-500">
+                                    {c.detalhesAtendimentos?.length || 0} registro(s)
+                                  </span>
+                                </div>
+
+                                {(!c.detalhesAtendimentos || c.detalhesAtendimentos.length === 0) ? (
+                                  <p className="text-xs text-gray-500 py-2">Nenhum atendimento no período.</p>
+                                ) : (
+                                  <div className="divide-y divide-gray-800/80">
+                                    {c.detalhesAtendimentos.map((atend: any, idxAt: number) => {
+                                      const { dataStr, horaStr } = formatarDataHora(atend.dataAgendada, atend.horarios);
+                                      return (
+                                        <div key={atend.id || idxAt} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                                          <div className="flex flex-col gap-1 min-w-[170px]">
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                              <span className="font-semibold text-gray-300 bg-gray-800 px-2 py-0.5 rounded border border-gray-700 text-[11px]">
+                                                {dataStr} {horaStr ? `• ${horaStr}` : ''}
+                                              </span>
+                                              {atend.isAssinatura && (
+                                                <span className="bg-purple-900/50 text-purple-300 font-bold px-2 py-0.5 rounded border border-purple-700/50 text-[10px]">
+                                                  🏷️ VIP Assinatura
+                                                </span>
+                                              )}
+                                            </div>
+                                            <span className="font-bold text-white text-sm">{atend.cliente}</span>
+                                          </div>
+
+                                          <div className="flex-1 flex flex-wrap gap-1.5 my-1 sm:my-0">
+                                            {atend.itens?.map((it: any, iIdx: number) => (
+                                              <span key={iIdx} className={`px-2 py-0.5 rounded border text-[11px] font-medium ${
+                                                it.tipo === 'servico' 
+                                                  ? 'bg-blue-950/50 text-blue-300 border-blue-800/50' 
+                                                  : 'bg-amber-950/50 text-amber-300 border-amber-800/50'
+                                              }`}>
+                                                {it.nome || (it.tipo === 'servico' ? 'Serviço' : 'Produto')} (R$ {Number(it.valor || 0).toFixed(2)})
+                                              </span>
+                                            ))}
+                                          </div>
+
+                                          <div className="flex items-center justify-between sm:justify-end gap-3 min-w-[190px] border-t sm:border-t-0 border-gray-800/80 pt-2 sm:pt-0">
+                                            <div className="text-right">
+                                              <span className="text-[10px] text-gray-500 uppercase font-bold block">Valor Atendimento</span>
+                                              <span className="text-gray-300 font-semibold">R$ {atend.valorTotalAtend.toFixed(2)}</span>
+                                            </div>
+
+                                            <div className="text-right bg-emerald-950/40 px-3 py-1 rounded-lg border border-emerald-800/50">
+                                              <span className="text-[10px] text-emerald-400/90 uppercase font-bold block">Comissão</span>
+                                              <span className="text-emerald-400 font-bold text-sm">R$ {atend.comissaoTotalAtend.toFixed(2)}</span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
-
-                        <button 
-                          onClick={() => {
-                            setReceitaData({ ...c, nome: c.barbeiro.nome });
-                            setIsFinalizarCaixaOpen(true);
-                          }}
-                          className="absolute md:relative top-4 right-4 md:top-auto md:right-auto p-3 bg-gray-800 border border-gray-700 rounded-xl hover:bg-gray-700 hover:text-green-400 hover:border-green-500/50 transition-all shadow-md group z-20 shrink-0"
-                          title="Finalizar Caixa (Criar Receita)"
-                        >
-                          <svg className="w-6 h-6 text-gray-400 group-hover:text-green-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        </button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
             </div>
@@ -1952,20 +2257,30 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                 subtotalProdutos,
                 a.pagamento ? { ...a.pagamento, desconto: a.pagamento.desconto ?? a.desconto } : ({ desconto: a.desconto } as any),
                 a.assinatura,
-                a.assinaturaAplicada
+                a.assinaturaAplicada || (a as any).isSubscription
               );
+
+              const temAssinatura = Boolean(
+                resumoPag.temAssinatura ||
+                a.assinatura?.possui ||
+                a.assinaturaAplicada ||
+                (a as any).isSubscription
+              );
+
+              const valorOriginal = a.pagamento?.valorOriginal || (subtotalServicos + subtotalProdutos);
+              const valorDesconto = temAssinatura
+                ? (subtotalServicos > 0 ? subtotalServicos : valorOriginal)
+                : (a.pagamento?.desconto ?? resumoPag.desconto ?? 0);
 
               const valorTotal = (a.pagamento?.valorRecebido && a.pagamento.valorRecebido > 0)
                 ? a.pagamento.valorRecebido
-                : (a.pagamento?.valorCobrado && a.pagamento.valorCobrado > 0)
+                : temAssinatura
+                ? Math.max(0, subtotalProdutos)
+                : (a.pagamento?.valorCobrado !== undefined && a.pagamento.valorCobrado >= 0)
                 ? a.pagamento.valorCobrado
-                : resumoPag.valorCobrado > 0
+                : resumoPag.valorCobrado >= 0
                 ? resumoPag.valorCobrado
-                : (a.pagamento?.valorOriginal && a.pagamento.valorOriginal > 0)
-                ? a.pagamento.valorOriginal
-                : (subtotalServicos + subtotalProdutos);
-              const valorDesconto = a.pagamento?.desconto ?? resumoPag.desconto;
-              const valorOriginal = a.pagamento?.valorOriginal ?? resumoPag.valorOriginal;
+                : Math.max(0, valorOriginal - valorDesconto);
               
               return (
                 <div key={a.id} className="bg-gray-800/90 p-5 lg:p-6 rounded-2xl border border-gray-700 flex flex-col gap-5 lg:gap-6 shadow-sm hover:border-blue-500/50 transition-all group overflow-hidden">

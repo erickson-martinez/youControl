@@ -1440,6 +1440,7 @@ setTransactions(mappedTransactions);
         }}
         onNavigateToTab={(tab) => setActiveTab(tab)}
         userMap={userMap}
+        currentUserEmail={user.email}
       />
     </>
   );

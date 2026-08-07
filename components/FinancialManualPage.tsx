@@ -98,6 +98,17 @@ const FinancialManualPage: React.FC = () => {
                         Ao entrar no aplicativo, se você tiver contas não pagas com data de vencimento anterior a hoje, um alerta (<ClockIcon className="inline w-5 h-5" />) aparecerá. Este modal lista todas as suas pendências, permitindo que você as visualize e as marque como pagas diretamente, sem precisar procurá-las na lista.
                     </p>
                 </div>
+                 <div>
+                    <h3 className="mb-2 font-semibold text-white">Lembretes Recorrentes (Assinaturas e Contas Fixas)</h3>
+                    <p>
+                        Configure alertas automáticos e notificações por e-mail para cobranças periódicas, como assinaturas de clientes ou contas fixas (aluguel, água, energia, fornecedores).
+                    </p>
+                    <ul className="pl-5 mt-2 list-disc space-y-1">
+                        <li><strong>Notificações por E-mail:</strong> Configure o e-mail de destino para receber alertas antes da data de vencimento.</li>
+                        <li><strong>Alerta de Agendamento:</strong> Receba notificações push e alertas na Central de Notificações com antecedência configurável (1, 3, 5 ou 7 dias antes).</li>
+                        <li><strong>Testes de Envio:</strong> Utilize os botões de teste para verificar o recebimento instantâneo de e-mails e alertas agendados.</li>
+                    </ul>
+                </div>
                 <div>
                     <h3 className="mb-2 font-semibold text-white">Compartilhamento e Abas</h3>
                     <p>
