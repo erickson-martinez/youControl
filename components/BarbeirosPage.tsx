@@ -1056,6 +1056,7 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
   
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [subscribers, setSubscribers] = useState<SubscriptionClient[]>([]);
+  const [simAssinantes, setSimAssinantes] = useState<number>(5);
 
   const [localMetaLucro, setLocalMetaLucro] = useState(String(metaLucro));
   const [localImposto, setLocalImposto] = useState(String(imposto));
@@ -1064,6 +1065,13 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
     setLocalMetaLucro(String(metaLucro));
     setLocalImposto(String(imposto));
   }, [metaLucro, imposto]);
+
+  useEffect(() => {
+    const ativas = subscribers.filter(s => s.status === 'ativo' || s.ativo === true).length;
+    if (ativas > 0) {
+      setSimAssinantes(ativas);
+    }
+  }, [subscribers]);
 
   const loadPlansAndSubscribers = useCallback(async () => {
     const resolvedLinkId = empresaId || 'barbearia-default';
@@ -1205,8 +1213,32 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
   const porcentagemFaturamento = faturamentoNecessario > 0 ? (faturamentoAtual / faturamentoNecessario) * 100 : 0;
   const porcentagemLucro = numMeta > 0 ? (Math.max(0, lucroAtual) / numMeta) * 100 : 0;
 
-  const qtdServicosSemana = qtdServicosMes / 4.33; // Média de semanas num mês
-  const qtdServicosDia = qtdServicosMes / 26; // Considerando 26 dias úteis
+  // Projeções de Cortes e Assinaturas para Atingir a Meta
+  const ticketCorteRef = ticketMedioServicoApenas > 0 ? ticketMedioServicoApenas : (ticketMedioServico > 0 ? ticketMedioServico : 35);
+  const ticketPlanoRef = ticketMedioPlanosApenas > 0 ? ticketMedioPlanosApenas : 80;
+  
+  const taxRateDecimal = (faturamentoNecessario > 5000 && numImposto > 0) ? (numImposto / 100) : 0;
+  const lucroPorCorte = Math.max(1, ticketCorteRef * (1 - (comissaoMediaPerc / 100) - taxRateDecimal));
+  const lucroPorPlano = Math.max(1, ticketPlanoRef * (1 - taxRateDecimal));
+
+  const totalNecessarioMetaEImp = numMeta + custosTotais;
+
+  // Cenário 1: 100% Cortes
+  const cortesCenarioApenasCorte = Math.ceil(totalNecessarioMetaEImp / lucroPorCorte);
+  const cortesApenasCorteSemana = Math.ceil(cortesCenarioApenasCorte / 4.33);
+  const cortesApenasCorteDia = Math.ceil(cortesCenarioApenasCorte / 26);
+
+  // Cenário 2: 100% Assinaturas
+  const assinantesCenarioApenasPlano = Math.ceil(totalNecessarioMetaEImp / lucroPorPlano);
+  const faturamentoAssinantesApenas = assinantesCenarioApenasPlano * ticketPlanoRef;
+
+  // Cenário 3: Misto (Cortes + Assinaturas)
+  const numAssinantesSim = Math.max(0, simAssinantes);
+  const lucroVindoDasAssinaturas = numAssinantesSim * lucroPorPlano;
+  const lucroRestanteComCortes = Math.max(0, totalNecessarioMetaEImp - lucroVindoDasAssinaturas);
+  const cortesCenarioMisto = Math.ceil(lucroRestanteComCortes / lucroPorCorte);
+  const cortesMistoSemana = Math.ceil(cortesCenarioMisto / 4.33);
+  const cortesMistoDia = Math.ceil(cortesCenarioMisto / 26);
 
   return (
     <div className="space-y-8">
@@ -1289,107 +1321,189 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 md:p-8">
+      <div className="grid grid-cols-1 gap-6">
         {/* Resumo Financeiro */}
-        <div className="bg-gray-800/80 p-5 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit space-y-4">
+        <div className="bg-gray-800/80 p-5 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl space-y-4">
           <h3 className="text-xl font-bold text-white mb-6">Resumo Financeiro Mensal</h3>
           
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="flex justify-between items-center bg-gray-900/50 p-4 rounded-xl border border-gray-800">
-              <span className="text-gray-300 font-medium">Custos Fixos Estimados</span>
-              <span className="text-orange-400 font-bold bg-orange-500/10 px-2 py-1 rounded-lg">R$ {custoFixoTotal.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between items-center bg-gray-900/50 p-4 rounded-xl border border-gray-800">
-              <span className="text-gray-300 font-medium">Custos Variáveis Estimados</span>
-              <span className="text-blue-400 font-bold bg-blue-500/10 px-2 py-1 rounded-lg">R$ {custoVarTotal.toFixed(2)}</span>
+              <span className="text-gray-300 font-medium text-sm">Custos Fixos</span>
+              <span className="text-orange-400 font-bold bg-orange-500/10 px-2 py-1 rounded-lg text-sm">R$ {custoFixoTotal.toFixed(2)}</span>
             </div>
             <div className="flex justify-between items-center bg-gray-900/50 p-4 rounded-xl border border-gray-800">
-              <span className="text-gray-300 font-medium">Meta de Lucro Líquido</span>
-              <span className="text-green-400 font-bold bg-green-500/10 px-2 py-1 rounded-lg">R$ {numMeta.toFixed(2)}</span>
+              <span className="text-gray-300 font-medium text-sm">Custos Variáveis</span>
+              <span className="text-blue-400 font-bold bg-blue-500/10 px-2 py-1 rounded-lg text-sm">R$ {custoVarTotal.toFixed(2)}</span>
             </div>
-
-            {/* Informações de Assinaturas */}
-            <div className="p-4 rounded-xl bg-purple-900/30 border border-purple-800/60 space-y-2">
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-purple-300 font-semibold flex items-center gap-1.5">
-                  <span>💎 Planos de Assinatura ({plans.length})</span>
-                </span>
-                <span className="text-purple-200 font-bold">
-                  {plans.length > 0 ? `Méd: R$ ${ticketMedioPlanosApenas.toFixed(2)}` : 'Nenhum plano'}
-                </span>
-              </div>
-              <div className="flex justify-between items-center text-sm pt-2 border-t border-purple-800/40">
-                <span className="text-purple-300 font-semibold flex items-center gap-1.5">
-                  <span>👥 Assinantes Ativos ({assinantesAtivos.length})</span>
-                </span>
-                <span className="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                  + R$ {receitaAssinaturasRecorrente.toFixed(2)} / mês
-                </span>
-              </div>
+            <div className="flex justify-between items-center bg-gray-900/50 p-4 rounded-xl border border-gray-800">
+              <span className="text-gray-300 font-medium text-sm">Meta de Lucro Líquido</span>
+              <span className="text-green-400 font-bold bg-green-500/10 px-2 py-1 rounded-lg text-sm">R$ {numMeta.toFixed(2)}</span>
             </div>
-
-            <div className="mt-6 flex justify-between items-center p-5 rounded-2xl bg-blue-600/10 border border-blue-500/30">
-              <span className="text-blue-100 font-semibold tracking-wide">Faturamento Necessário</span>
-              <span className="text-blue-400 font-black text-2xl">R$ {faturamentoNecessario.toFixed(2)}</span>
+            <div className="flex justify-between items-center bg-blue-600/10 p-4 rounded-xl border border-blue-500/30">
+              <span className="text-blue-100 font-semibold text-sm">Faturamento Necessário</span>
+              <span className="text-blue-400 font-black text-lg">R$ {faturamentoNecessario.toFixed(2)}</span>
             </div>
           </div>
         </div>
 
-        {/* Projeção de Serviços */}
-        <div className="bg-gray-800/80 p-5 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl relative overflow-hidden h-fit">
+        {/* Projeção de Cortes e Assinaturas */}
+        <div className="bg-gray-800/80 p-5 md:p-8 rounded-2xl border border-gray-700/50 shadow-xl relative overflow-hidden space-y-6">
           <div className="absolute -top-10 -right-10 p-4 opacity-[0.03] pointer-events-none">
             <ChartBarIcon className="w-64 h-64" />
           </div>
           
-          <h3 className="text-xl font-bold text-white mb-6 relative z-10">Projeção de Serviços Adicionais</h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-700/50 pb-4 relative z-10">
+            <div>
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <span>🚀 Projeção de Cortes e Assinaturas para Atingir a Meta</span>
+              </h3>
+              <p className="text-sm text-gray-400 mt-1">
+                Veja diferentes combinações de cortes avulsos e assinantes para atingir sua meta de R$ {numMeta.toFixed(2)} de Lucro Líquido.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2.5 bg-gray-900/80 px-3 py-2 rounded-xl border border-gray-700 shrink-0 text-xs text-gray-300">
+              <span>Corte Médio: <strong className="text-white">R$ {ticketCorteRef.toFixed(2)}</strong></span>
+              <span className="text-gray-600">•</span>
+              <span>Plano Médio: <strong className="text-purple-300">R$ {ticketPlanoRef.toFixed(2)}</strong></span>
+            </div>
+          </div>
 
           {servicos.length === 0 || barbeiros.length === 0 ? (
-            <div className="text-sm text-yellow-500 bg-yellow-500/10 p-5 rounded-xl border border-yellow-500/30 font-medium">
-              Cadastre pelo menos 1 barbeiro e 1 serviço para ver a projeção.
+            <div className="text-sm text-yellow-500 bg-yellow-500/10 p-5 rounded-xl border border-yellow-500/30 font-medium relative z-10">
+              Cadastre pelo menos 1 barbeiro e 1 serviço para ver a projeção detalhada.
             </div>
           ) : (
             <div className="space-y-6 relative z-10">
-              <div className="text-sm text-gray-300 bg-gray-900/50 p-5 rounded-xl border border-gray-800 leading-relaxed space-y-2">
-                <div className="flex justify-between">
-                  <span>Ticket Médio (Serviços e Planos):</span> 
-                  <strong className="text-white">R$ {ticketMedioServico.toFixed(2)}</strong>
-                </div>
-                {plans.length > 0 && (
-                  <div className="text-xs text-purple-400 flex justify-between pl-2">
-                    <span>(Serviços: R$ {ticketMedioServicoApenas.toFixed(2)} | Planos: R$ {ticketMedioPlanosApenas.toFixed(2)})</span>
-                  </div>
-                )}
-                <div className="flex justify-between"><span>Média de Comissão:</span> <strong className="text-white">{comissaoMediaPerc.toFixed(1)}%</strong></div>
-                <div className="flex justify-between pt-2 border-t border-gray-800"><span>Lucro Médio por Serviço:</span> <strong className="text-green-400">R$ {lucroBrutoMedioPorServico.toFixed(2)}</strong></div>
+              {/* Grid dos 3 Cenários */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 
-                {receitaAssinaturasRecorrente > 0 && (
-                  <div className="mt-3 pt-3 border-t border-gray-800 text-xs text-purple-300 flex justify-between items-center bg-purple-900/30 p-2.5 rounded-lg border border-purple-800/50 font-medium">
-                    <span>Receita de Assinantes Abatida:</span>
-                    <strong className="text-purple-200 font-bold">- R$ {receitaAssinaturasRecorrente.toFixed(2)} / mês</strong>
+                {/* Cenário 1: Somente Cortes */}
+                <div className="bg-gray-900/80 p-5 rounded-2xl border border-gray-700/60 flex flex-col justify-between gap-4 relative overflow-hidden group hover:border-blue-500/50 transition-all">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-lg border border-blue-500/20">
+                        💈 100% Cortes
+                      </span>
+                      <span className="text-[11px] text-gray-500">Sem Assinaturas</span>
+                    </div>
+                    <h4 className="font-bold text-white text-base pt-1">Apenas com Cortes Avulsos</h4>
+                    <p className="text-xs text-gray-400">Meta atingida somente realizando atendimentos na cadeira.</p>
                   </div>
-                )}
+
+                  <div className="bg-gray-800/80 p-4 rounded-xl border border-gray-700/50 text-center space-y-2">
+                    <div className="text-3xl font-black text-white">{cortesCenarioApenasCorte}</div>
+                    <div className="text-xs font-semibold text-blue-300 uppercase tracking-wider">Cortes / Mês</div>
+                    
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-700/50 text-xs">
+                      <div>
+                        <span className="text-gray-400 block text-[10px]">Por Semana</span>
+                        <span className="text-white font-bold">{cortesApenasCorteSemana} / sem</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-400 block text-[10px]">Por Dia</span>
+                        <span className="text-white font-bold">{cortesApenasCorteDia} / dia</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cenário 2: Somente Assinaturas */}
+                <div className="bg-purple-950/30 p-5 rounded-2xl border border-purple-800/50 flex flex-col justify-between gap-4 relative overflow-hidden group hover:border-purple-500/50 transition-all">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-purple-300 bg-purple-500/10 px-2.5 py-1 rounded-lg border border-purple-500/20">
+                        💎 100% Assinaturas
+                      </span>
+                      <span className="text-[11px] text-purple-400">Recorrência Total</span>
+                    </div>
+                    <h4 className="font-bold text-white text-base pt-1">Garantido por Assinantes VIP</h4>
+                    <p className="text-xs text-purple-300/80">Meta de custos e lucro cobertos no automático todo dia 1º.</p>
+                  </div>
+
+                  <div className="bg-purple-900/40 p-4 rounded-xl border border-purple-700/50 text-center space-y-2">
+                    <div className="text-3xl font-black text-purple-200">{assinantesCenarioApenasPlano}</div>
+                    <div className="text-xs font-semibold text-purple-300 uppercase tracking-wider">Assinantes Ativos</div>
+
+                    <div className="pt-2 border-t border-purple-800/50 text-xs flex justify-between items-center px-1">
+                      <span className="text-purple-300/70 text-[10px]">Faturamento Recorrente:</span>
+                      <span className="text-emerald-400 font-bold">R$ {faturamentoAssinantesApenas.toFixed(2)}/mês</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cenário 3: Modelo Misto / Combinado */}
+                <div className="bg-emerald-950/30 p-5 rounded-2xl border border-emerald-800/50 flex flex-col justify-between gap-4 relative overflow-hidden group hover:border-emerald-500/50 transition-all">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
+                        ⚡ Modelo Combinado
+                      </span>
+                      <span className="text-[11px] text-emerald-400 font-semibold">Simulador</span>
+                    </div>
+                    <h4 className="font-bold text-white text-base pt-1">Assinaturas + Cortes Restantes</h4>
+                    <p className="text-xs text-emerald-300/80">Combine um número fixo de assinantes com atendimentos avulsos.</p>
+                  </div>
+
+                  <div className="bg-emerald-900/30 p-4 rounded-xl border border-emerald-700/50 text-center space-y-3">
+                    {/* Control para simular quantidade de assinantes */}
+                    <div className="flex items-center justify-between bg-emerald-950/60 p-2 rounded-lg border border-emerald-800/60">
+                      <span className="text-xs text-emerald-300 font-medium">Assinantes Simulado:</span>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => setSimAssinantes(prev => Math.max(0, prev - 1))}
+                          className="w-6 h-6 rounded bg-emerald-900 hover:bg-emerald-800 text-emerald-200 font-bold text-xs flex items-center justify-center transition-colors"
+                        >
+                          -
+                        </button>
+                        <span className="font-extrabold text-white text-sm w-6 text-center">{numAssinantesSim}</span>
+                        <button 
+                          onClick={() => setSimAssinantes(prev => prev + 1)}
+                          className="w-6 h-6 rounded bg-emerald-900 hover:bg-emerald-800 text-emerald-200 font-bold text-xs flex items-center justify-center transition-colors"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="text-2xl font-black text-white">{cortesCenarioMisto} <span className="text-xs font-normal text-gray-400">cortes restantes</span></div>
+                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-emerald-800/50 text-xs">
+                        <div>
+                          <span className="text-emerald-300/70 block text-[10px]">Por Semana</span>
+                          <span className="text-white font-bold">{cortesMistoSemana} / sem</span>
+                        </div>
+                        <div>
+                          <span className="text-emerald-300/70 block text-[10px]">Por Dia</span>
+                          <span className="text-white font-bold">{cortesMistoDia} / dia</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
               </div>
 
-              <div>
-                <p className="text-gray-400 text-sm mb-4 font-medium">
-                  Meta de serviços para atingir o Ponto de Equilíbrio e Lucro Livre {receitaAssinaturasRecorrente > 0 ? '(após deduzir assinaturas)' : ''}:
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                  <div className="bg-gray-900/80 p-4 rounded-xl text-center border-b-2 border-blue-500 shadow-inner">
-                    <div className="text-2xl md:text-3xl font-black text-white">{Math.ceil(qtdServicosMes)}</div>
-                    <div className="text-[10px] text-gray-500 mt-2 font-bold uppercase tracking-widest">Mês</div>
+              {/* Banner Informativo de Redução */}
+              {numAssinantesSim > 0 && (
+                <div className="bg-gradient-to-r from-emerald-950/60 via-blue-950/60 to-purple-950/60 p-4 rounded-xl border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-lg">💡</span>
+                    <div>
+                      <span className="text-white font-bold block">Impacto das Assinaturas na sua Meta</span>
+                      <span className="text-gray-300">
+                        Com <strong className="text-emerald-400">{numAssinantesSim} assinantes ativos</strong> (+R$ {(numAssinantesSim * ticketPlanoRef).toFixed(2)}/mês), você precisa fazer <strong className="text-emerald-400">{Math.max(0, cortesCenarioApenasCorte - cortesCenarioMisto)} cortes a menos</strong> por mês para bater a meta!
+                      </span>
+                    </div>
                   </div>
-                  <div className="bg-gray-900/80 p-4 rounded-xl text-center border-b-2 border-green-500 shadow-inner">
-                    <div className="text-2xl md:text-3xl font-black text-white">{Math.ceil(qtdServicosSemana)}</div>
-                    <div className="text-[10px] text-gray-500 mt-2 font-bold uppercase tracking-widest">Semana</div>
-                  </div>
-                  <div className="bg-gray-900/80 p-4 rounded-xl text-center border-b-2 border-purple-500 shadow-inner">
-                    <div className="text-2xl md:text-3xl font-black text-white">{Math.ceil(qtdServicosDia)}</div>
-                    <div className="text-[10px] text-gray-500 mt-2 font-bold uppercase tracking-widest">Dia</div>
+                  <div className="text-right shrink-0">
+                    <span className="text-[10px] text-gray-400 uppercase font-bold block">Redução de Trabalho</span>
+                    <span className="text-emerald-400 font-extrabold text-sm">
+                      -{Math.round(((cortesCenarioApenasCorte - cortesCenarioMisto) / Math.max(1, cortesCenarioApenasCorte)) * 100)}% de cortes
+                    </span>
                   </div>
                 </div>
-                <p className="text-xs text-gray-500 mt-4 text-center">*(Considerando 26 dias úteis/mês)*</p>
-              </div>
+              )}
             </div>
           )}
         </div>
@@ -1404,6 +1518,38 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
   const { barbeiros, reloadBarbeiros } = useBarbeiros(empresaId);
   const { servicos, loadConfig, produtos, updateProduto, custos, taxas } = useBarbeariaConfig(empresaId);
   
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [subscribers, setSubscribers] = useState<SubscriptionClient[]>([]);
+
+  const loadPlansAndSubscribers = useCallback(async () => {
+    const resolvedLinkId = empresaId || 'barbearia-default';
+    try {
+      let resP = await fetch(`${API_BASE_URL}/subscription-plans?linkId=${resolvedLinkId}`).catch(() => null);
+      if (!resP || !resP.ok || !(resP.headers.get('content-type') || '').includes('application/json')) {
+        resP = await fetch(`/api/v1/subscription-plans?linkId=${resolvedLinkId}`);
+      }
+      if (resP && resP.ok && (resP.headers.get('content-type') || '').includes('application/json')) {
+        const dataP = await resP.json();
+        setPlans(Array.isArray(dataP) ? dataP : dataP.plans || dataP.data || []);
+      }
+
+      let resS = await fetch(`${API_BASE_URL}/subscription-clients?linkId=${resolvedLinkId}`).catch(() => null);
+      if (!resS || !resS.ok || !(resS.headers.get('content-type') || '').includes('application/json')) {
+        resS = await fetch(`/api/v1/subscription-clients?linkId=${resolvedLinkId}`);
+      }
+      if (resS && resS.ok && (resS.headers.get('content-type') || '').includes('application/json')) {
+        const dataS = await resS.json();
+        setSubscribers(Array.isArray(dataS) ? dataS : dataS.clients || dataS.subscribers || dataS.data || []);
+      }
+    } catch (err) {
+      console.error("Erro ao carregar assinaturas no relatório:", err);
+    }
+  }, [empresaId]);
+
+  useEffect(() => {
+    loadPlansAndSubscribers();
+  }, [loadPlansAndSubscribers]);
+
   const [dataFiltro, setDataFiltro] = useState(() => {
     const hoje = new Date();
     return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
@@ -1531,8 +1677,9 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
   };
 
   // Calculando comissões do dia selecionado
-  const registrosFiltradosDia = registros.filter(r => r.data.startsWith(dataFiltro));
-  const registrosFiltradosMes = registros.filter(r => r.data.startsWith(dataFiltro.substring(0, 7)));
+  const safeDataFiltro = dataFiltro || new Date().toISOString().substring(0, 10);
+  const registrosFiltradosDia = registros.filter(r => r && r.data && typeof r.data === 'string' && r.data.startsWith(safeDataFiltro));
+  const registrosFiltradosMes = registros.filter(r => r && r.data && typeof r.data === 'string' && r.data.startsWith(safeDataFiltro.substring(0, 7)));
 
   const calcularTotaisGerais = (registrosBase: any[]) => {
     let faturamentoGeral = 0;
@@ -2027,7 +2174,7 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
             <div>
                 <div className="w-full">
                 <MonthNavigator
-                  currentDate={new Date(parseInt(dataFiltro.split('-')[0]), parseInt(dataFiltro.split('-')[1]) - 1, 1)}
+                  currentDate={new Date(parseInt((dataFiltro || '2026-08-01').split('-')[0]), parseInt((dataFiltro || '2026-08-01').split('-')[1]) - 1, 1)}
                   setCurrentDate={(d) => {
                     const yyyy = d.getFullYear();
                     const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -2362,72 +2509,602 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
         const faturamentoMes = totaisMesGeral.faturamentoGeral;
         const comissoesPagasMes = comissoesMes.reduce((sum, c) => sum + c.totalComissao, 0);
         const totalTaxasMes = totaisMesGeral.totalTaxasGeral;
-        const custoFixoMes = custos.filter(c => c.tipo === 'fixo').reduce((sum, c) => sum + c.valor, 0);
-        const custoVariavelMes = custos.filter(c => c.tipo === 'variavel').reduce((sum, c) => sum + c.valor, 0);
+        const custosFixosList = custos.filter(c => c.tipo === 'fixo');
+        const custosVariaveisList = custos.filter(c => c.tipo === 'variavel');
+        const custoFixoMes = custosFixosList.reduce((sum, c) => sum + c.valor, 0);
+        const custoVariavelMes = custosVariaveisList.reduce((sum, c) => sum + c.valor, 0);
         const custosTotaisMes = custoFixoMes + custoVariavelMes + totalTaxasMes;
         const impostoTax = 6; 
         const impostosMes = faturamentoMes > 5000 ? faturamentoMes * (impostoTax / 100) : 0;
         const lucroLiquidoMes = faturamentoMes - comissoesPagasMes - custosTotaisMes - impostosMes;
-        
+        const margemLucro = faturamentoMes > 0 ? (lucroLiquidoMes / faturamentoMes) * 100 : 0;
+
+        const faturamentoServicos = registrosFiltradosMes.reduce((sum, r) => {
+          const servs = (r.itens || []).filter((i: any) => i.tipo === 'servico').reduce((acc: number, i: any) => acc + (i.valor || 0), 0);
+          return sum + servs;
+        }, 0);
+
+        const faturamentoProdutos = registrosFiltradosMes.reduce((sum, r) => {
+          const prods = (r.itens || []).filter((i: any) => i.tipo === 'produto').reduce((acc: number, i: any) => acc + (i.valor || 0), 0);
+          return sum + prods;
+        }, 0);
+
+        const totalDescontosConcedidos = registrosFiltradosMes.reduce((sum, r) => {
+          return sum + (r.desconto ?? r.pagamento?.desconto ?? 0);
+        }, 0);
+
+        const pagamentoBreakdown = {
+          pix: { label: 'Pix', total: 0, qtd: 0, taxas: 0 },
+          credito: { label: 'Cartão de Crédito', total: 0, qtd: 0, taxas: 0 },
+          debito: { label: 'Cartão de Débito', total: 0, qtd: 0, taxas: 0 },
+          dinheiro: { label: 'Dinheiro Espécie', total: 0, qtd: 0, taxas: 0 },
+          outros: { label: 'Outras Formas', total: 0, qtd: 0, taxas: 0 },
+        };
+
+        registrosFiltradosMes.forEach(r => {
+          if (r.tipoPagamento && r.tipoPagamento.length > 0) {
+            r.tipoPagamento.forEach((pStr: string) => {
+              try {
+                const p = JSON.parse(pStr);
+                if (p.valor > 0) {
+                  const tp = (p.tipo || '').toLowerCase();
+                  let taxaItem = 0;
+                  if (p.valorOriginal !== undefined) {
+                    taxaItem = p.valorOriginal - p.valor;
+                  } else {
+                    if (tp.includes('pix')) taxaItem = p.valor * ((taxas?.pix || 0) / 100);
+                    else if (tp.includes('crédito') || tp.includes('credito')) taxaItem = p.valor * ((taxas?.credito || 0) / 100);
+                    else if (tp.includes('débito') || tp.includes('debito')) taxaItem = p.valor * ((taxas?.debito || 0) / 100);
+                    else if (tp.includes('dinheiro')) taxaItem = p.valor * ((taxas?.dinheiro || 0) / 100);
+                  }
+
+                  if (tp.includes('pix')) {
+                    pagamentoBreakdown.pix.total += p.valor;
+                    pagamentoBreakdown.pix.qtd += 1;
+                    pagamentoBreakdown.pix.taxas += taxaItem;
+                  } else if (tp.includes('crédito') || tp.includes('credito')) {
+                    pagamentoBreakdown.credito.total += p.valor;
+                    pagamentoBreakdown.credito.qtd += 1;
+                    pagamentoBreakdown.credito.taxas += taxaItem;
+                  } else if (tp.includes('débito') || tp.includes('debito')) {
+                    pagamentoBreakdown.debito.total += p.valor;
+                    pagamentoBreakdown.debito.qtd += 1;
+                    pagamentoBreakdown.debito.taxas += taxaItem;
+                  } else if (tp.includes('dinheiro')) {
+                    pagamentoBreakdown.dinheiro.total += p.valor;
+                    pagamentoBreakdown.dinheiro.qtd += 1;
+                    pagamentoBreakdown.dinheiro.taxas += taxaItem;
+                  } else {
+                    pagamentoBreakdown.outros.total += p.valor;
+                    pagamentoBreakdown.outros.qtd += 1;
+                    pagamentoBreakdown.outros.taxas += taxaItem;
+                  }
+                }
+              } catch (e) {}
+            });
+          }
+        });
+
+        const [anoFiltroStr, mesFiltroStr] = (dataFiltro || new Date().toISOString().substring(0, 10)).split('-');
+        const dataFiltroObj = new Date(parseInt(anoFiltroStr || '2026'), parseInt(mesFiltroStr || '8') - 1, 1);
+        const nomeMesAnoStr = dataFiltroObj.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
         return (
-          <div className="grid grid-cols-1 gap-4 md:gap-6">
-            <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
-              <div className="flex flex-col md:flex-row justify-between md:items-center mb-6 gap-4 border-b border-gray-700/50 pb-4">
+          <div className="grid grid-cols-1 gap-6">
+            <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl space-y-6">
+              <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 border-b border-gray-700/50 pb-4">
                 <div>
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                      Lucro Líquido Mensal
-                    </h2>
-                    <p className="text-gray-400 text-sm mt-1">Análise de rentabilidade contábil do mês selecionado, já deduzindo comissões aos barbeiros, custos da barbearia, taxas de pagamento e impostos.</p>
+                  <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+                    📊 Relatório Financeiro Consolidado de Todos os Valores
+                  </h2>
+                  <p className="text-gray-400 text-sm mt-1">
+                    Demonstrativo completo de Entradas, Comissões, Custos, Taxas, Impostos e Lucro Líquido para <strong className="text-white capitalize">{nomeMesAnoStr}</strong>.
+                  </p>
                 </div>
+
+                <button
+                  onClick={() => window.print()}
+                  className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-md shrink-0 text-sm"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                  Imprimir / Exportar PDF
+                </button>
               </div>
               
               <div>
                  <MonthNavigator
-                    currentDate={new Date(parseInt(dataFiltro.split('-')[0]), parseInt(dataFiltro.split('-')[1]) - 1, 1)}
+                    currentDate={new Date(parseInt((dataFiltro || '2026-08-01').split('-')[0]), parseInt((dataFiltro || '2026-08-01').split('-')[1]) - 1, 1)}
                     setCurrentDate={(d) => {
                       const yyyy = d.getFullYear();
                       const mm = String(d.getMonth() + 1).padStart(2, '0');
                       setDataFiltro(`${yyyy}-${mm}-01`);
                     }}
                   />
-      
-                  <div className="mt-8 flex flex-col gap-4">
+       
+                  <div className="mt-8 flex flex-col gap-6">
+                     {/* Cards Principais */}
                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
                         <div className="bg-gray-900/60 p-4 border border-gray-700/50 rounded-xl">
-                            <div className="text-xs text-gray-400 mb-1">Faturamento Bruto</div>
+                            <div className="text-xs text-gray-400 mb-1 font-medium">1. Faturamento Bruto</div>
                             <div className="text-xl font-bold text-white">R$ {faturamentoMes.toFixed(2)}</div>
+                            <div className="text-[11px] text-emerald-400 mt-1">{registrosFiltradosMes.length} vendas/atend.</div>
                         </div>
                         <div className="bg-gray-900/60 p-4 border border-gray-700/50 rounded-xl">
-                            <div className="text-xs text-gray-400 mb-1">Comissões</div>
-                            <div className="text-xl font-bold text-red-400/80">- R$ {comissoesPagasMes.toFixed(2)}</div>
+                            <div className="text-xs text-gray-400 mb-1 font-medium">2. Comissões Pagas</div>
+                            <div className="text-xl font-bold text-red-400/90">- R$ {comissoesPagasMes.toFixed(2)}</div>
+                            <div className="text-[11px] text-gray-400 mt-1">{comissoesMes.length} barbeiros</div>
                         </div>
                         <div className="bg-gray-900/60 p-4 border border-gray-700/50 rounded-xl">
-                            <div className="text-xs text-gray-400 mb-1">Custos Fixos/Var</div>
-                            <div className="text-xl font-bold text-orange-400/80">- R$ {(custoFixoMes + custoVariavelMes).toFixed(2)}</div>
+                            <div className="text-xs text-gray-400 mb-1 font-medium">3. Custos Barbearia</div>
+                            <div className="text-xl font-bold text-orange-400/90">- R$ {(custoFixoMes + custoVariavelMes).toFixed(2)}</div>
+                            <div className="text-[11px] text-gray-400 mt-1">Fixos + Variáveis</div>
                         </div>
                         <div className="bg-gray-900/60 p-4 border border-gray-700/50 rounded-xl">
-                            <div className="text-xs text-gray-400 mb-1">Taxas Maquininha</div>
-                            <div className="text-xl font-bold text-orange-400/80">- R$ {totalTaxasMes.toFixed(2)}</div>
+                            <div className="text-xs text-gray-400 mb-1 font-medium">4. Taxas Maquininha</div>
+                            <div className="text-xl font-bold text-orange-400/90">- R$ {totalTaxasMes.toFixed(2)}</div>
+                            <div className="text-[11px] text-gray-400 mt-1">Pix / Cartões</div>
                         </div>
                         <div className="bg-gray-900/60 p-4 border border-gray-700/50 rounded-xl">
-                            <div className="text-xs text-gray-400 mb-1">Impostos</div>
-                            <div className="text-xl font-bold text-red-500/80">- R$ {impostosMes.toFixed(2)}</div>
+                            <div className="text-xs text-gray-400 mb-1 font-medium">5. Impostos</div>
+                            <div className="text-xl font-bold text-red-500/90">- R$ {impostosMes.toFixed(2)}</div>
+                            <div className="text-[11px] text-gray-400 mt-1">{impostosMes > 0 ? `${impostoTax}% (> R$5k)` : 'Isento'}</div>
                         </div>
                      </div>
                      
-                     <div className="mt-4 bg-gray-900/80 p-8 rounded-2xl border border-gray-700 flex flex-col items-center justify-center gap-2 shadow-inner">
-                        <div className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-1 text-center">Lucro Líquido Consolidado da Barbearia</div>
-                        <div className={`text-4xl md:text-5xl font-black tracking-tight ${lucroLiquidoMes >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                           R$ {lucroLiquidoMes.toFixed(2)}
+                     {/* Banner Resultado Lucro Líquido */}
+                     <div className="bg-gray-900/80 p-6 md:p-8 rounded-2xl border border-gray-700 flex flex-col md:flex-row items-center justify-between gap-4 shadow-inner">
+                        <div>
+                          <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">
+                            LUCRO LÍQUIDO CONSOLIDADO DA BARBEARIA
+                          </div>
+                          <div className={`text-4xl md:text-5xl font-black tracking-tight ${lucroLiquidoMes >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                             R$ {lucroLiquidoMes.toFixed(2)}
+                          </div>
+                          {lucroLiquidoMes < 0 && (
+                            <div className="text-xs text-red-400 mt-1.5 font-semibold">⚠️ Operação com prejuízo contábil no mês selecionado.</div>
+                          )}
+                          {lucroLiquidoMes >= 0 && (
+                            <div className="text-xs text-green-400/90 mt-1.5 font-semibold">✅ Operação lucrativa com margem de {margemLucro.toFixed(1)}%.</div>
+                          )}
                         </div>
-                        {lucroLiquidoMes < 0 && (
-                          <div className="text-xs text-red-400 mt-2">Atenção: A barbearia está operando com prejuízo neste mês.</div>
-                        )}
-                        {lucroLiquidoMes >= 0 && (
-                          <div className="text-xs text-green-400/80 mt-2">A barbearia está operando com lucro neste mês.</div>
-                        )}
+
+                        <div className="bg-gray-800/80 p-4 rounded-xl border border-gray-700 text-right space-y-1 w-full md:w-auto">
+                          <div className="text-xs text-gray-400">Margem Líquida</div>
+                          <div className={`text-2xl font-bold ${margemLucro >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {margemLucro.toFixed(1)}%
+                          </div>
+                          <div className="text-[10px] text-gray-500">(Lucro Líquido / Faturamento)</div>
+                        </div>
                      </div>
                   </div>
+              </div>
+
+              {/* DRE Detalhada e Tabelas de Discriminativo */}
+              <div className="space-y-8 pt-4">
+                
+                {/* 1. DRE - Demonstrativo do Resultado do Exercício */}
+                <div className="bg-gray-900/80 p-5 md:p-6 rounded-2xl border border-gray-700/80 space-y-4">
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2 border-b border-gray-800 pb-3">
+                    <span>🧾 DRE - Demonstrativo de Entradas e Saídas</span>
+                  </h3>
+
+                  <div className="space-y-2 text-sm">
+                    {/* Receita Bruta */}
+                    <div className="flex justify-between items-center py-2 px-3 bg-emerald-950/20 rounded-lg border border-emerald-900/30 text-emerald-300 font-semibold">
+                      <span>(+) FATURAMENTO BRUTO TOTAL</span>
+                      <span className="font-extrabold text-base">R$ {faturamentoMes.toFixed(2)}</span>
+                    </div>
+                    <div className="pl-4 space-y-1 text-xs text-gray-300 border-l-2 border-emerald-800/50 my-1">
+                      <div className="flex justify-between py-1 border-b border-gray-800/50">
+                        <span>• Venda de Serviços (Cortes/Barba)</span>
+                        <span className="font-medium text-white">R$ {faturamentoServicos.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-gray-800/50">
+                        <span>• Venda de Produtos</span>
+                        <span className="font-medium text-white">R$ {faturamentoProdutos.toFixed(2)}</span>
+                      </div>
+                      {totalDescontosConcedidos > 0 && (
+                        <div className="flex justify-between py-1 text-orange-300">
+                          <span>• Descontos Concedidos</span>
+                          <span className="font-medium">- R$ {totalDescontosConcedidos.toFixed(2)}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Saídas e Custos */}
+                    <div className="flex justify-between items-center py-2 px-3 bg-red-950/20 rounded-lg border border-red-900/30 text-red-300 font-semibold mt-4">
+                      <span>(-) DEDUÇÕES E DEDUTÍVEIS</span>
+                      <span className="font-extrabold text-base">- R$ {(comissoesPagasMes + custosTotaisMes + impostosMes).toFixed(2)}</span>
+                    </div>
+
+                    <div className="pl-4 space-y-1 text-xs text-gray-300 border-l-2 border-red-800/50 my-1">
+                      <div className="flex justify-between py-1 border-b border-gray-800/50">
+                        <span>• Comissões aos Barbeiros</span>
+                        <span className="font-medium text-red-300">- R$ {comissoesPagasMes.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-gray-800/50">
+                        <span>• Custos Fixos da Barbearia</span>
+                        <span className="font-medium text-orange-300">- R$ {custoFixoMes.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-gray-800/50">
+                        <span>• Custos Variáveis</span>
+                        <span className="font-medium text-orange-300">- R$ {custoVariavelMes.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-gray-800/50">
+                        <span>• Taxas de Meios de Pagamento</span>
+                        <span className="font-medium text-orange-300">- R$ {totalTaxasMes.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between py-1">
+                        <span>• Impostos ({impostosMes > 0 ? `${impostoTax}%` : '0%'})</span>
+                        <span className="font-medium text-red-400">- R$ {impostosMes.toFixed(2)}</span>
+                      </div>
+                    </div>
+
+                    {/* Resultado */}
+                    <div className="flex justify-between items-center py-3 px-4 bg-gray-950 rounded-xl border border-gray-700 text-white font-bold text-base mt-4 shadow-md">
+                      <span className="text-gray-200">(=) RESULTADO LÍQUIDO FINAL</span>
+                      <span className={lucroLiquidoMes >= 0 ? 'text-green-400 font-black text-lg' : 'text-red-400 font-black text-lg'}>
+                        R$ {lucroLiquidoMes.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Tabela de Comissões por Barbeiro */}
+                <div className="bg-gray-900/80 p-5 md:p-6 rounded-2xl border border-gray-700/80 space-y-4">
+                  <h3 className="text-lg font-bold text-white flex items-center justify-between border-b border-gray-800 pb-3">
+                    <span>💈 Discriminação de Comissões por Barbeiro</span>
+                    <span className="text-xs font-normal text-gray-400">Total: R$ {comissoesPagasMes.toFixed(2)}</span>
+                  </h3>
+
+                  {comissoesMes.length === 0 ? (
+                    <p className="text-xs text-gray-500 py-2">Nenhum atendimento registrado no mês.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs text-gray-300">
+                        <thead className="bg-gray-800/80 text-gray-400 uppercase text-[10px] font-bold">
+                          <tr>
+                            <th className="p-2.5 rounded-l-lg">Barbeiro</th>
+                            <th className="p-2.5 text-center">Atendimentos</th>
+                            <th className="p-2.5 text-right">Fat. Gerado</th>
+                            <th className="p-2.5 text-right">Com. Serviços</th>
+                            <th className="p-2.5 text-right">Com. Produtos</th>
+                            <th className="p-2.5 text-right rounded-r-lg">Comissão Total</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-800/60">
+                          {comissoesMes.map((c, idx) => (
+                            <tr key={c.barbeiroId || c.nome || `barb-${idx}`} className="hover:bg-gray-800/40 transition-colors">
+                              <td className="p-2.5 font-bold text-white flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-blue-600/30 text-blue-300 font-bold text-[10px] flex items-center justify-center shrink-0">
+                                  {(c.nome || 'Barbeiro').substring(0, 2).toUpperCase()}
+                                </div>
+                                {c.nome || 'Barbeiro'}
+                              </td>
+                              <td className="p-2.5 text-center font-medium text-gray-300">
+                                {c.detalhesAtendimentos?.length || 0}
+                              </td>
+                              <td className="p-2.5 text-right font-medium text-gray-200">
+                                R$ {c.faturamentoTotal.toFixed(2)}
+                              </td>
+                              <td className="p-2.5 text-right font-semibold text-blue-400">
+                                R$ {c.comissaoServicos.toFixed(2)}
+                              </td>
+                              <td className="p-2.5 text-right font-semibold text-purple-400">
+                                R$ {c.comissaoProdutos.toFixed(2)}
+                              </td>
+                              <td className="p-2.5 text-right font-extrabold text-emerald-400">
+                                R$ {c.totalComissao.toFixed(2)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. Tabela de Formas de Pagamento e Taxas */}
+                <div className="bg-gray-900/80 p-5 md:p-6 rounded-2xl border border-gray-700/80 space-y-4">
+                  <h3 className="text-lg font-bold text-white flex items-center justify-between border-b border-gray-800 pb-3">
+                    <span>💳 Detalhamento por Forma de Pagamento</span>
+                    <span className="text-xs font-normal text-orange-400">Taxas Retidas: R$ {totalTaxasMes.toFixed(2)}</span>
+                  </h3>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                    {Object.entries(pagamentoBreakdown).map(([key, item]) => {
+                      if (item.qtd === 0 && item.total === 0) return null;
+                      const liquido = item.total - item.taxas;
+                      return (
+                        <div key={key} className="bg-gray-800/60 p-3.5 rounded-xl border border-gray-700/50 space-y-1 text-xs">
+                          <div className="flex justify-between items-center text-gray-300 font-semibold">
+                            <span>{item.label}</span>
+                            <span className="text-[10px] text-gray-500">{item.qtd}x</span>
+                          </div>
+                          <div className="text-base font-bold text-white">R$ {item.total.toFixed(2)}</div>
+                          <div className="flex justify-between text-[11px] pt-1 border-t border-gray-700/40 text-gray-400">
+                            <span>Taxas: <strong className="text-orange-400">R$ {item.taxas.toFixed(2)}</strong></span>
+                            <span>Líquido: <strong className="text-emerald-400">R$ {liquido.toFixed(2)}</strong></span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 4. Estrutura de Custos do Mês */}
+                <div className="bg-gray-900/80 p-5 md:p-6 rounded-2xl border border-gray-700/80 space-y-4">
+                  <h3 className="text-lg font-bold text-white flex items-center justify-between border-b border-gray-800 pb-3">
+                    <span>🏢 Custos Fixos e Variáveis Cadastrados</span>
+                    <span className="text-xs font-normal text-orange-400">Total: R$ {(custoFixoMes + custoVariavelMes).toFixed(2)}</span>
+                  </h3>
+
+                  {custos.length === 0 ? (
+                    <p className="text-xs text-gray-500 py-2">Nenhum custo fixo ou variável cadastrado.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {custos.map((custo) => (
+                        <div key={custo.id} className="bg-gray-800/60 p-3 rounded-xl border border-gray-700/50 flex justify-between items-center text-xs">
+                          <div>
+                            <span className="font-bold text-white block">{custo.nome}</span>
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded uppercase ${custo.tipo === 'fixo' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'}`}>
+                              {custo.tipo}
+                            </span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-sm font-bold text-orange-300">R$ {custo.valor.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 5. Agendamentos do Mês */}
+                {(() => {
+                  const mesFiltroStr = safeDataFiltro.substring(0, 7);
+                  const agendamentosDoMes = agendamentos.filter(a => {
+                    const d = a.dataAgendada || a.data || '';
+                    return typeof d === 'string' && d.startsWith(mesFiltroStr);
+                  });
+                  const totalAgend = agendamentosDoMes.length;
+                  const concluidosAgend = agendamentosDoMes.filter(a => a.status === 'concluido' || a.status === 'pago').length;
+                  const pendentesAgend = agendamentosDoMes.filter(a => a.status === 'confirmado' || a.status === 'pendente' || a.status === 'aguardando' || !a.status).length;
+                  const canceladosAgend = agendamentosDoMes.filter(a => a.status === 'cancelado').length;
+
+                  return (
+                    <div className="bg-gray-900/80 p-5 md:p-6 rounded-2xl border border-gray-700/80 space-y-4">
+                      <h3 className="text-lg font-bold text-white flex items-center justify-between border-b border-gray-800 pb-3">
+                        <span className="flex items-center gap-2">📅 Agendamentos do Mês</span>
+                        <span className="text-xs font-normal text-blue-400">Total: {totalAgend} agendamentos</span>
+                      </h3>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                        <div className="bg-gray-800/60 p-3 rounded-xl border border-gray-700/50">
+                          <span className="text-gray-400 block text-[11px]">Total no Mês</span>
+                          <span className="text-lg font-bold text-white">{totalAgend}</span>
+                        </div>
+                        <div className="bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/20">
+                          <span className="text-emerald-400 block text-[11px]">Concluídos</span>
+                          <span className="text-lg font-bold text-emerald-300">{concluidosAgend}</span>
+                        </div>
+                        <div className="bg-blue-500/10 p-3 rounded-xl border border-blue-500/20">
+                          <span className="text-blue-400 block text-[11px]">Confirmados / Pendentes</span>
+                          <span className="text-lg font-bold text-blue-300">{pendentesAgend}</span>
+                        </div>
+                        <div className="bg-red-500/10 p-3 rounded-xl border border-red-500/20">
+                          <span className="text-red-400 block text-[11px]">Cancelados</span>
+                          <span className="text-lg font-bold text-red-300">{canceladosAgend}</span>
+                        </div>
+                      </div>
+
+                      {agendamentosDoMes.length === 0 ? (
+                        <p className="text-xs text-gray-500 py-2">Nenhum agendamento registrado para o mês selecionado.</p>
+                      ) : (
+                        <div className="overflow-x-auto max-h-64 overflow-y-auto custom-scrollbar">
+                          <table className="w-full text-left text-xs text-gray-300">
+                            <thead className="bg-gray-800/80 text-gray-400 uppercase text-[10px] font-bold sticky top-0">
+                              <tr>
+                                <th className="p-2">Cliente</th>
+                                <th className="p-2">Data/Hora</th>
+                                <th className="p-2">Barbeiro</th>
+                                <th className="p-2">Serviço / Valor</th>
+                                <th className="p-2 text-right">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-800/60">
+                              {agendamentosDoMes.slice(0, 30).map((a, idx) => {
+                                const dataFormatted = (a.dataAgendada || a.data || '').split('-').reverse().join('/');
+                                const val = a.pagamento?.valorCobrado || a.valorOriginal || a.valorTotalPrevisto || 0;
+                                return (
+                                  <tr key={a.id || `agend-${idx}`} className="hover:bg-gray-800/40 transition-colors">
+                                    <td className="p-2 font-semibold text-white">{a.clienteNome || a.cliente || 'Cliente'}</td>
+                                    <td className="p-2 text-gray-400">{dataFormatted} {a.horario || ''}</td>
+                                    <td className="p-2 text-gray-300">{a.barbeiroNome || 'N/A'}</td>
+                                    <td className="p-2 font-medium text-blue-300">
+                                      {a.servicoNome || 'Serviço'} <span className="text-gray-400 font-normal">(R$ {val.toFixed(2)})</span>
+                                    </td>
+                                    <td className="p-2 text-right">
+                                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                        a.status === 'concluido' || a.status === 'pago' ? 'bg-emerald-500/20 text-emerald-400' :
+                                        a.status === 'cancelado' ? 'bg-red-500/20 text-red-400' : 'bg-blue-500/20 text-blue-400'
+                                      }`}>
+                                        {a.status || 'pendente'}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* 6. Discriminativo de Vendas do Mês */}
+                {(() => {
+                  let totalQtdServicos = 0;
+                  let totalQtdProdutos = 0;
+                  let totalValServicos = 0;
+                  let totalValProdutos = 0;
+
+                  registrosFiltradosMes.forEach(r => {
+                    (r.itens || []).forEach((i: any) => {
+                      if (i.tipo === 'servico') {
+                        totalQtdServicos += (i.quantidade || 1);
+                        totalValServicos += (i.valor || 0);
+                      } else if (i.tipo === 'produto') {
+                        totalQtdProdutos += (i.quantidade || 1);
+                        totalValProdutos += (i.valor || 0);
+                      }
+                    });
+                  });
+
+                  return (
+                    <div className="bg-gray-900/80 p-5 md:p-6 rounded-2xl border border-gray-700/80 space-y-4">
+                      <h3 className="text-lg font-bold text-white flex items-center justify-between border-b border-gray-800 pb-3">
+                        <span className="flex items-center gap-2">🛍️ Detalhamento de Vendas e Atendimentos</span>
+                        <span className="text-xs font-normal text-purple-400">{registrosFiltradosMes.length} vendas/atend.</span>
+                      </h3>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        <div className="bg-blue-500/10 p-3.5 rounded-xl border border-blue-500/20 flex justify-between items-center">
+                          <div>
+                            <span className="text-blue-400 block text-[11px] font-semibold">✂️ Serviços Realizados</span>
+                            <span className="text-gray-300 text-[10px]">{totalQtdServicos} execuções no mês</span>
+                          </div>
+                          <span className="text-base font-bold text-blue-300">R$ {totalValServicos.toFixed(2)}</span>
+                        </div>
+                        <div className="bg-purple-500/10 p-3.5 rounded-xl border border-purple-500/20 flex justify-between items-center">
+                          <div>
+                            <span className="text-purple-400 block text-[11px] font-semibold">🧴 Produtos Vendidos</span>
+                            <span className="text-gray-300 text-[10px]">{totalQtdProdutos} unidades vendidas</span>
+                          </div>
+                          <span className="text-base font-bold text-purple-300">R$ {totalValProdutos.toFixed(2)}</span>
+                        </div>
+                      </div>
+
+                      {registrosFiltradosMes.length === 0 ? (
+                        <p className="text-xs text-gray-500 py-2">Nenhuma venda ou atendimento finalizado no mês selecionado.</p>
+                      ) : (
+                        <div className="overflow-x-auto max-h-72 overflow-y-auto custom-scrollbar">
+                          <table className="w-full text-left text-xs text-gray-300">
+                            <thead className="bg-gray-800/80 text-gray-400 uppercase text-[10px] font-bold sticky top-0">
+                              <tr>
+                                <th className="p-2">Data</th>
+                                <th className="p-2">Cliente</th>
+                                <th className="p-2">Barbeiro</th>
+                                <th className="p-2">Itens / Serviços</th>
+                                <th className="p-2 text-right">Valor Pago</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-800/60">
+                              {registrosFiltradosMes.map((r, idx) => {
+                                const dataFormatada = (r.data || '').split('-').reverse().join('/');
+                                return (
+                                  <tr key={r.id || `venda-${idx}`} className="hover:bg-gray-800/40 transition-colors">
+                                    <td className="p-2 font-mono text-gray-400">{dataFormatada}</td>
+                                    <td className="p-2 font-semibold text-white">{r.cliente || 'Cliente'}</td>
+                                    <td className="p-2 text-gray-300">{r.barbeiroNome || 'N/A'}</td>
+                                    <td className="p-2">
+                                      <div className="flex flex-wrap gap-1">
+                                        {(r.itens || []).map((item: any, iIdx: number) => (
+                                          <span key={iIdx} className="bg-gray-800 text-gray-200 text-[10px] px-2 py-0.5 rounded border border-gray-700">
+                                            {item.tipo === 'servico' ? '✂️' : '🧴'} {item.nome}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </td>
+                                    <td className="p-2 text-right font-extrabold text-emerald-400">
+                                      R$ {(r.total || 0).toFixed(2)}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* 7. Assinaturas e Recorrência (Subscrições) */}
+                {(() => {
+                  const assinantesAtivos = subscribers.filter(s => s.status === 'ativo' || s.ativo === true);
+                  const receitaRecorrente = assinantesAtivos.reduce((acc, sub) => {
+                    const plan = plans.find(p => (p.id === sub.planoId || p._id === sub.planoId));
+                    const val = sub.pagamento?.valor || sub.valorMensal || plan?.valorMensal || 0;
+                    return acc + Number(val);
+                  }, 0);
+
+                  return (
+                    <div className="bg-gray-900/80 p-5 md:p-6 rounded-2xl border border-gray-700/80 space-y-4">
+                      <h3 className="text-lg font-bold text-white flex items-center justify-between border-b border-gray-800 pb-3">
+                        <span className="flex items-center gap-2">💎 Assinaturas e Clubes VIP</span>
+                        <span className="text-xs font-normal text-amber-400">Recorrência Mensal: R$ {receitaRecorrente.toFixed(2)}</span>
+                      </h3>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                        <div className="bg-amber-500/10 p-3.5 rounded-xl border border-amber-500/20">
+                          <span className="text-amber-400 block text-[11px]">Assinantes Ativos</span>
+                          <span className="text-xl font-bold text-amber-300">{assinantesAtivos.length} clientes VIP</span>
+                        </div>
+                        <div className="bg-emerald-500/10 p-3.5 rounded-xl border border-emerald-500/20">
+                          <span className="text-emerald-400 block text-[11px]">Faturamento Recorrente Mensal</span>
+                          <span className="text-xl font-bold text-emerald-300">R$ {receitaRecorrente.toFixed(2)}</span>
+                        </div>
+                        <div className="bg-gray-800/60 p-3.5 rounded-xl border border-gray-700/50">
+                          <span className="text-gray-400 block text-[11px]">Planos Disponíveis</span>
+                          <span className="text-xl font-bold text-white">{plans.length} modalidades</span>
+                        </div>
+                      </div>
+
+                      {subscribers.length === 0 ? (
+                        <p className="text-xs text-gray-500 py-2">Nenhum assinante cadastrado na plataforma.</p>
+                      ) : (
+                        <div className="overflow-x-auto max-h-60 overflow-y-auto custom-scrollbar">
+                          <table className="w-full text-left text-xs text-gray-300">
+                            <thead className="bg-gray-800/80 text-gray-400 uppercase text-[10px] font-bold sticky top-0">
+                              <tr>
+                                <th className="p-2">Assinante</th>
+                                <th className="p-2">Telefone</th>
+                                <th className="p-2">Plano</th>
+                                <th className="p-2">Mensalidade</th>
+                                <th className="p-2 text-right">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-800/60">
+                              {subscribers.map((sub, idx) => {
+                                const plan = plans.find(p => p.id === sub.planoId || p._id === sub.planoId);
+                                const isAtivo = sub.status === 'ativo' || sub.ativo === true;
+                                const val = sub.pagamento?.valor || sub.valorMensal || plan?.valorMensal || 0;
+                                return (
+                                  <tr key={sub.id || sub._id || `sub-${idx}`} className="hover:bg-gray-800/40 transition-colors">
+                                    <td className="p-2 font-bold text-white">{sub.nome || 'Assinante VIP'}</td>
+                                    <td className="p-2 text-gray-400">{sub.telefone || sub.whatsapp || 'N/A'}</td>
+                                    <td className="p-2 text-amber-300 font-medium">{sub.planoNome || plan?.nome || 'Plano VIP'}</td>
+                                    <td className="p-2 font-bold text-emerald-400">R$ {Number(val).toFixed(2)}</td>
+                                    <td className="p-2 text-right">
+                                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                        isAtivo ? 'bg-emerald-500/20 text-emerald-400' : 'bg-gray-700 text-gray-400'
+                                      }`}>
+                                        {isAtivo ? 'Ativo VIP' : 'Inativo'}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
               </div>
             </div>
           </div>
