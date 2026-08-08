@@ -422,16 +422,13 @@ const App: React.FC = () => {
             const activeLink = data.employees.find((emp: any) => emp.status === 'ativo');
             const companyId = activeLink ? activeLink.company : null;
             setLinkedCompanyId(companyId);
-            setLinkedId(activeLink.linkId)
+            setLinkedId(activeLink ? activeLink.linkId : null);
             return companyId;
         }
         setLinkedCompanyId(null);
         return null;
     } catch (error) {
-        if (!(error as Error).message.includes('404')) {
-          console.error("Falha ao buscar vínculo da empresa do usuário.", error);
-          throw error;
-        }
+        console.warn("Informação de empresa não disponível temporariamente offline:", (error as Error).message);
         setLinkedCompanyId(null);
         return null;
     }
@@ -451,10 +448,7 @@ const App: React.FC = () => {
         
         return mapped;
     } catch (error) {
-        if (!(error as Error).message.includes('404')) {
-          console.error("Falha ao buscar empresas.", error);
-        }
-        
+        console.warn("Informação de empresas não disponível temporariamente offline:", (error as Error).message);
         return [];
     }
   }, [apiFetch]);
