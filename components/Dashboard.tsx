@@ -77,6 +77,47 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
     }
   };
 
+  const handleWebShare = async () => {
+    const monthName = currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    const formattedMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+    
+    const shareTitle = `Resumo Financeiro - ${formattedMonth}`;
+    const shareText = `📊 *Resumo Financeiro YouControl* (${formattedMonth})
+
+💰 *Receitas:* ${formatCurrency(summary.revenue)}
+💸 *Despesas:* ${formatCurrency(summary.expenses)}
+📈 *Saldo do Mês:* ${formatCurrency(summary.balance)}
+💼 *Investimentos:* ${formatCurrency(summary.investments)}
+🏦 *Total Geral:* ${formatCurrency(summary.total)}
+
+Controle suas finanças com facilidade no YouControl!`;
+
+    const shareUrl = window.location.origin || window.location.href;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: shareText,
+          url: shareUrl,
+        });
+      } catch (err) {
+        if ((err as Error).name !== 'AbortError') {
+          console.error('Erro ao usar Web Share API:', err);
+        }
+      }
+    } else if (navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(`${shareText}\n\n${shareUrl}`);
+        alert('Resumo financeiro copiado para a área de transferência!');
+      } catch (err) {
+        alert('Não foi possível compartilhar automaticamente.');
+      }
+    } else {
+      alert('O compartilhamento nativo não é suportado neste navegador.');
+    }
+  };
+
   // Cache para armazenar respostas da API (Key: "mes-ano", Value: Response Data)
   const transactionsCache = useRef<Record<string, any>>({});
 
@@ -1264,6 +1305,7 @@ setTransactions(mappedTransactions);
         onAddExpense={() => openModal(TransactionType.EXPENSE)} 
         onAddInvestment={() => openModal(TransactionType.INVESTMENT)}
         onShare={() => setIsShareModalOpen(true)} 
+        onWebShare={handleWebShare}
         isPastMonth={isPastMonth} 
         onViewReports={() => onNavigate('graficos')}
         onExportPDF={handleExportPDF}

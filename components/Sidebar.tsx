@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { User, MenuPermissions, ActivePage } from '../types';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import { useNotifications } from '../hooks/useNotifications';
@@ -15,6 +15,7 @@ interface SidebarProps {
   onLogout: () => void;
   isOpen: boolean;
   onClose: () => void;
+  onOpen?: () => void;
   permissions: MenuPermissions;
   activePage: ActivePage;
   onNavigate: (page: ActivePage) => void;
@@ -36,12 +37,16 @@ const NavLink: React.FC<{ page: ActivePage, onNavigate: (page: ActivePage) => vo
   </a>
 );
 
-const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, isOpen, onClose, permissions, activePage, onNavigate, canClockIn }) => {
+const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, isOpen, onClose, onOpen, permissions, activePage, onNavigate, canClockIn }) => {
   const [isLightMode, setIsLightMode] = useState(() => {
     return document.documentElement.classList.contains('light');
   });
   const { isInstallable, installPWA } = usePWAInstall();
   const { permission: notifPermission, requestPermission } = useNotifications();
+
+  // Touch gesture state for real-time sliding
+  const [touchTranslateX, setTouchTranslateX] = useState<number | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number; isEdge: boolean; isSidebar: boolean } | null>(null);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -61,17 +66,135 @@ const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, isOpen, onClose, perm
   }, []);
 
   const toggleTheme = () => setIsLightMode(!isLightMode);
+
+  // Swipe Gesture Handling (Touch devices)
+  useEffect(() => {
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      const startX = touch.clientX;
+      const startY = touch.clientY;
+
+      // Edge swipe: touched within 45px of left screen edge when sidebar is closed
+      const isEdge = !isOpen && startX <= 45;
+      // Sidebar swipe: touched inside open sidebar (or overlay) when sidebar is open
+      const isSidebar = isOpen && (startX <= 280);
+
+      if (isEdge || isSidebar) {
+        touchStartRef.current = { x: startX, y: startY, isEdge, isSidebar };
+      } else {
+        touchStartRef.current = null;
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!touchStartRef.current || e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      const deltaX = touch.clientX - touchStartRef.current.x;
+      const deltaY = touch.clientY - touchStartRef.current.y;
+
+      // If vertical movement dominates early on, cancel swipe gesture
+      if (Math.abs(deltaY) > Math.abs(deltaX) * 1.2 && Math.abs(deltaX) < 15) {
+        touchStartRef.current = null;
+        setTouchTranslateX(null);
+        return;
+      }
+
+      const { isEdge, isSidebar } = touchStartRef.current;
+
+      if (isEdge && deltaX > 0) {
+        // Dragging right to open sidebar
+        const currentTranslate = Math.min(0, -256 + deltaX);
+        setTouchTranslateX(currentTranslate);
+      } else if (isSidebar && deltaX < 0) {
+        // Dragging left to close sidebar
+        const currentTranslate = Math.min(0, deltaX);
+        setTouchTranslateX(currentTranslate);
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (!touchStartRef.current) {
+        setTouchTranslateX(null);
+        return;
+      }
+
+      const touch = e.changedTouches[0];
+      if (touch) {
+        const deltaX = touch.clientX - touchStartRef.current.x;
+        const deltaY = touch.clientY - touchStartRef.current.y;
+        const { isEdge, isSidebar } = touchStartRef.current;
+
+        // Check horizontal dominance and threshold (40px)
+        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) >= 40) {
+          if (isEdge && deltaX >= 40 && onOpen) {
+            onOpen();
+          } else if (isSidebar && deltaX <= -40) {
+            onClose();
+          }
+        }
+      }
+
+      touchStartRef.current = null;
+      setTouchTranslateX(null);
+    };
+
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+    window.addEventListener('touchend', handleTouchEnd, { passive: true });
+    window.addEventListener('touchcancel', handleTouchEnd, { passive: true });
+
+    return () => {
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+      window.removeEventListener('touchcancel', handleTouchEnd);
+    };
+  }, [isOpen, onOpen, onClose]);
+
+  const getSidebarTransform = () => {
+    if (touchTranslateX !== null) {
+      return `translateX(${touchTranslateX}px)`;
+    }
+    return undefined;
+  };
   
   return (
     <>
       {/* Overlay para fechar em modo mobile */}
-      {isOpen && <div onClick={onClose} className="fixed inset-0 z-30 bg-black bg-opacity-50 md:hidden" aria-hidden="true" />}
+      {(isOpen || touchTranslateX !== null) && (
+        <div 
+          onClick={onClose} 
+          className="fixed inset-0 z-30 bg-black bg-opacity-50 md:hidden transition-opacity duration-200" 
+          aria-hidden="true" 
+          style={{
+            opacity: touchTranslateX !== null 
+              ? (isOpen ? Math.max(0, (256 + touchTranslateX) / 256) : Math.min(1, (256 + touchTranslateX) / 256))
+              : undefined
+          }}
+        />
+      )}
+
+      {/* Indicador sutil de gesto de borda no mobile quando o menu está fechado */}
+      {!isOpen && (
+        <div 
+          className="fixed top-1/2 -translate-y-1/2 left-0 z-30 md:hidden pointer-events-none flex items-center justify-start opacity-60"
+          aria-hidden="true"
+        >
+          <div className="w-1 h-14 bg-blue-500/60 rounded-r-full ml-0.5 animate-pulse shadow-lg" />
+        </div>
+      )}
       
       <aside 
         id="default-sidebar"
-        className={`fixed top-0 left-0 z-40 w-64 h-screen bg-gray-800 transition-transform ${
+        className={`fixed top-0 left-0 z-40 w-64 h-screen bg-gray-800 ${
+          touchTranslateX === null ? 'transition-transform duration-300' : ''
+        } ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
-        } md:translate-x-0`}
+        } md:translate-x-0 shadow-2xl md:shadow-none`}
+        style={{
+          transform: getSidebarTransform()
+        }}
         aria-label="Sidebar"
       >
         <div className="flex flex-col h-full px-3 py-4 overflow-y-auto">

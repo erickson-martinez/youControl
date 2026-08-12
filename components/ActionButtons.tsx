@@ -1,12 +1,13 @@
 
 import React from 'react';
-import { PlusIcon, MinusIcon, UsersIcon, ChartBarIcon, DownloadIcon, BellIcon } from './icons';
+import { PlusIcon, MinusIcon, UsersIcon, ChartBarIcon, DownloadIcon, BellIcon, ShareIcon } from './icons';
 
 interface ActionButtonsProps {
   onAddRevenue: () => void;
   onAddExpense: () => void;
   onAddInvestment: () => void;
   onShare: () => void;
+  onWebShare?: () => void;
   onViewReports: () => void;
   onExportPDF: () => void;
   onOpenNotifications?: () => void;
@@ -19,6 +20,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
   onAddExpense,
   onAddInvestment,
   onShare,
+  onWebShare,
   onViewReports,
   onExportPDF,
   onOpenNotifications,
@@ -82,11 +84,21 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
           <ChartBarIcon className="w-5 h-5 md:w-6 md:h-6" />
         </button>
         
+        {onWebShare && (
+          <button
+            onClick={onWebShare}
+            className="flex items-center justify-center flex-1 md:flex-initial px-4 py-2 text-white transition-colors bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 hover:text-green-400"
+            title="Compartilhar Resumo Financeiro via Apps"
+          >
+            <ShareIcon className="w-5 h-5 md:w-6 md:h-6" />
+          </button>
+        )}
+
         {!isPastMonth && (
           <button
             onClick={onShare}
-            className="flex items-center justify-center flex-1 md:flex-initial px-4 py-2 text-white transition-colors bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 hover:text-gray-300"
-            title="Compartilhar"
+            className="flex items-center justify-center flex-1 md:flex-initial px-4 py-2 text-white transition-colors bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 hover:text-blue-300"
+            title="Gerenciar Usuários Compartilhados"
           >
             <UsersIcon className="w-5 h-5 md:w-6 md:h-6" />
           </button>
