@@ -23,12 +23,28 @@ export interface Servico {
   _id?: string;
 }
 
+export interface CustoTransacao {
+  id: string;
+  mesAnoReferencia: string;
+  status: 'pago' | 'pendente';
+  idEmail: string;
+}
+
 export interface Custo {
   id: string;
+  _id?: string;
   nome: string;
   valor: number;
   tipo: 'fixo' | 'variavel';
   linkId?: string;
+  dateInicial?: string;
+  dateFinal?: string;
+  status?: 'pendente' | 'concluido';
+  idTransacao?: CustoTransacao[] | any;
+  mesAnoReferencia?: string;
+  transacoes?: CustoTransacao[] | any;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface TaxasPagamento {
@@ -98,26 +114,26 @@ export const useBarbeariaConfig = (empresaId?: string) => {
     }
   }, [empresaId]);
 
-  const fetchCustos = useCallback(async () => {
+  const fetchCustos = useCallback(async (mes?: number, ano?: number) => {
     if (!empresaId) {
       setCustos([]);
-      return;
+      return [];
     }
-    const url = `${API_BASE_URL}/costs?linkId=${empresaId}`;
+    let url = `${API_BASE_URL}/costs?linkId=${empresaId}`;
+    if (mes !== undefined && ano !== undefined) {
+      url += `&mes=${mes}&ano=${ano}`;
+    }
     try {
-      if (!promiseCache.has(url)) {
-        promiseCache.set(url, fetch(url).then(async (r) => {
-          if (!r.ok) throw new Error('Erro ao buscar custos');
-          return r.json();
-        }).finally(() => {
-          setTimeout(() => promiseCache.delete(url), 100);
-        }));
-      }
-      const data = await promiseCache.get(url);
-      const mapped = data.map((c: any) => ({ ...c, id: c.id || c._id }));
+      const r = await fetch(url);
+      if (!r.ok) throw new Error('Erro ao buscar custos');
+      const data = await r.json();
+      const rawList = Array.isArray(data) ? data : (data.custos || []);
+      const mapped = rawList.map((c: any) => ({ ...c, id: c.id || c._id }));
       setCustos(mapped);
+      return mapped;
     } catch (e) {
       console.error('Erro ao buscar custos', e);
+      return [];
     }
   }, [empresaId]);
 
@@ -285,19 +301,37 @@ export const useBarbeariaConfig = (empresaId?: string) => {
   };
 
   // Custos (API API)
-  const addCusto = async (custo: Omit<Custo, 'id'>) => {
+  const addCusto = async (custo: {
+    nome: string;
+    valor: number;
+    tipo: 'fixo' | 'variavel';
+    linkId?: string;
+    dateInicial?: string;
+    dateFinal?: string;
+  }) => {
     try {
+      const payload: any = {
+        linkId: custo.linkId || empresaId,
+        nome: custo.nome,
+        valor: Number(custo.valor) || 0,
+        tipo: custo.tipo
+      };
+      if (custo.tipo === 'variavel') {
+        if (custo.dateInicial) payload.dateInicial = custo.dateInicial;
+        if (custo.dateFinal) payload.dateFinal = custo.dateFinal;
+      }
       const response = await fetch(`${API_BASE_URL}/costs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(custo)
+        body: JSON.stringify(payload)
       });
       if (response.ok) {
-        fetchCustos();
+        return true;
       }
     } catch (e) {
       console.error('Erro ao addCusto', e);
     }
+    return false;
   };
 
   const removeCusto = async (id: string) => {
@@ -306,26 +340,28 @@ export const useBarbeariaConfig = (empresaId?: string) => {
         method: 'DELETE'
       });
       if (response.ok) {
-        fetchCustos();
+        return true;
       }
     } catch (e) {
       console.error('Erro ao removeCusto', e);
     }
+    return false;
   };
 
-  const updateCusto = async (id: string, custo: Partial<Custo>) => {
+  const updateCusto = async (id: string, updates: Record<string, any>) => {
     try {
       const response = await fetch(`${API_BASE_URL}/costs/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(custo)
+        body: JSON.stringify(updates)
       });
       if (response.ok) {
-        fetchCustos();
+        return true;
       }
     } catch (e) {
       console.error('Erro ao updateCusto', e);
     }
+    return false;
   };
 
   const updateTaxas = (novasTaxas: Record<string, number>) => {

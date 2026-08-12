@@ -338,27 +338,62 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
     
     setIsFinalizando(true);
     try {
-      const barbeiroNome = barbeiros.find(b => b.id === selectedBarbeiroId)?.nome || "Barbeiro";
-      const payload = {
+      const barbeiroObj = barbeiros.find(b => b.id === selectedBarbeiroId);
+      const barbeiroNome = barbeiroObj?.nome || "Barbeiro";
+      const dataFormatada = selectedDate.split('-').reverse().join('/');
+
+      // 1. Despesa para a Barbearia
+      const payloadExpense = {
         idEmail: user.idEmail || user.id,
-        type: 'revenue',
-        name: `Comissões Barbeiro (${barbeiroNome}) - ${selectedDate.split('-').reverse().join('/')}`,
+        type: 'expense',
+        name: `Pagamento Comissão - ${barbeiroNome} (${dataFormatada})`,
         amount: totalComissaoDia,
         date: selectedDate,
-        status: 'pago'
+        status: 'pago',
+        category: 'Comissão de Barbeiro'
       };
 
-      const res = await fetch(`${API_BASE_URL}/transactions/simple`, {
-         method: 'POST',
-         headers: { 'Content-Type': 'application/json' },
-         body: JSON.stringify(payload)
-      });
-      if (res.ok) {
-         setIsFinalizarCaixaOpen(false);
-      } else {
-         setErrorAlert("Erro ao finalizar caixa.");
-         setIsFinalizarCaixaOpen(false);
+      // 2. Receita para o Barbeiro
+      let barbeiroIdEmail = (barbeiroObj?.email || '').replace(/\D/g, "");
+      if (!barbeiroIdEmail || barbeiroIdEmail.length < 5) {
+        barbeiroIdEmail = barbeiroObj?.id || user.idEmail || user.id;
       }
+
+      const payloadRevenue = {
+        idEmail: barbeiroIdEmail,
+        type: 'revenue',
+        name: `Comissão Recebida - ${barbeiroNome} (${dataFormatada})`,
+        amount: totalComissaoDia,
+        date: selectedDate,
+        status: 'pago',
+        category: 'Comissão Recebida'
+      };
+
+      await Promise.all([
+        fetch(`${API_BASE_URL}/transactions/simple`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payloadExpense)
+        }).catch(() => null),
+        fetch(`${API_BASE_URL}/transactions/simple`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payloadRevenue)
+        }).catch(() => null)
+      ]);
+
+      const key = `${selectedBarbeiroId}_d_${selectedDate}`;
+      try {
+        const empresaKey = (empresa?.id as string) || 'default';
+        const saved = localStorage.getItem(`barbearia_paid_commissions_${empresaKey}`);
+        const parsed = saved ? JSON.parse(saved) : {};
+        parsed[key] = { paidAt: new Date().toISOString(), amount: totalComissaoDia, barbeiroNome };
+        localStorage.setItem(`barbearia_paid_commissions_${empresaKey}`, JSON.stringify(parsed));
+      } catch (e) {
+        console.error(e);
+      }
+
+      setIsFinalizarCaixaOpen(false);
     } catch (e) {
       console.error(e);
       setErrorAlert("Erro ao finalizar caixa.");
@@ -1599,8 +1634,12 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
         isOpen={isFinalizarCaixaOpen}
         onClose={() => setIsFinalizarCaixaOpen(false)}
         onConfirm={handleFinalizarCaixa}
-        title="Finalizar Caixa Diário"
-        message={`Tem certeza que deseja enviar o valor total de R$ ${totalComissaoDia.toFixed(2)} das comissões de hoje para o fluxo de caixa? Isso criará uma transação de Receita.`}
+        title="Pagar Comissões de Hoje"
+        message={`Deseja efetuar o pagamento das comissões de hoje no valor de R$ ${totalComissaoDia.toFixed(2)}?\n\n` +
+          `• 🔴 DESPESA PAGA enviada para o financeiro da Barbearia.\n` +
+          `• 🟢 RECEITA PAGA enviada para a conta do Barbeiro.\n` +
+          `• 🔒 Marcado como PAGO no sistema para evitar duplicidade.`
+        }
       />
 
       <CadastrarAssinaturaModal

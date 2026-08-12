@@ -161,7 +161,7 @@ const BarbeirosPage: React.FC<BarbeirosPageProps> = ({ user, empresa }) => {
       {activeTab === 'barbeiros' && <TabBarbeiros empresa={empresa} user={user} empresaId={empresa?.id} />}
       {activeTab === 'produtos' && <TabProdutos empresaId={empresa?.id} />}
       {activeTab === 'servicos' && <TabServicos empresaId={empresa?.id} />}
-      {activeTab === 'custos' && <TabCustos empresaId={empresa?.id} />}
+      {activeTab === 'custos' && <TabCustos empresaId={empresa?.id} user={user} />}
       {activeTab === 'metas' && <TabMetas empresaId={empresa?.id} />}
       {activeTab === 'registros' && <TabRegistros empresaId={empresa?.id} user={user} />}
       
@@ -868,13 +868,27 @@ const TabServicos = ({ empresaId }: { empresaId?: string }) => {
   );
 };
 
-const TabCustos = ({ empresaId }: { empresaId?: string }) => {
-  const { custos, addCusto, removeCusto, taxas, updateTaxas } = useBarbeariaConfig(empresaId);
+const TabCustos = ({ empresaId, user }: { empresaId?: string; user?: User }) => {
+  const { custos, addCusto, removeCusto, updateCusto, fetchCustos, taxas, updateTaxas } = useBarbeariaConfig(empresaId);
+
+  // Form states
   const [nome, setNome] = useState('');
   const [valor, setValor] = useState('');
-  const [tipo, setTipo] = useState<'fixo'|'variavel'>('fixo');
+  const [tipo, setTipo] = useState<'fixo' | 'variavel'>('fixo');
+  const [dateInicial, setDateInicial] = useState('');
+  const [dateFinal, setDateFinal] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Estado local para as taxas, atualizado ao salvar
+  // Month & Year selection
+  const [currentMonthDate, setCurrentMonthDate] = useState<Date>(new Date());
+  const selectedMes = currentMonthDate.getMonth() + 1;
+  const selectedAno = currentMonthDate.getFullYear();
+  const [loadingActionId, setLoadingActionId] = useState<string | null>(null);
+
+  // Local state for payment tracking
+  const [paidCostsState, setPaidCostsState] = useState<Record<string, { status: 'pago'; idTransacao?: string; paidAt?: string }>>({});
+
+  // Taxas local state
   const [taxasLocal, setTaxasLocal] = useState({ 
     pix: taxas?.pix || 0, 
     dinheiro: taxas?.dinheiro || 0, 
@@ -882,7 +896,23 @@ const TabCustos = ({ empresaId }: { empresaId?: string }) => {
     debito: taxas?.debito || 0 
   });
 
-  // Atualiza local state quando taxas do bd/cache carrega
+  const mesFormatted = String(selectedMes).padStart(2, '0');
+  const mesAnoReferencia = `${mesFormatted}/${selectedAno}`; // e.g. "08/2026"
+
+  // Load paid costs state from localStorage
+  useEffect(() => {
+    try {
+      const empKey = empresaId || 'default';
+      const saved = localStorage.getItem(`barbearia_paid_costs_${empKey}`);
+      if (saved) {
+        setPaidCostsState(JSON.parse(saved));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, [empresaId]);
+
+  // Sync taxas from config
   useEffect(() => {
     if (taxas) {
       setTaxasLocal({
@@ -894,11 +924,48 @@ const TabCustos = ({ empresaId }: { empresaId?: string }) => {
     }
   }, [taxas]);
 
-  const handleCadastrar = (e: React.FormEvent) => {
+  // Fetch costs whenever month, year or empresaId changes
+  useEffect(() => {
+    fetchCustos(selectedMes, selectedAno);
+  }, [selectedMes, selectedAno, empresaId, fetchCustos]);
+
+  const handleCadastrar = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nome.trim()) return alert("Nome é obrigatório");
-    addCusto({ nome, valor: Number(valor) || 0, tipo, linkId: empresaId });
-    setNome(''); setValor(''); setTipo('fixo');
+    if (!valor || Number(valor) <= 0) return alert("Informe um valor válido");
+
+    if (tipo === 'variavel') {
+      if (!dateInicial) return alert("Para custo variável, a Data Inicial é obrigatória.");
+      if (!dateFinal) return alert("Para custo variável, a Data Final é obrigatória.");
+      if (new Date(dateInicial) > new Date(dateFinal)) {
+        return alert("A Data Inicial não pode ser posterior à Data Final.");
+      }
+    }
+
+    setIsSubmitting(true);
+    try {
+      const ok = await addCusto({
+        nome: nome.trim(),
+        valor: Number(valor) || 0,
+        tipo,
+        linkId: empresaId,
+        ...(tipo === 'variavel' ? { dateInicial, dateFinal } : {})
+      });
+
+      if (ok !== false) {
+        setNome('');
+        setValor('');
+        setTipo('fixo');
+        setDateInicial('');
+        setDateFinal('');
+        await fetchCustos(selectedMes, selectedAno);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao cadastrar custo.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleSalvarTaxas = () => {
@@ -906,143 +973,665 @@ const TabCustos = ({ empresaId }: { empresaId?: string }) => {
     alert('Taxas de pagamento atualizadas!');
   };
 
-  const fixos = custos.filter(c => c.tipo === 'fixo');
-  const variaveis = custos.filter(c => c.tipo === 'variavel');
+  const getTransacaoMesAtual = (c: Custo, mesAnoRef: string) => {
+    if (!c) return null;
+
+    if (Array.isArray(c.idTransacao)) {
+      const item = c.idTransacao.find((t: any) => typeof t === 'object' && t !== null && t.mesAnoReferencia === mesAnoRef);
+      if (item) {
+        return {
+          id: item.id || item._id || item.idTransacao || '',
+          mesAnoReferencia: item.mesAnoReferencia || mesAnoRef,
+          status: item.status === 'pago' ? ('pago' as const) : ('pendente' as const),
+          idEmail: item.idEmail || ''
+        };
+      }
+    }
+
+    if (Array.isArray(c.transacoes)) {
+      const item = c.transacoes.find((t: any) => t.mesAnoReferencia === mesAnoRef);
+      if (item) {
+        return {
+          id: item.id || item.idTransacao || (item as any)._id || '',
+          mesAnoReferencia: item.mesAnoReferencia || mesAnoRef,
+          status: item.status === 'pago' ? ('pago' as const) : ('pendente' as const),
+          idEmail: item.idEmail || ''
+        };
+      }
+    }
+
+    if (c.mesAnoReferencia === mesAnoRef && c.idTransacao) {
+      let txId = '';
+      let email = (c as any).idEmail || '';
+      if (typeof c.idTransacao === 'string') {
+        txId = c.idTransacao;
+      } else if (typeof c.idTransacao === 'object' && !Array.isArray(c.idTransacao)) {
+        txId = c.idTransacao.id || c.idTransacao._id || '';
+        if (c.idTransacao.idEmail) email = c.idTransacao.idEmail;
+      }
+      if (txId) {
+        return {
+          id: txId,
+          mesAnoReferencia: mesAnoRef,
+          status: (c as any).statusTransacao === 'pago' || (c.status as any) === 'pago' ? ('pago' as const) : ('pendente' as const),
+          idEmail: email
+        };
+      }
+    }
+
+    const key = `${c.id}_${mesAnoRef}`;
+    if (paidCostsState[key]?.idTransacao) {
+      return {
+        id: paidCostsState[key].idTransacao,
+        mesAnoReferencia: mesAnoRef,
+        status: paidCostsState[key].status === 'pago' ? ('pago' as const) : ('pendente' as const),
+        idEmail: paidCostsState[key].idEmail || ''
+      };
+    }
+
+    return null;
+  };
+
+  const handleCriarTransacao = async (c: Custo) => {
+    const transExist = getTransacaoMesAtual(c, mesAnoReferencia);
+    if (transExist && transExist.id) {
+      alert(`Já existe uma transação para o mês ${mesAnoReferencia}. ID: ${transExist.id}`);
+      return;
+    }
+
+    setLoadingActionId(c.id);
+    try {
+      const dateIso = `${selectedAno}-${mesFormatted}-01T00:00:00.000Z`;
+      const userEmail = user?.idEmail || user?.id || 'JSU1qxME41a4A00lYFPb7Azp0Nk1';
+      const payloadExpense = {
+        idEmail: userEmail,
+        type: 'expense',
+        name: `Despesa Custo (${c.nome}) - ${mesAnoReferencia}`,
+        amount: c.valor,
+        date: dateIso,
+        status: 'nao_pago',
+        category: 'Custos Barbearia',
+        linkId: empresaId,
+        mesAnoReferencia: mesAnoReferencia
+      };
+
+      let txId = '';
+      let emailResp = userEmail;
+
+      const endpoints = [
+        'https://stok-5ytv.onrender.com/api/v1/transactions/simple',
+        `${API_BASE_URL}/transactions/simple`,
+        `${API_BASE_URL}/transactions`
+      ];
+
+      for (const ep of endpoints) {
+        if (txId) break;
+        try {
+          const res = await fetch(ep, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payloadExpense)
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const txObj = data.transaction || data;
+            txId = txObj._id || txObj.id || txObj.transactionId || '';
+            if (txObj.idEmail) emailResp = txObj.idEmail;
+          }
+        } catch (e) {
+          console.error(`Erro ao enviar POST em ${ep}:`, e);
+        }
+      }
+
+      if (!txId) {
+        alert('Erro ao criar a transação de despesa no servidor.');
+        return;
+      }
+
+      const costPayload = {
+        idTransacao: txId,
+        mesAnoReferencia: mesAnoReferencia,
+        statusTransacao: 'pendente',
+        idEmail: emailResp
+      };
+
+      const updated = await updateCusto(c.id, costPayload);
+      if (!updated) {
+        console.warn('Aviso: falha no PUT /costs para salvar idTransacao');
+      }
+
+      const key = `${c.id}_${mesAnoReferencia}`;
+      const newPaidState = {
+        ...paidCostsState,
+        [key]: { status: 'pendente' as const, idTransacao: txId, idEmail: emailResp, createdAt: new Date().toISOString() }
+      };
+      setPaidCostsState(newPaidState);
+      try {
+        const empKey = empresaId || 'default';
+        localStorage.setItem(`barbearia_paid_costs_${empKey}`, JSON.stringify(newPaidState));
+      } catch (e) {
+        console.error(e);
+      }
+
+      await fetchCustos(selectedMes, selectedAno);
+    } catch (err) {
+      console.error('Erro ao criar transação:', err);
+      alert('Erro ao criar transação de despesa.');
+    } finally {
+      setLoadingActionId(null);
+    }
+  };
+
+  const handlePagarTransacao = async (c: Custo) => {
+    const trans = getTransacaoMesAtual(c, mesAnoReferencia);
+    const txId = trans?.id || (typeof c.idTransacao === 'string' ? c.idTransacao : '');
+    const emailResp = trans?.idEmail || user?.idEmail || user?.id || 'JSU1qxME41a4A00lYFPb7Azp0Nk1';
+
+    if (!txId) {
+      alert('Transação não encontrada para este custo.');
+      return;
+    }
+
+    setLoadingActionId(c.id);
+    try {
+      const patchPayload = {
+        transactionId: txId,
+        status: 'pago',
+        idEmail: emailResp
+      };
+
+      const statusEndpoints = [
+        'https://stok-5ytv.onrender.com/api/v1/transactions/status',
+        `${API_BASE_URL}/transactions/status`
+      ];
+
+      for (const ep of statusEndpoints) {
+        try {
+          await fetch(ep, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(patchPayload)
+          });
+        } catch (e) {
+          console.error(`Erro ao PATCH em ${ep}:`, e);
+        }
+      }
+
+      const costPayload = {
+        idTransacao: txId,
+        mesAnoReferencia: mesAnoReferencia,
+        statusTransacao: 'pago',
+        idEmail: emailResp
+      };
+
+      await updateCusto(c.id, costPayload);
+
+      const key = `${c.id}_${mesAnoReferencia}`;
+      const newPaidState = {
+        ...paidCostsState,
+        [key]: { status: 'pago' as const, idTransacao: txId, idEmail: emailResp, paidAt: new Date().toISOString() }
+      };
+      setPaidCostsState(newPaidState);
+      try {
+        const empKey = empresaId || 'default';
+        localStorage.setItem(`barbearia_paid_costs_${empKey}`, JSON.stringify(newPaidState));
+      } catch (e) {
+        console.error(e);
+      }
+
+      await fetchCustos(selectedMes, selectedAno);
+    } catch (err) {
+      console.error('Erro ao pagar transação:', err);
+      alert('Erro ao pagar transação.');
+    } finally {
+      setLoadingActionId(null);
+    }
+  };
+
+  const handleConcluirCustoFixo = async (c: Custo) => {
+    if (c.tipo !== 'fixo') return;
+    const confirmConcluir = window.confirm(
+      `Tem certeza que deseja concluir o custo fixo "${c.nome}"? Ao concluir, este custo não aparecerá nos próximos meses.`
+    );
+    if (!confirmConcluir) return;
+
+    setLoadingActionId(c.id);
+    try {
+      await updateCusto(c.id, { status: 'concluido' });
+      await fetchCustos(selectedMes, selectedAno);
+    } catch (err) {
+      console.error('Erro ao concluir custo fixo:', err);
+      alert('Erro ao concluir custo fixo.');
+    } finally {
+      setLoadingActionId(null);
+    }
+  };
+
+  const handleRemoverCusto = async (id: string) => {
+    if (!confirm("Deseja realmente excluir este custo?")) return;
+    await removeCusto(id);
+    await fetchCustos(selectedMes, selectedAno);
+  };
+
+  const isCustoVigenteNoMes = (c: Custo, mes: number, ano: number): boolean => {
+    if (c.status === 'concluido') return false;
+    if (c.tipo === 'fixo') return true;
+
+    if (c.tipo === 'variavel') {
+      if (!c.dateInicial || !c.dateFinal) return true;
+      const refStart = `${ano}-${String(mes).padStart(2, '0')}-01`;
+      const refEnd = `${ano}-${String(mes).padStart(2, '0')}-31`;
+
+      const ini = String(c.dateInicial).substring(0, 10);
+      const fim = String(c.dateFinal).substring(0, 10);
+
+      return ini <= refEnd && fim >= refStart;
+    }
+    return true;
+  };
+
+  const custosPendentes = custos.filter(c => c.status !== 'concluido');
+  const fixos = custosPendentes.filter(c => c.tipo === 'fixo');
+  const variaveis = custosPendentes.filter(c => c.tipo === 'variavel' && isCustoVigenteNoMes(c, selectedMes, selectedAno));
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 md:p-8">
-      <div className="flex flex-col gap-5">
-        <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
-          <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-            <PlusIcon className="w-5 h-5 text-blue-500" /> Cadastrar Custo Diário
+    <div className="flex flex-col gap-6 md:p-8">
+      {/* Seletor de Mês e Ano */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gray-900/90 p-5 rounded-2xl border border-gray-800 shadow-xl">
+        <div>
+          <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
+            <DocumentTextIcon className="w-5 h-5 text-blue-400" />
+            Gestão Mensal de Custos & Despesas
           </h2>
-          <p className="text-sm text-gray-400 mb-6 border-b border-gray-700/50 pb-4">
-            Custos fixos não variam (ex: Aluguel). Custos variáveis dependem do volume de vendas (ex: Produtos de bancada).
+          <p className="text-xs sm:text-sm text-gray-400 mt-1">
+            Navegue pelos meses para consultar custos fixos e variáveis vigentes e realizar a quitação no fluxo financeiro.
           </p>
-
-          <form onSubmit={handleCadastrar} className="space-y-4">
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">Nome / Descrição</label>
-              <input 
-                type="text" required value={nome} onChange={e => setNome(e.target.value)}
-                className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                placeholder="Ex: Aluguel"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">Valor Mensal Estimado (R$)</label>
-              <input 
-                type="number" step="0.01" required value={valor} onChange={e => setValor(e.target.value)}
-                className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                placeholder="0.00"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-400 mb-2">Classificação (Tipo de Custo)</label>
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
-                  <input type="radio" checked={tipo === 'fixo'} onChange={() => setTipo('fixo')} className="text-blue-500 focus:ring-blue-500 bg-gray-700 border-gray-600" /> Custo Fixo
-                </label>
-                <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
-                  <input type="radio" checked={tipo === 'variavel'} onChange={() => setTipo('variavel')} className="text-blue-500 focus:ring-blue-500 bg-gray-700 border-gray-600" /> Custo Variável
-                </label>
-              </div>
-            </div>
-            <div className="pt-4 border-t border-gray-700/50">
-              <button type="submit" className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2.5 px-4 rounded-xl transition-all shadow-md hover:shadow-blue-500/20">
-                <PlusIcon className="w-5 h-5" /> Salvar Custo
-              </button>
-            </div>
-          </form>
         </div>
-
-        <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
-          <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-            <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            Taxas de Pagamento (%)
-          </h2>
-          <p className="text-sm text-gray-400 mb-6 border-b border-gray-700/50 pb-4">
-            Defina a porcentagem de taxa cobrada pela maquininha ou banco para cada forma de pagamento. Essa taxa será descontada do valor final da barbearia.
-          </p>
-
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">PIX (%)</label>
-                <input 
-                  type="number" step="0.01" value={taxasLocal.pix} onChange={e => setTaxasLocal({...taxasLocal, pix: Number(e.target.value)})}
-                  className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-green-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Dinheiro (%)</label>
-                <input 
-                  type="number" step="0.01" value={taxasLocal.dinheiro} onChange={e => setTaxasLocal({...taxasLocal, dinheiro: Number(e.target.value)})}
-                  className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-green-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Cartão Crédito (%)</label>
-                <input 
-                  type="number" step="0.01" value={taxasLocal.credito} onChange={e => setTaxasLocal({...taxasLocal, credito: Number(e.target.value)})}
-                  className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-green-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Cartão Débito (%)</label>
-                <input 
-                  type="number" step="0.01" value={taxasLocal.debito} onChange={e => setTaxasLocal({...taxasLocal, debito: Number(e.target.value)})}
-                  className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-green-500"
-                />
-              </div>
-            </div>
-            
-            <div className="pt-4 border-t border-gray-700/50">
-              <button onClick={handleSalvarTaxas} className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 text-white font-semibold py-2.5 px-4 rounded-xl transition-all shadow-md hover:shadow-green-500/20">
-                <CheckCircleIcon className="w-5 h-5" /> Salvar Taxas
-              </button>
-            </div>
-          </div>
+        <div className="w-full sm:w-auto shrink-0">
+          <MonthNavigator
+            currentDate={currentMonthDate}
+            setCurrentDate={setCurrentMonthDate}
+          />
         </div>
       </div>
 
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-xl font-bold text-white mb-4">Custos Fixos <span className="bg-gray-800 text-gray-400 font-medium text-xs py-1 px-2 rounded-lg ml-2">{fixos.length}</span></h2>
-          {fixos.length === 0 ? <p className="text-sm text-gray-500 italic bg-gray-900/50 p-4 rounded-lg border border-gray-800">Nenhum registrado</p> : (
-            <div className="grid gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
-              {fixos.map(c => (
-                <div key={c.id} className="bg-gray-800/80 p-4 rounded-2xl border border-gray-700/50 flex justify-between items-center group shadow-sm hover:border-orange-500/30 transition-all">
-                  <span className="text-gray-200 font-medium">{c.nome}</span>
-                  <div className="flex items-center gap-3">
-                    <span className="text-orange-400 text-sm font-bold bg-orange-500/10 px-2 py-1 rounded-lg">R$ {c.valor.toFixed(2)}</span>
-                    <button onClick={() => removeCusto(c.id)} className="text-gray-500 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all p-1 bg-gray-900 rounded-md">
-                      <TrashIcon className="w-4 h-4" />
-                    </button>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Formulário de Cadastro + Taxas */}
+        <div className="flex flex-col gap-6">
+          <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
+            <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+              <PlusIcon className="w-5 h-5 text-blue-500" /> Cadastrar Novo Custo
+            </h3>
+            <p className="text-xs sm:text-sm text-gray-400 mb-6 border-b border-gray-700/50 pb-4">
+              Custos fixos aparecem em todos os meses. Custos variáveis exigem intervalo de datas inicial e final.
+            </p>
+
+            <form onSubmit={handleCadastrar} className="space-y-4">
+              <div>
+                <label className="block text-xs sm:text-sm text-gray-400 mb-1 font-medium">Nome / Descrição *</label>
+                <input 
+                  type="text" required value={nome} onChange={e => setNome(e.target.value)}
+                  className="w-full bg-gray-700 text-white border border-gray-600 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500 placeholder-gray-500"
+                  placeholder="Ex: Aluguel, Conta de Luz, Produtos"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs sm:text-sm text-gray-400 mb-1 font-medium">Valor Mensal (R$) *</label>
+                <input 
+                  type="number" step="0.01" required value={valor} onChange={e => setValor(e.target.value)}
+                  className="w-full bg-gray-700 text-white border border-gray-600 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500 placeholder-gray-500 font-semibold"
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs sm:text-sm text-gray-400 mb-2 font-medium">Tipo de Custo *</label>
+                <div className="flex gap-4">
+                  <label className={`flex items-center gap-2 text-xs sm:text-sm font-semibold px-3 py-2 rounded-xl border cursor-pointer transition-all ${
+                    tipo === 'fixo' ? 'bg-blue-600/30 text-blue-300 border-blue-500' : 'bg-gray-700/50 text-gray-400 border-gray-600 hover:text-gray-200'
+                  }`}>
+                    <input 
+                      type="radio" name="tipoCusto" checked={tipo === 'fixo'} 
+                      onChange={() => setTipo('fixo')} className="hidden" 
+                    /> 
+                    📌 Custo Fixo
+                  </label>
+
+                  <label className={`flex items-center gap-2 text-xs sm:text-sm font-semibold px-3 py-2 rounded-xl border cursor-pointer transition-all ${
+                    tipo === 'variavel' ? 'bg-purple-600/30 text-purple-300 border-purple-500' : 'bg-gray-700/50 text-gray-400 border-gray-600 hover:text-gray-200'
+                  }`}>
+                    <input 
+                      type="radio" name="tipoCusto" checked={tipo === 'variavel'} 
+                      onChange={() => setTipo('variavel')} className="hidden" 
+                    /> 
+                    📊 Custo Variável
+                  </label>
+                </div>
+              </div>
+
+              {/* Campos condicionais para Custo Variável */}
+              {tipo === 'variavel' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-purple-950/20 border border-purple-500/30 rounded-2xl animate-in fade-in duration-200">
+                  <div>
+                    <label className="block text-xs text-purple-300 mb-1 font-semibold">Data Inicial *</label>
+                    <input 
+                      type="date" required={tipo === 'variavel'} value={dateInicial} onChange={e => setDateInicial(e.target.value)}
+                      className="w-full bg-gray-900 text-white border border-purple-500/40 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-purple-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-purple-300 mb-1 font-semibold">Data Final *</label>
+                    <input 
+                      type="date" required={tipo === 'variavel'} value={dateFinal} onChange={e => setDateFinal(e.target.value)}
+                      className="w-full bg-gray-900 text-white border border-purple-500/40 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-purple-400"
+                    />
                   </div>
                 </div>
-              ))}
+              )}
+
+              <div className="pt-3 border-t border-gray-700/50">
+                <button 
+                  type="submit" 
+                  disabled={isSubmitting}
+                  className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 px-4 rounded-xl transition-all shadow-md hover:shadow-blue-500/20 disabled:opacity-50"
+                >
+                  <PlusIcon className="w-5 h-5" /> 
+                  {isSubmitting ? 'Salvando...' : 'Salvar Custo'}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Taxas de Pagamento */}
+          <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl h-fit">
+            <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+              <CashIcon className="w-5 h-5 text-emerald-400" />
+              Taxas de Pagamento (%)
+            </h3>
+            <p className="text-xs sm:text-sm text-gray-400 mb-6 border-b border-gray-700/50 pb-4">
+              Porcentagem descontada pela maquininha ou banco para apuração das receitas líquidas.
+            </p>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">PIX (%)</label>
+                  <input 
+                    type="number" step="0.01" value={taxasLocal.pix} onChange={e => setTaxasLocal({...taxasLocal, pix: Number(e.target.value)})}
+                    className="w-full bg-gray-700 text-white border border-gray-600 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Dinheiro (%)</label>
+                  <input 
+                    type="number" step="0.01" value={taxasLocal.dinheiro} onChange={e => setTaxasLocal({...taxasLocal, dinheiro: Number(e.target.value)})}
+                    className="w-full bg-gray-700 text-white border border-gray-600 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Cartão Crédito (%)</label>
+                  <input 
+                    type="number" step="0.01" value={taxasLocal.credito} onChange={e => setTaxasLocal({...taxasLocal, credito: Number(e.target.value)})}
+                    className="w-full bg-gray-700 text-white border border-gray-600 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Cartão Débito (%)</label>
+                  <input 
+                    type="number" step="0.01" value={taxasLocal.debito} onChange={e => setTaxasLocal({...taxasLocal, debito: Number(e.target.value)})}
+                    className="w-full bg-gray-700 text-white border border-gray-600 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+              
+              <div className="pt-3 border-t border-gray-700/50">
+                <button onClick={handleSalvarTaxas} className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-4 rounded-xl transition-all shadow-md hover:shadow-emerald-500/20">
+                  <CheckCircleIcon className="w-5 h-5" /> Salvar Taxas
+                </button>
+              </div>
             </div>
-          )}
+          </div>
         </div>
 
-        <div className="pt-2">
-          <h2 className="text-xl font-bold text-white mb-4">Custos Variáveis <span className="bg-gray-800 text-gray-400 font-medium text-xs py-1 px-2 rounded-lg ml-2">{variaveis.length}</span></h2>
-          {variaveis.length === 0 ? <p className="text-sm text-gray-500 italic bg-gray-900/50 p-4 rounded-lg border border-gray-800">Nenhum registrado</p> : (
-            <div className="grid gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
-              {variaveis.map(c => (
-                <div key={c.id} className="bg-gray-800/80 p-4 rounded-2xl border border-gray-700/50 flex justify-between items-center group shadow-sm hover:border-blue-500/30 transition-all">
-                  <span className="text-gray-200 font-medium">{c.nome}</span>
-                  <div className="flex items-center gap-3">
-                    <span className="text-blue-400 text-sm font-bold bg-blue-500/10 px-2 py-1 rounded-lg">R$ {c.valor.toFixed(2)}</span>
-                    <button onClick={() => removeCusto(c.id)} className="text-gray-500 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all p-1 bg-gray-900 rounded-md">
-                      <TrashIcon className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+        {/* Listagem de Custos para o Mês Selecionado */}
+        <div className="space-y-6">
+          {/* Custos Fixos */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                📌 Custos Fixos 
+                <span className="bg-gray-800 text-gray-300 font-bold text-xs py-0.5 px-2 rounded-lg border border-gray-700">{fixos.length}</span>
+              </h3>
+              <span className="text-xs text-gray-400 font-medium">Exibidos em todos os meses</span>
             </div>
-          )}
+
+            {fixos.length === 0 ? (
+              <p className="text-xs text-gray-500 italic bg-gray-900/50 p-4 rounded-xl border border-gray-800 text-center">Nenhum custo fixo pendente</p>
+            ) : (
+              <div className="grid gap-3 max-h-[420px] overflow-y-auto pr-1 custom-scrollbar">
+                {fixos.map(c => {
+                  const trans = getTransacaoMesAtual(c, mesAnoReferencia);
+                  const hasTx = Boolean(trans && trans.id);
+                  const isPaidTx = Boolean(trans && trans.status === 'pago');
+                  const isLoading = loadingActionId === c.id;
+
+                  return (
+                    <div key={c.id} className="bg-gray-900/80 p-4 rounded-2xl border border-gray-800 flex flex-col justify-between gap-3 shadow-md hover:border-gray-700 transition-all">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-white font-bold text-sm sm:text-base">{c.nome}</span>
+                          <span className="text-[10px] bg-blue-500/20 text-blue-400 font-bold px-2 py-0.5 rounded-full border border-blue-500/30">
+                            FIXO
+                          </span>
+                          <span className="text-[10px] bg-amber-500/20 text-amber-400 font-bold px-2 py-0.5 rounded-full border border-amber-500/30">
+                            PENDENTE
+                          </span>
+                          {isPaidTx ? (
+                            <span className="text-[10px] bg-emerald-500/20 text-emerald-400 font-extrabold px-2 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
+                              ✓ TRANSAÇÃO PAGA
+                            </span>
+                          ) : hasTx ? (
+                            <span className="text-[10px] bg-amber-500/20 text-amber-400 font-bold px-2 py-0.5 rounded-full border border-amber-500/30">
+                              ● TRANSAÇÃO PENDENTE
+                            </span>
+                          ) : (
+                            <span className="text-[10px] bg-gray-700/60 text-gray-300 font-bold px-2 py-0.5 rounded-full border border-gray-600">
+                              SEM TRANSAÇÃO
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <span className="text-sm font-bold text-emerald-400">R$ {c.valor.toFixed(2)}</span>
+                        </div>
+                      </div>
+
+                      <div className="text-xs text-gray-400 flex items-center gap-3 flex-wrap border-t border-gray-800/80 pt-2">
+                        <span>Mês: <strong className="text-gray-200">{mesAnoReferencia}</strong></span>
+                        {hasTx && (
+                          <>
+                            <span className="text-gray-600">•</span>
+                            <span className="text-gray-300 font-mono text-[11px]">ID Transação: {trans.id}</span>
+                          </>
+                        )}
+                        {trans?.idEmail && (
+                          <>
+                            <span className="text-gray-600">•</span>
+                            <span className="text-gray-400 text-[11px]">Dono: {trans.idEmail}</span>
+                          </>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-800/60 flex-wrap">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {!hasTx ? (
+                            <button
+                              onClick={() => handleCriarTransacao(c)}
+                              disabled={isLoading}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all shadow-md hover:shadow-blue-500/20 disabled:opacity-50"
+                              title="Criar transação para este mês"
+                            >
+                              <PlusIcon className="w-4 h-4" />
+                              <span>{isLoading ? 'Criando...' : 'Criar Transação'}</span>
+                            </button>
+                          ) : !isPaidTx ? (
+                            <button
+                              onClick={() => handlePagarTransacao(c)}
+                              disabled={isLoading}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all shadow-md hover:shadow-emerald-500/20 disabled:opacity-50"
+                              title="Pagar transação do mês"
+                            >
+                              <CashIcon className="w-4 h-4" />
+                              <span>{isLoading ? 'Pagando...' : 'Pagar Transação'}</span>
+                            </button>
+                          ) : (
+                            <span className="text-xs text-emerald-400 font-bold bg-emerald-950/60 px-2.5 py-1 rounded-xl border border-emerald-500/30 flex items-center gap-1">
+                              <CheckCircleIcon className="w-3.5 h-3.5" /> Transação Paga
+                            </span>
+                          )}
+
+                          <button
+                            onClick={() => handleConcluirCustoFixo(c)}
+                            disabled={isLoading}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-900/60 hover:bg-purple-800/80 text-purple-200 border border-purple-500/40 text-xs font-semibold rounded-xl transition-all disabled:opacity-50"
+                            title="Encerrar este custo fixo para os próximos meses"
+                          >
+                            <CheckCircleIcon className="w-3.5 h-3.5 text-purple-400" />
+                            <span>Concluir Custo Fixo</span>
+                          </button>
+                        </div>
+
+                        <button 
+                          onClick={() => handleRemoverCusto(c.id)} 
+                          className="text-gray-500 hover:text-red-400 transition-all p-1.5 bg-gray-800 hover:bg-gray-700 rounded-xl"
+                          title="Excluir Custo"
+                        >
+                          <TrashIcon className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Custos Variáveis */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                📊 Custos Variáveis 
+                <span className="bg-gray-800 text-gray-300 font-bold text-xs py-0.5 px-2 rounded-lg border border-gray-700">{variaveis.length}</span>
+              </h3>
+              <span className="text-xs text-purple-400 font-medium">Filtrados por vigência</span>
+            </div>
+
+            {variaveis.length === 0 ? (
+              <p className="text-xs text-gray-500 italic bg-gray-900/50 p-4 rounded-xl border border-gray-800 text-center">
+                Nenhum custo variável vigente em {mesAnoReferencia}
+              </p>
+            ) : (
+              <div className="grid gap-3 max-h-[420px] overflow-y-auto pr-1 custom-scrollbar">
+                {variaveis.map(c => {
+                  const trans = getTransacaoMesAtual(c, mesAnoReferencia);
+                  const hasTx = Boolean(trans && trans.id);
+                  const isPaidTx = Boolean(trans && trans.status === 'pago');
+                  const isLoading = loadingActionId === c.id;
+
+                  const dataIniFmt = c.dateInicial ? String(c.dateInicial).substring(0, 10).split('-').reverse().join('/') : '';
+                  const dataFimFmt = c.dateFinal ? String(c.dateFinal).substring(0, 10).split('-').reverse().join('/') : '';
+
+                  return (
+                    <div key={c.id} className="bg-gray-900/80 p-4 rounded-2xl border border-gray-800 flex flex-col justify-between gap-3 shadow-md hover:border-gray-700 transition-all">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-white font-bold text-sm sm:text-base">{c.nome}</span>
+                          <span className="text-[10px] bg-purple-500/20 text-purple-400 font-bold px-2 py-0.5 rounded-full border border-purple-500/30">
+                            VARIÁVEL
+                          </span>
+                          <span className="text-[10px] bg-amber-500/20 text-amber-400 font-bold px-2 py-0.5 rounded-full border border-amber-500/30">
+                            PENDENTE
+                          </span>
+                          {isPaidTx ? (
+                            <span className="text-[10px] bg-emerald-500/20 text-emerald-400 font-extrabold px-2 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
+                              ✓ TRANSAÇÃO PAGA
+                            </span>
+                          ) : hasTx ? (
+                            <span className="text-[10px] bg-amber-500/20 text-amber-400 font-bold px-2 py-0.5 rounded-full border border-amber-500/30">
+                              ● TRANSAÇÃO PENDENTE
+                            </span>
+                          ) : (
+                            <span className="text-[10px] bg-gray-700/60 text-gray-300 font-bold px-2 py-0.5 rounded-full border border-gray-600">
+                              SEM TRANSAÇÃO
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <span className="text-sm font-bold text-purple-300">R$ {c.valor.toFixed(2)}</span>
+                        </div>
+                      </div>
+
+                      <div className="text-xs text-gray-400 flex items-center gap-3 flex-wrap border-t border-gray-800/80 pt-2">
+                        {dataIniFmt && dataFimFmt && (
+                          <span>Vigência: <strong className="text-gray-300">{dataIniFmt} até {dataFimFmt}</strong></span>
+                        )}
+                        {hasTx && (
+                          <>
+                            <span className="text-gray-600">•</span>
+                            <span className="text-gray-300 font-mono text-[11px]">ID Transação: {trans.id}</span>
+                          </>
+                        )}
+                        {trans?.idEmail && (
+                          <>
+                            <span className="text-gray-600">•</span>
+                            <span className="text-gray-400 text-[11px]">Dono: {trans.idEmail}</span>
+                          </>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-800/60 flex-wrap">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {!hasTx ? (
+                            <button
+                              onClick={() => handleCriarTransacao(c)}
+                              disabled={isLoading}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all shadow-md hover:shadow-blue-500/20 disabled:opacity-50"
+                              title="Criar transação para este mês"
+                            >
+                              <PlusIcon className="w-4 h-4" />
+                              <span>{isLoading ? 'Criando...' : 'Criar Transação'}</span>
+                            </button>
+                          ) : !isPaidTx ? (
+                            <button
+                              onClick={() => handlePagarTransacao(c)}
+                              disabled={isLoading}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all shadow-md hover:shadow-emerald-500/20 disabled:opacity-50"
+                              title="Pagar transação do mês"
+                            >
+                              <CashIcon className="w-4 h-4" />
+                              <span>{isLoading ? 'Pagando...' : 'Pagar Transação'}</span>
+                            </button>
+                          ) : (
+                            <span className="text-xs text-emerald-400 font-bold bg-emerald-950/60 px-2.5 py-1 rounded-xl border border-emerald-500/30 flex items-center gap-1">
+                              <CheckCircleIcon className="w-3.5 h-3.5" /> Transação Paga
+                            </span>
+                          )}
+                        </div>
+
+                        <button 
+                          onClick={() => handleRemoverCusto(c.id)} 
+                          className="text-gray-500 hover:text-red-400 transition-all p-1.5 bg-gray-800 hover:bg-gray-700 rounded-xl"
+                          title="Excluir Custo"
+                        >
+                          <TrashIcon className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -1562,6 +2151,23 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
     setExpandedBarbeiros(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const [paidCommissions, setPaidCommissions] = useState<Record<string, { paidAt: string; amount: number; barbeiroNome?: string }>>(() => {
+    try {
+      const saved = localStorage.getItem(`barbearia_paid_commissions_${empresaId || 'default'}`);
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(`barbearia_paid_commissions_${empresaId || 'default'}`, JSON.stringify(paidCommissions));
+    } catch (e) {
+      console.error('Erro ao salvar comissões pagas no localStorage:', e);
+    }
+  }, [paidCommissions, empresaId]);
+
   const [isFinalizarCaixaOpen, setIsFinalizarCaixaOpen] = useState(false);
   const [isFinalizando, setIsFinalizando] = useState(false);
   const [receitaData, setReceitaData] = useState<any>(null);
@@ -1576,37 +2182,121 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
     setIsFinalizando(true);
     try {
       const isBarbearia = receitaData.isBarbearia;
+      const dataFormatada = dataFiltro.split('-').reverse().join('/');
       
-      let idEmail = user.idEmail || user.id;
-      if (!isBarbearia) {
-         idEmail = (receitaData.barbeiro?.email || '').replace(/\D/g, "");
-         if (!idEmail || idEmail.length < 10) {
-             idEmail = user.idEmail || user.id;
-         }
-      }
+      if (isBarbearia) {
+        const payload = {
+          idEmail: user.idEmail || user.id,
+          type: 'revenue',
+          name: `Fechamento Barbearia - ${dataFormatada}`,
+          amount: receitaData.caixaBarbearia,
+          date: dataFiltro,
+          status: 'pago',
+          category: 'Caixa Barbearia'
+        };
 
-      const payload = {
-        idEmail: idEmail,
-        type: 'revenue',
-        name: isBarbearia ? `Fechamento Barbearia - ${dataFiltro.split('-').reverse().join('/')}` : `Comissões Barbeiro (${receitaData.nome}) - ${dataFiltro.split('-').reverse().join('/')}`,
-        amount: isBarbearia ? receitaData.caixaBarbearia : receitaData.totalComissao,
-        date: dataFiltro,
-        status: 'pago'
-      };
-
-      const res = await fetch(`${API_BASE_URL}/transactions/simple`, {
-         method: 'POST',
-         headers: { 'Content-Type': 'application/json' },
-         body: JSON.stringify(payload)
-      });
-      if (res.ok) {
-        alert("Receita criada com sucesso!");
+        const res = await fetch(`${API_BASE_URL}/transactions/simple`, {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          alert("✓ Receita do Caixa da Barbearia enviada para o financeiro com sucesso!");
+        } else {
+          alert("Erro ao criar transação do caixa.");
+        }
       } else {
-        alert("Erro ao criar transação.");
+        // Pagamento de comissão do barbeiro:
+        // 1. Criar Receita Paga para a Barbearia (Faturamento Atendimentos)
+        const faturamentoTotal = receitaData.faturamentoTotal > 0 ? receitaData.faturamentoTotal : receitaData.totalComissao;
+        const payloadRevenueBarbearia = {
+          idEmail: user.idEmail || user.id,
+          type: 'revenue',
+          name: `Faturamento Atendimentos - ${receitaData.nome} (${dataFormatada})`,
+          amount: faturamentoTotal,
+          date: dataFiltro,
+          status: 'pago',
+          category: 'Faturamento Atendimentos'
+        };
+
+        // 2. Criar Despesa Paga para a Barbearia (Comissão do Barbeiro)
+        const payloadExpenseBarbearia = {
+          idEmail: user.idEmail || user.id,
+          type: 'expense',
+          name: `Pagamento Comissão - ${receitaData.nome} (${dataFormatada})`,
+          amount: receitaData.totalComissao,
+          date: dataFiltro,
+          status: 'pago',
+          category: 'Comissão de Barbeiro'
+        };
+
+        // 3. Criar Receita Paga para o Barbeiro
+        let barbeiroIdEmail = (receitaData.barbeiro?.email || '').replace(/\D/g, "");
+        if (!barbeiroIdEmail || barbeiroIdEmail.length < 5) {
+          barbeiroIdEmail = receitaData.barbeiro?.id || user.idEmail || user.id;
+        }
+
+        const payloadRevenueBarbeiro = {
+          idEmail: barbeiroIdEmail,
+          type: 'revenue',
+          name: `Comissão Recebida - ${receitaData.nome} (${dataFormatada})`,
+          amount: receitaData.totalComissao,
+          date: dataFiltro,
+          status: 'pago',
+          category: 'Comissão Recebida'
+        };
+
+        const postTx = async (payload: any) => {
+          const endpoints = [
+            'https://stok-5ytv.onrender.com/api/v1/transactions/simple',
+            `${API_BASE_URL}/transactions/simple`,
+            `${API_BASE_URL}/transactions`
+          ];
+          for (const ep of endpoints) {
+            try {
+              const res = await fetch(ep, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+              });
+              if (res.ok) return true;
+            } catch (e) {
+              console.error(`Erro ao postar transação em ${ep}:`, e);
+            }
+          }
+          return false;
+        };
+
+        const [resRevBarb, resExpBarb, resRevBarbeiro] = await Promise.all([
+          postTx(payloadRevenueBarbearia),
+          postTx(payloadExpenseBarbearia),
+          postTx(payloadRevenueBarbeiro)
+        ]);
+
+        if (resRevBarb || resExpBarb || resRevBarbeiro) {
+          const key = receitaData.periodKey || `${receitaData.barbeiro?.id || receitaData.barbeiroId}_${receitaData.subTab === 'mensal' ? 'm' : 'd'}_${receitaData.subTab === 'mensal' ? dataFiltro.slice(0, 7) : dataFiltro}`;
+          
+          setPaidCommissions(prev => ({
+            ...prev,
+            [key]: {
+              paidAt: new Date().toISOString(),
+              amount: receitaData.totalComissao,
+              barbeiroNome: receitaData.nome
+            }
+          }));
+
+          alert(`✓ Pagamento de comissão de R$ ${receitaData.totalComissao.toFixed(2)} registrado com sucesso!\n\n` +
+            `• 🟢 RECEITA PAGA (R$ ${faturamentoTotal.toFixed(2)}) enviada para a Barbearia (Faturamento).\n` +
+            `• 🔴 DESPESA PAGA (R$ ${receitaData.totalComissao.toFixed(2)}) enviada para o financeiro da Barbearia (Comissão).\n` +
+            `• 🟢 RECEITA PAGA (R$ ${receitaData.totalComissao.toFixed(2)}) enviada para a conta do Barbeiro (${receitaData.nome}).\n` +
+            `• 🔒 Sinalizado como PAGO para evitar pagamentos em duplicidade.`);
+        } else {
+          alert("Erro ao registrar pagamento de comissão no financeiro.");
+        }
       }
     } catch (e) {
       console.error(e);
-      alert("Erro ao criar transação.");
+      alert("Erro ao criar transação de comissão.");
     }
     setIsFinalizando(false);
     setIsFinalizarCaixaOpen(false);
@@ -1726,19 +2416,19 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
       let totalTaxas = 0;
 
       const detalhesAtendimentos = registrosBarbeiro.map(r => {
-        const subtotalServicos = (r.itens || []).filter((i: any) => i.tipo === 'servico').reduce((acc: number, i: any) => acc + (i.valor || 0), 0);
+        const subtotalServicos = (r.itens || []).filter((i: any) => i.tipo === 'servico' || i.tipo === 'assinatura' || i.idItem === 'assinatura' || (i.nome && i.nome.toLowerCase().includes('assinatura'))).reduce((acc: number, i: any) => acc + (i.valor || 0), 0);
         const subtotalProdutos = (r.itens || []).filter((i: any) => i.tipo === 'produto').reduce((acc: number, i: any) => acc + (i.valor || 0), 0);
         const desconto = r.desconto ?? r.pagamento?.desconto ?? 0;
         const servicosValorCobrado = Math.max(0, subtotalServicos - Math.min(desconto, subtotalServicos));
-        const factorServico = subtotalServicos > 0 ? servicosValorCobrado / subtotalServicos : 0;
+        const factorServico = subtotalServicos > 0 ? servicosValorCobrado / subtotalServicos : 1;
 
-        const isAssinatura = Boolean(r.temAssinatura || r.isSubscription || r.assinatura?.possui || r.itens?.some((i: any) => i.idItem === 'assinatura' || (i.nome && i.nome.toLowerCase().includes('assinatura'))));
+        const isAssinatura = Boolean(r.temAssinatura || r.isSubscription || r.assinatura?.possui || r.itens?.some((i: any) => i.idItem === 'assinatura' || i.tipo === 'assinatura' || (i.nome && i.nome.toLowerCase().includes('assinatura'))));
 
         let comissaoServicoAtend = 0;
         let comissaoProdutoAtend = 0;
 
         if (isAssinatura) {
-          const valServicos = subtotalServicos > 0 ? subtotalServicos : (r.valorOriginal || 0);
+          const valServicos = subtotalServicos > 0 ? subtotalServicos : (r.valorOriginal || r.valorTotal || r.total || 0);
           if (valServicos > 30) {
             comissaoServicoAtend = 17.5;
           } else if (valServicos > 0) {
@@ -1753,7 +2443,7 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
           });
         } else {
           (r.itens || []).forEach((item: any) => {
-            if (item.tipo === 'servico') {
+            if (item.tipo === 'servico' || item.tipo === 'assinatura' || item.idItem === 'assinatura' || (item.nome && item.nome.toLowerCase().includes('assinatura'))) {
               const servicoValorComDesconto = item.valor * factorServico;
               comissaoServicoAtend += servicoValorComDesconto * (barbeiro.corte / 100);
             } else if (item.tipo === 'produto') {
@@ -1764,7 +2454,8 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
           });
         }
 
-        const valorTotalAtend = servicosValorCobrado + subtotalProdutos;
+        const valCalcAtend = servicosValorCobrado + subtotalProdutos;
+        const valorTotalAtend = valCalcAtend > 0 ? valCalcAtend : (r.total || r.valorOriginal || r.valorTotal || 0);
         const comissaoTotalAtend = comissaoServicoAtend + comissaoProdutoAtend;
 
         return {
@@ -1785,53 +2476,85 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
 
       registrosBarbeiro.forEach(r => {
         let totalItem = 0;
-        const subtotalServicos = r.itens.filter((i: any) => i.tipo === 'servico').reduce((acc: number, i: any) => acc + (i.valor || 0), 0);
+        const subtotalServicos = (r.itens || []).filter((i: any) => i.tipo === 'servico' || i.tipo === 'assinatura' || i.idItem === 'assinatura' || (i.nome && i.nome.toLowerCase().includes('assinatura'))).reduce((acc: number, i: any) => acc + (i.valor || 0), 0);
         const desconto = r.desconto ?? r.pagamento?.desconto ?? 0;
         const servicosValorCobrado = Math.max(0, subtotalServicos - Math.min(desconto, subtotalServicos));
-        const factorServico = subtotalServicos > 0 ? servicosValorCobrado / subtotalServicos : 0;
+        const factorServico = subtotalServicos > 0 ? servicosValorCobrado / subtotalServicos : 1;
 
-        const isAssinatura = Boolean(r.temAssinatura || r.isSubscription || r.assinatura?.possui || r.itens?.some((i: any) => i.idItem === 'assinatura' || (i.nome && i.nome.toLowerCase().includes('assinatura'))));
+        const isAssinatura = Boolean(r.temAssinatura || r.isSubscription || r.assinatura?.possui || r.itens?.some((i: any) => i.idItem === 'assinatura' || i.tipo === 'assinatura' || (i.nome && i.nome.toLowerCase().includes('assinatura'))));
 
         if (isAssinatura) {
           // Assinatura: comissão por serviço é R$ 10 para agendamento até R$ 30, e R$ 17,50 acima de R$ 30
-          const valServicos = subtotalServicos > 0 ? subtotalServicos : (r.valorOriginal || 0);
+          const valServicos = subtotalServicos > 0 ? subtotalServicos : (r.valorOriginal || r.valorTotal || r.total || 0);
           if (valServicos > 30) {
             comissaoServicos += 17.5;
           } else if (valServicos > 0) {
             comissaoServicos += 10;
           }
-          r.itens.forEach((item: any) => {
-            if (item.tipo === 'servico') {
-              const servicoValorComDesconto = item.valor * factorServico;
+
+          let temItemProcessado = false;
+          (r.itens || []).forEach((item: any) => {
+            if (item.tipo === 'servico' || item.tipo === 'assinatura' || item.idItem === 'assinatura' || (item.nome && item.nome.toLowerCase().includes('assinatura'))) {
+              const servicoValorComDesconto = item.valor > 0 ? item.valor * factorServico : 0;
               faturamentoTotal += servicoValorComDesconto;
               totalServicos += servicoValorComDesconto;
               totalItem += servicoValorComDesconto;
+              temItemProcessado = true;
             } else if (item.tipo === 'produto') {
               faturamentoTotal += item.valor;
               totalProdutos += item.valor;
               totalItem += item.valor;
+              temItemProcessado = true;
               const produtoObj = produtos.find(p => p.id === item.idItem);
               const override = produtoObj && Number(produtoObj.comissao) > 0 ? Number(produtoObj.comissao) : Number(barbeiro.comissao);
               comissaoProdutos += item.valor * ((override || 0) / 100);
+            } else if (item.valor > 0) {
+              faturamentoTotal += item.valor;
+              totalItem += item.valor;
+              temItemProcessado = true;
             }
           });
+
+          if (!temItemProcessado || totalItem === 0) {
+            const valAtend = r.total || r.valorOriginal || r.valorTotal || valServicos || 0;
+            if (valAtend > 0) {
+              faturamentoTotal += valAtend;
+              totalServicos += valAtend;
+            }
+          }
         } else {
-          r.itens.forEach((item: any) => {
-            if (item.tipo === 'servico') {
+          let temItemProcessado = false;
+          (r.itens || []).forEach((item: any) => {
+            if (item.tipo === 'servico' || item.tipo === 'assinatura' || item.idItem === 'assinatura' || (item.nome && item.nome.toLowerCase().includes('assinatura'))) {
               const servicoValorComDesconto = item.valor * factorServico;
               faturamentoTotal += servicoValorComDesconto;
               totalServicos += servicoValorComDesconto;
               totalItem += servicoValorComDesconto;
+              temItemProcessado = true;
               comissaoServicos += servicoValorComDesconto * (barbeiro.corte / 100);
             } else if (item.tipo === 'produto') {
               faturamentoTotal += item.valor;
               totalProdutos += item.valor;
               totalItem += item.valor;
+              temItemProcessado = true;
               const produtoObj = produtos.find(p => p.id === item.idItem);
               const override = produtoObj && Number(produtoObj.comissao) > 0 ? Number(produtoObj.comissao) : Number(barbeiro.comissao);
               comissaoProdutos += item.valor * ((override || 0) / 100);
+            } else if (item.valor > 0) {
+              faturamentoTotal += item.valor;
+              totalItem += item.valor;
+              temItemProcessado = true;
             }
           });
+
+          if (!temItemProcessado || totalItem === 0) {
+            const valAtend = r.total || r.valorOriginal || r.valorTotal || 0;
+            if (valAtend > 0) {
+              faturamentoTotal += valAtend;
+              totalServicos += valAtend;
+              comissaoServicos += valAtend * (barbeiro.corte / 100);
+            }
+          }
         }
 
         // Compute taxas
@@ -2012,6 +2735,8 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                     {comissoesDia.map((c, idx) => {
                       const expandKey = c.barbeiro.id + '_d';
                       const isExpanded = Boolean(expandedBarbeiros[expandKey]);
+                      const paidKey = `${c.barbeiro.id}_d_${dataFiltro}`;
+                      const isPaid = Boolean(paidCommissions[paidKey]);
                       return (
                         <div key={idx} className="bg-gray-900/80 p-4 sm:p-6 rounded-2xl border border-gray-800 flex flex-col gap-4 sm:gap-5 transition-all hover:border-gray-700/80 shadow-lg">
                           {/* Header Row */}
@@ -2022,6 +2747,11 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                                 <span className="text-[11px] sm:text-xs bg-blue-900/40 text-blue-300 font-medium px-2 py-0.5 rounded border border-blue-800/40 shrink-0">
                                   Corte {c.barbeiro.corte}% • Prod {c.barbeiro.comissao}%
                                 </span>
+                                {isPaid && (
+                                  <span className="text-[11px] bg-emerald-500/20 text-emerald-400 font-bold px-2.5 py-0.5 rounded-full border border-emerald-500/40 flex items-center gap-1">
+                                    ✓ COMISSÃO PAGA
+                                  </span>
+                                )}
                               </div>
                               <div className="text-xs sm:text-sm text-gray-400 flex items-center gap-2.5 flex-wrap">
                                 <span>Fat. do Barbeiro: <strong className="text-white">R$ {c.faturamentoTotal.toFixed(2)}</strong></span>
@@ -2030,17 +2760,36 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                               </div>
                             </div>
 
-                            <button 
-                              onClick={() => {
-                                setReceitaData({ ...c, nome: c.barbeiro.nome });
-                                setIsFinalizarCaixaOpen(true);
-                              }}
-                              className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-emerald-950/60 hover:bg-emerald-900/80 border border-emerald-500/50 text-emerald-300 text-xs sm:text-sm font-semibold rounded-xl transition-all shadow-sm hover:border-emerald-400 shrink-0 w-full sm:w-auto mt-1 sm:mt-0"
-                              title="Finalizar Caixa (Criar Receita)"
-                            >
-                              <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                              <span>Lançar no Caixa</span>
-                            </button>
+                            {isPaid ? (
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className="flex items-center gap-1.5 px-3 py-2 bg-emerald-950/80 text-emerald-400 border border-emerald-500/50 text-xs sm:text-sm font-bold rounded-xl shadow-sm">
+                                  <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>
+                                  <span>Pago em {dataFiltro.split('-').reverse().join('/')}</span>
+                                </span>
+                                <button 
+                                  onClick={() => {
+                                    setReceitaData({ ...c, nome: c.barbeiro.nome, periodKey: paidKey, subTab: 'diario' });
+                                    setIsFinalizarCaixaOpen(true);
+                                  }}
+                                  className="text-xs text-gray-400 hover:text-white underline px-1 py-1"
+                                  title="Refazer pagamento de comissão"
+                                >
+                                  Reenviar
+                                </button>
+                              </div>
+                            ) : (
+                              <button 
+                                onClick={() => {
+                                  setReceitaData({ ...c, nome: c.barbeiro.nome, periodKey: paidKey, subTab: 'diario' });
+                                  setIsFinalizarCaixaOpen(true);
+                                }}
+                                className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold rounded-xl transition-all shadow-sm hover:shadow-emerald-900/50 shrink-0 w-full sm:w-auto mt-1 sm:mt-0"
+                                title="Pagar Comissão do Barbeiro (Criará Receita e Despesa para a Barbearia, e Receita para o Barbeiro)"
+                              >
+                                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                <span>Pagar Comissão</span>
+                              </button>
+                            )}
                           </div>
 
                           {/* Metrics Grid */}
@@ -2191,6 +2940,8 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                     {comissoesMes.map((c, idx) => {
                       const expandKey = c.barbeiro.id + '_m';
                       const isExpanded = Boolean(expandedBarbeiros[expandKey]);
+                      const paidKey = `${c.barbeiro.id}_m_${dataFiltro.slice(0, 7)}`;
+                      const isPaid = Boolean(paidCommissions[paidKey]);
                       return (
                         <div key={idx} className="bg-gray-900/80 p-4 sm:p-6 rounded-2xl border border-gray-800 flex flex-col gap-4 sm:gap-5 transition-all hover:border-gray-700/80 shadow-lg">
                           {/* Header Row */}
@@ -2201,6 +2952,11 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                                 <span className="text-[11px] sm:text-xs bg-blue-900/40 text-blue-300 font-medium px-2 py-0.5 rounded border border-blue-800/40 shrink-0">
                                   Corte {c.barbeiro.corte}% • Prod {c.barbeiro.comissao}%
                                 </span>
+                                {isPaid && (
+                                  <span className="text-[11px] bg-emerald-500/20 text-emerald-400 font-bold px-2.5 py-0.5 rounded-full border border-emerald-500/40 flex items-center gap-1">
+                                    ✓ COMISSÃO PAGA
+                                  </span>
+                                )}
                               </div>
                               <div className="text-xs sm:text-sm text-gray-400 flex items-center gap-2.5 flex-wrap">
                                 <span>Fat. do Barbeiro: <strong className="text-white">R$ {c.faturamentoTotal.toFixed(2)}</strong></span>
@@ -2209,17 +2965,36 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                               </div>
                             </div>
 
-                            <button 
-                              onClick={() => {
-                                setReceitaData({ ...c, nome: c.barbeiro.nome });
-                                setIsFinalizarCaixaOpen(true);
-                              }}
-                              className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-emerald-950/60 hover:bg-emerald-900/80 border border-emerald-500/50 text-emerald-300 text-xs sm:text-sm font-semibold rounded-xl transition-all shadow-sm hover:border-emerald-400 shrink-0 w-full sm:w-auto mt-1 sm:mt-0"
-                              title="Finalizar Caixa (Criar Receita)"
-                            >
-                              <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                              <span>Lançar no Caixa</span>
-                            </button>
+                            {isPaid ? (
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className="flex items-center gap-1.5 px-3 py-2 bg-emerald-950/80 text-emerald-400 border border-emerald-500/50 text-xs sm:text-sm font-bold rounded-xl shadow-sm">
+                                  <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>
+                                  <span>Mês Pago</span>
+                                </span>
+                                <button 
+                                  onClick={() => {
+                                    setReceitaData({ ...c, nome: c.barbeiro.nome, periodKey: paidKey, subTab: 'mensal' });
+                                    setIsFinalizarCaixaOpen(true);
+                                  }}
+                                  className="text-xs text-gray-400 hover:text-white underline px-1 py-1"
+                                  title="Refazer pagamento de comissão do mês"
+                                >
+                                  Reenviar
+                                </button>
+                              </div>
+                            ) : (
+                              <button 
+                                onClick={() => {
+                                  setReceitaData({ ...c, nome: c.barbeiro.nome, periodKey: paidKey, subTab: 'mensal' });
+                                  setIsFinalizarCaixaOpen(true);
+                                }}
+                                className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold rounded-xl transition-all shadow-sm hover:shadow-emerald-900/50 shrink-0 w-full sm:w-auto mt-1 sm:mt-0"
+                                title="Pagar Comissão do Mês (Criará Receita e Despesa para a Barbearia, e Receita para o Barbeiro)"
+                              >
+                                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                <span>Pagar Comissão do Mês</span>
+                              </button>
+                            )}
                           </div>
 
                           {/* Metrics Grid */}
@@ -2769,35 +3544,58 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                             <th className="p-2.5 text-right">Fat. Gerado</th>
                             <th className="p-2.5 text-right">Com. Serviços</th>
                             <th className="p-2.5 text-right">Com. Produtos</th>
-                            <th className="p-2.5 text-right rounded-r-lg">Comissão Total</th>
+                            <th className="p-2.5 text-right">Comissão Total</th>
+                            <th className="p-2.5 text-center rounded-r-lg">Status / Ação</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-800/60">
-                          {comissoesMes.map((c, idx) => (
-                            <tr key={c.barbeiroId || c.nome || `barb-${idx}`} className="hover:bg-gray-800/40 transition-colors">
-                              <td className="p-2.5 font-bold text-white flex items-center gap-2">
-                                <div className="w-6 h-6 rounded-full bg-blue-600/30 text-blue-300 font-bold text-[10px] flex items-center justify-center shrink-0">
-                                  {(c.nome || 'Barbeiro').substring(0, 2).toUpperCase()}
-                                </div>
-                                {c.nome || 'Barbeiro'}
-                              </td>
-                              <td className="p-2.5 text-center font-medium text-gray-300">
-                                {c.detalhesAtendimentos?.length || 0}
-                              </td>
-                              <td className="p-2.5 text-right font-medium text-gray-200">
-                                R$ {c.faturamentoTotal.toFixed(2)}
-                              </td>
-                              <td className="p-2.5 text-right font-semibold text-blue-400">
-                                R$ {c.comissaoServicos.toFixed(2)}
-                              </td>
-                              <td className="p-2.5 text-right font-semibold text-purple-400">
-                                R$ {c.comissaoProdutos.toFixed(2)}
-                              </td>
-                              <td className="p-2.5 text-right font-extrabold text-emerald-400">
-                                R$ {c.totalComissao.toFixed(2)}
-                              </td>
-                            </tr>
-                          ))}
+                          {comissoesMes.map((c, idx) => {
+                            const paidKey = `${c.barbeiro.id}_m_${dataFiltro.slice(0, 7)}`;
+                            const isPaid = Boolean(paidCommissions[paidKey]);
+                            return (
+                              <tr key={c.barbeiroId || c.nome || `barb-${idx}`} className="hover:bg-gray-800/40 transition-colors">
+                                <td className="p-2.5 font-bold text-white flex items-center gap-2">
+                                  <div className="w-6 h-6 rounded-full bg-blue-600/30 text-blue-300 font-bold text-[10px] flex items-center justify-center shrink-0">
+                                    {(c.nome || 'Barbeiro').substring(0, 2).toUpperCase()}
+                                  </div>
+                                  {c.nome || 'Barbeiro'}
+                                </td>
+                                <td className="p-2.5 text-center font-medium text-gray-300">
+                                  {c.detalhesAtendimentos?.length || 0}
+                                </td>
+                                <td className="p-2.5 text-right font-medium text-gray-200">
+                                  R$ {c.faturamentoTotal.toFixed(2)}
+                                </td>
+                                <td className="p-2.5 text-right font-semibold text-blue-400">
+                                  R$ {c.comissaoServicos.toFixed(2)}
+                                </td>
+                                <td className="p-2.5 text-right font-semibold text-purple-400">
+                                  R$ {c.comissaoProdutos.toFixed(2)}
+                                </td>
+                                <td className="p-2.5 text-right font-extrabold text-emerald-400">
+                                  R$ {c.totalComissao.toFixed(2)}
+                                </td>
+                                <td className="p-2.5 text-center">
+                                  {isPaid ? (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[10px] font-bold rounded-lg">
+                                      ✓ PAGO
+                                    </span>
+                                  ) : (
+                                    <button
+                                      onClick={() => {
+                                        setReceitaData({ ...c, nome: c.barbeiro.nome, periodKey: paidKey, subTab: 'mensal' });
+                                        setIsFinalizarCaixaOpen(true);
+                                      }}
+                                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold rounded-lg transition-all shadow-sm"
+                                      title="Pagar comissão do mês"
+                                    >
+                                      Pagar
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -3201,10 +3999,18 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
         isOpen={isFinalizarCaixaOpen}
         onClose={() => setIsFinalizarCaixaOpen(false)}
         onConfirm={handleFinalizarCaixa}
-        title={receitaData?.isBarbearia ? "Fechar Barbearia (Criar Receita)" : "Finalizar Caixa (Criar Receita)"}
+        title={receitaData?.isBarbearia 
+          ? "Fechar Caixa Barbearia (Criar Receita)" 
+          : `Pagar Comissão - ${receitaData?.nome || 'Barbeiro'}`
+        }
         message={receitaData?.isBarbearia 
-          ? `Tem certeza que deseja fechar o caixa da barbearia (R$ ${receitaData?.caixaBarbearia?.toFixed(2)}) e enviar para o fluxo de caixa? Isso criará uma transação de Receita para o administrador.`
-          : `Tem certeza que deseja enviar o valor total de R$ ${receitaData?.totalComissao?.toFixed(2)} das comissões de ${receitaData?.nome} para o fluxo de caixa? Isso criará uma transação de Receita.`
+          ? `Tem certeza que deseja fechar o caixa da barbearia (R$ ${receitaData?.caixaBarbearia?.toFixed(2)}) e enviar para o fluxo de caixa? Isso criará uma transação de Receita.`
+          : `Deseja efetuar o pagamento das comissões de ${receitaData?.nome} no valor de R$ ${receitaData?.totalComissao?.toFixed(2)}?\n\n` +
+            `Ações que serão realizadas:\n` +
+            `• 🟢 RECEITA PAGA de R$ ${(receitaData?.faturamentoTotal > 0 ? receitaData?.faturamentoTotal : receitaData?.totalComissao)?.toFixed(2)} enviada para a Barbearia (Faturamento de Serviços, Produtos e Assinaturas).\n` +
+            `• 🔴 DESPESA PAGA de R$ ${receitaData?.totalComissao?.toFixed(2)} enviada para o financeiro da Barbearia (Comissão).\n` +
+            `• 🟢 RECEITA PAGA de R$ ${receitaData?.totalComissao?.toFixed(2)} enviada para a conta do barbeiro.\n` +
+            `• 🔒 Sinalização do status como PAGO para evitar pagamentos duplicados.`
         }
       />
     </div>
