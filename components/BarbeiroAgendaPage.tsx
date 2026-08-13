@@ -8,6 +8,7 @@ import { CustomDatePicker } from './CustomDatePicker';
 import ConfirmationModal from './ConfirmationModal';
 import { API_BASE_URL } from '../constants';
 import { CadastrarAssinaturaModal } from './CadastrarAssinaturaModal';
+import { commissionsService } from '../services/commissionsService';
 
 interface BarbeiroAgendaPageProps {
   user: User;
@@ -341,29 +342,58 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
       const barbeiroObj = barbeiros.find(b => b.id === selectedBarbeiroId);
       const barbeiroNome = barbeiroObj?.nome || "Barbeiro";
       const dataFormatada = selectedDate.split('-').reverse().join('/');
+      const empresaKey = (empresa?.id as string) || 'default';
+      const key = `${selectedBarbeiroId}_d_${selectedDate}`;
+
+      let barbeiroIdEmail = (barbeiroObj?.idEmail || barbeiroObj?.email || barbeiroObj?.telefone || barbeiroObj?.id || user.email || user.idEmail || user.id || '').trim();
+      let barbeiroRealEmail = (barbeiroObj?.email && barbeiroObj.email.includes('@') && barbeiroObj.email.includes('.')) 
+        ? barbeiroObj.email.trim() 
+        : ((user?.email && user.email.includes('@') && user.email.includes('.')) ? user.email.trim() : '');
+
+      // Ler comissões já pagas anteriormente via API
+      const existingRecords = await commissionsService.getByLink(empresaKey);
+
+      const normEmail = barbeiroIdEmail.toLowerCase().trim();
+      const normNome = barbeiroNome.toLowerCase().trim();
+      const normId = selectedBarbeiroId.toLowerCase().trim();
+
+      const totalPagoAnterior = existingRecords
+        .filter(r => {
+          if (r.status !== 'pago') return false;
+          const rEmail = (r.email || '').toLowerCase().trim();
+          const rNome = (r.barbeiroNome || '').toLowerCase().trim();
+          const sameBarbeiro = (normEmail && rEmail && normEmail === rEmail) ||
+            (normNome && rNome && normNome === rNome) ||
+            (normId && (rEmail === normId || rNome === normId));
+          return sameBarbeiro && r.data === selectedDate;
+        })
+        .reduce((sum, r) => sum + (Number(r.valorComissao) || 0), 0);
+
+      const valorAPagar = Math.max(0, Number((totalComissaoDia - totalPagoAnterior).toFixed(2)));
+
+      if (valorAPagar <= 0) {
+        alert("✓ A comissão deste barbeiro para o dia de hoje já foi totalmente paga!");
+        setIsFinalizarCaixaOpen(false);
+        return;
+      }
 
       // 1. Despesa para a Barbearia
       const payloadExpense = {
         idEmail: user.idEmail || user.id,
         type: 'expense',
         name: `Pagamento Comissão - ${barbeiroNome} (${dataFormatada})`,
-        amount: totalComissaoDia,
+        amount: valorAPagar,
         date: selectedDate,
         status: 'pago',
         category: 'Comissão de Barbeiro'
       };
 
       // 2. Receita para o Barbeiro
-      let barbeiroIdEmail = (barbeiroObj?.email || '').replace(/\D/g, "");
-      if (!barbeiroIdEmail || barbeiroIdEmail.length < 5) {
-        barbeiroIdEmail = barbeiroObj?.id || user.idEmail || user.id;
-      }
-
       const payloadRevenue = {
         idEmail: barbeiroIdEmail,
         type: 'revenue',
         name: `Comissão Recebida - ${barbeiroNome} (${dataFormatada})`,
-        amount: totalComissaoDia,
+        amount: valorAPagar,
         date: selectedDate,
         status: 'pago',
         category: 'Comissão Recebida'
@@ -379,20 +409,19 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payloadRevenue)
-        }).catch(() => null)
+        }).catch(() => null),
+        commissionsService.create({
+          email: barbeiroRealEmail,
+          valorComissao: valorAPagar,
+          data: selectedDate,
+          status: 'pago',
+          linkId: empresaKey,
+          barbeiroNome,
+          paidAt: new Date().toISOString()
+        })
       ]);
 
-      const key = `${selectedBarbeiroId}_d_${selectedDate}`;
-      try {
-        const empresaKey = (empresa?.id as string) || 'default';
-        const saved = localStorage.getItem(`barbearia_paid_commissions_${empresaKey}`);
-        const parsed = saved ? JSON.parse(saved) : {};
-        parsed[key] = { paidAt: new Date().toISOString(), amount: totalComissaoDia, barbeiroNome };
-        localStorage.setItem(`barbearia_paid_commissions_${empresaKey}`, JSON.stringify(parsed));
-      } catch (e) {
-        console.error(e);
-      }
-
+      alert(`✓ Pagamento de comissão de R$ ${valorAPagar.toFixed(2)} realizado com sucesso!`);
       setIsFinalizarCaixaOpen(false);
     } catch (e) {
       console.error(e);

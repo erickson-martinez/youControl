@@ -10,6 +10,7 @@ import MonthNavigator from './MonthNavigator';
 import ConfirmationModal from './ConfirmationModal';
 import BarbeiroAgendaPage from './BarbeiroAgendaPage';
 import { CadastrarAssinaturaForm, SubscriptionPlan, SubscriptionClient } from './CadastrarAssinaturaForm';
+import { commissionsService, Commission, extractValidEmail } from '../services/commissionsService';
 
 const DIAS_SEMANA = [
   'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'
@@ -2101,6 +2102,81 @@ const TabMetas = ({ empresaId }: { empresaId?: string }) => {
   );
 };
 
+export interface CommissionPaymentRecord {
+  id?: string;
+  email: string;
+  valorComissao: number;
+  data: string;
+  status: 'pago' | 'pendente' | 'cancelado';
+  linkId: string;
+  barbeiroNome: string;
+  paidAt?: string;
+}
+
+export const loadPaidCommissionsFromStorage = async (empresaId: string): Promise<CommissionPaymentRecord[]> => {
+  return await commissionsService.getByLink(empresaId);
+};
+
+export const formatarDateTime = (isoOrStr?: string) => {
+  if (!isoOrStr) return '-';
+  try {
+    const d = new Date(isoOrStr);
+    if (isNaN(d.getTime())) return isoOrStr;
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, '0');
+    const mins = String(d.getMinutes()).padStart(2, '0');
+    return `${day}/${month}/${year} às ${hours}:${mins}`;
+  } catch (e) {
+    return isoOrStr;
+  }
+};
+
+export const getPaidStatsForBarbeiro = (
+  records: CommissionPaymentRecord[],
+  barbeiroId: string,
+  barbeiroEmail: string,
+  barbeiroNome: string,
+  periodKey: string,
+  dataFiltro: string,
+  totalCalculado: number
+) => {
+  const normEmail = (barbeiroEmail || '').toLowerCase().trim();
+  const normNome = (barbeiroNome || '').toLowerCase().trim();
+  const normId = (barbeiroId || '').toLowerCase().trim();
+
+  const matchingPayments = records.filter(r => {
+    if (r.status !== 'pago') return false;
+
+    const rEmail = (r.email || '').toLowerCase().trim();
+    const rNome = (r.barbeiroNome || '').toLowerCase().trim();
+
+    const sameBarbeiro = (normEmail && rEmail && normEmail === rEmail) ||
+      (normNome && rNome && normNome === rNome) ||
+      (normId && (rEmail === normId || rNome === normId));
+
+    const sameDate = r.data === dataFiltro;
+
+    return sameBarbeiro && sameDate;
+  });
+
+  const totalPago = matchingPayments.reduce((acc, r) => acc + (Number(r.valorComissao) || 0), 0);
+  const comissaoPendente = Math.max(0, Number((totalCalculado - totalPago).toFixed(2)));
+
+  const isFullyPaid = totalPago >= totalCalculado && totalCalculado > 0;
+  const isPartiallyPaid = totalPago > 0 && comissaoPendente > 0;
+
+  return {
+    totalPago,
+    comissaoPendente,
+    isFullyPaid,
+    isPartiallyPaid,
+    paymentsCount: matchingPayments.length,
+    lastPaymentAt: matchingPayments.length > 0 ? matchingPayments[matchingPayments.length - 1].paidAt : null
+  };
+};
+
 const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) => {
   const { registros, addRegistro, removeRegistro, loadRegistros } = useBarbeariaRegistros(empresaId);
   const { agendamentos, updateStatus, loadAgendamentos } = useBarbeariaAgendamentos(empresaId);
@@ -2147,26 +2223,45 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
   const [activeSubTab, setActiveSubTab] = useState<'aguardando' | 'diario' | 'mensal' | 'historico' | 'lucro'>('aguardando');
 
   const [expandedBarbeiros, setExpandedBarbeiros] = useState<Record<string, boolean>>({});
-  const toggleExpandBarbeiro = (id: string) => {
-    setExpandedBarbeiros(prev => ({ ...prev, [id]: !prev[id] }));
+  const [cardAccordionMode, setCardAccordionMode] = useState<Record<string, 'atendimentos' | 'pagamentos'>>({});
+  const [selectedBarberLogFilter, setSelectedBarberLogFilter] = useState<string>('todos');
+
+  const toggleExpandBarbeiro = (id: string, defaultMode: 'atendimentos' | 'pagamentos' = 'atendimentos') => {
+    setExpandedBarbeiros(prev => {
+      const willExpand = !prev[id];
+      if (willExpand) {
+        setCardAccordionMode(m => ({ ...m, [id]: defaultMode }));
+      }
+      return { ...prev, [id]: willExpand };
+    });
   };
 
-  const [paidCommissions, setPaidCommissions] = useState<Record<string, { paidAt: string; amount: number; barbeiroNome?: string }>>(() => {
-    try {
-      const saved = localStorage.getItem(`barbearia_paid_commissions_${empresaId || 'default'}`);
-      return saved ? JSON.parse(saved) : {};
-    } catch (e) {
-      return {};
-    }
-  });
+  const [paidCommissionsList, setPaidCommissionsList] = useState<CommissionPaymentRecord[]>([]);
+
+  const loadCommissions = useCallback(async () => {
+    const linkId = empresaId || 'default';
+    const list = await commissionsService.getByLink(linkId);
+    setPaidCommissionsList(list);
+  }, [empresaId]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(`barbearia_paid_commissions_${empresaId || 'default'}`, JSON.stringify(paidCommissions));
-    } catch (e) {
-      console.error('Erro ao salvar comissões pagas no localStorage:', e);
+    loadCommissions();
+  }, [loadCommissions]);
+
+  const handleRemovePaidCommission = async (indexToRemove: number) => {
+    const item = paidCommissionsList[indexToRemove];
+    if (!item) return;
+
+    const nome = item.barbeiroNome || item.email || 'Barbeiro';
+    const dataFmt = (item.data || '').split('-').reverse().join('/');
+
+    if (confirm(`Deseja realmente estornar/remover o pagamento de R$ ${Number(item.valorComissao).toFixed(2)} (Ref: ${dataFmt}) do barbeiro ${nome}? O valor voltará a ficar pendente.`)) {
+      if (item.id) {
+        await commissionsService.delete(item.id);
+      }
+      await loadCommissions();
     }
-  }, [paidCommissions, empresaId]);
+  };
 
   const [isFinalizarCaixaOpen, setIsFinalizarCaixaOpen] = useState(false);
   const [isFinalizando, setIsFinalizando] = useState(false);
@@ -2207,16 +2302,20 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
         }
       } else {
         // Pagamento de comissão do barbeiro:
-        // 1. Criar Receita Paga para a Barbearia (Faturamento Atendimentos)
-        const faturamentoTotal = receitaData.faturamentoTotal > 0 ? receitaData.faturamentoTotal : receitaData.totalComissao;
+        const valorAPagar = receitaData.totalComissao;
+        const bObj = barbeiros.find(b => b.id === receitaData.barbeiro?.id || b.nome === receitaData.nome) || receitaData.barbeiro;
+        let barbeiroIdEmail = (bObj?.idEmail || bObj?.email || bObj?.telefone || bObj?.id || user.email || user.idEmail || user.id || '').trim();
+        let barbeiroRealEmail = extractValidEmail(bObj?.email) || extractValidEmail(user?.email);
+
+        // 1. Criar Receita Paga para a Barbearia (Sangria no valor da comissão)
         const payloadRevenueBarbearia = {
           idEmail: user.idEmail || user.id,
           type: 'revenue',
-          name: `Faturamento Atendimentos - ${receitaData.nome} (${dataFormatada})`,
-          amount: faturamentoTotal,
+          name: `Sangria Comissão - ${receitaData.nome} (${dataFormatada})`,
+          amount: valorAPagar,
           date: dataFiltro,
           status: 'pago',
-          category: 'Faturamento Atendimentos'
+          category: 'Sangria'
         };
 
         // 2. Criar Despesa Paga para a Barbearia (Comissão do Barbeiro)
@@ -2224,23 +2323,18 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
           idEmail: user.idEmail || user.id,
           type: 'expense',
           name: `Pagamento Comissão - ${receitaData.nome} (${dataFormatada})`,
-          amount: receitaData.totalComissao,
+          amount: valorAPagar,
           date: dataFiltro,
           status: 'pago',
           category: 'Comissão de Barbeiro'
         };
 
         // 3. Criar Receita Paga para o Barbeiro
-        let barbeiroIdEmail = (receitaData.barbeiro?.email || '').replace(/\D/g, "");
-        if (!barbeiroIdEmail || barbeiroIdEmail.length < 5) {
-          barbeiroIdEmail = receitaData.barbeiro?.id || user.idEmail || user.id;
-        }
-
         const payloadRevenueBarbeiro = {
           idEmail: barbeiroIdEmail,
           type: 'revenue',
           name: `Comissão Recebida - ${receitaData.nome} (${dataFormatada})`,
-          amount: receitaData.totalComissao,
+          amount: valorAPagar,
           date: dataFiltro,
           status: 'pago',
           category: 'Comissão Recebida'
@@ -2273,25 +2367,27 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
           postTx(payloadRevenueBarbeiro)
         ]);
 
-        if (resRevBarb || resExpBarb || resRevBarbeiro) {
-          const key = receitaData.periodKey || `${receitaData.barbeiro?.id || receitaData.barbeiroId}_${receitaData.subTab === 'mensal' ? 'm' : 'd'}_${receitaData.subTab === 'mensal' ? dataFiltro.slice(0, 7) : dataFiltro}`;
-          
-          setPaidCommissions(prev => ({
-            ...prev,
-            [key]: {
-              paidAt: new Date().toISOString(),
-              amount: receitaData.totalComissao,
-              barbeiroNome: receitaData.nome
-            }
-          }));
+        // Registrar comissão na API
+        const createdCommission = await commissionsService.create({
+          email: barbeiroRealEmail,
+          valorComissao: valorAPagar,
+          data: receitaData.subTab === 'mensal' ? dataFiltro.slice(0, 7) : dataFiltro,
+          status: 'pago',
+          linkId: empresaId || 'default',
+          barbeiroNome: receitaData.nome,
+          paidAt: new Date().toISOString()
+        });
 
-          alert(`✓ Pagamento de comissão de R$ ${receitaData.totalComissao.toFixed(2)} registrado com sucesso!\n\n` +
-            `• 🟢 RECEITA PAGA (R$ ${faturamentoTotal.toFixed(2)}) enviada para a Barbearia (Faturamento).\n` +
-            `• 🔴 DESPESA PAGA (R$ ${receitaData.totalComissao.toFixed(2)}) enviada para o financeiro da Barbearia (Comissão).\n` +
-            `• 🟢 RECEITA PAGA (R$ ${receitaData.totalComissao.toFixed(2)}) enviada para a conta do Barbeiro (${receitaData.nome}).\n` +
-            `• 🔒 Sinalizado como PAGO para evitar pagamentos em duplicidade.`);
+        if (createdCommission || resRevBarb || resExpBarb || resRevBarbeiro) {
+          await loadCommissions();
+
+          alert(`✓ Pagamento de comissão de R$ ${valorAPagar.toFixed(2)} registrado com sucesso na API de Comissões e Financeiro!\n\n` +
+            `• 🟢 RECEITA PAGA (R$ ${valorAPagar.toFixed(2)}) de Sangria enviada para a Barbearia.\n` +
+            `• 🔴 DESPESA PAGA (R$ ${valorAPagar.toFixed(2)}) de Comissão enviada para a Barbearia.\n` +
+            `• 🟢 RECEITA PAGA (R$ ${valorAPagar.toFixed(2)}) enviada para o Barbeiro (${receitaData.nome}).\n` +
+            `• 🌐 Registro salvo na API de Comissões.`);
         } else {
-          alert("Erro ao registrar pagamento de comissão no financeiro.");
+          alert("Erro ao registrar pagamento de comissão.");
         }
       }
     } catch (e) {
@@ -2307,6 +2403,7 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
     loadAgendamentos();
     reloadBarbeiros();
     loadConfig();
+    loadCommissions();
   };
 
   const pendentes = agendamentos.filter(a => {
@@ -2736,7 +2833,18 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                       const expandKey = c.barbeiro.id + '_d';
                       const isExpanded = Boolean(expandedBarbeiros[expandKey]);
                       const paidKey = `${c.barbeiro.id}_d_${dataFiltro}`;
-                      const isPaid = Boolean(paidCommissions[paidKey]);
+                      const stats = getPaidStatsForBarbeiro(
+                        paidCommissionsList,
+                        c.barbeiro.id,
+                        c.barbeiro.email || c.barbeiro.idEmail,
+                        c.barbeiro.nome,
+                        paidKey,
+                        dataFiltro,
+                        c.totalComissao
+                      );
+                      const isPaid = stats.isFullyPaid;
+                      const isPartiallyPaid = stats.isPartiallyPaid;
+
                       return (
                         <div key={idx} className="bg-gray-900/80 p-4 sm:p-6 rounded-2xl border border-gray-800 flex flex-col gap-4 sm:gap-5 transition-all hover:border-gray-700/80 shadow-lg">
                           {/* Header Row */}
@@ -2749,7 +2857,12 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                                 </span>
                                 {isPaid && (
                                   <span className="text-[11px] bg-emerald-500/20 text-emerald-400 font-bold px-2.5 py-0.5 rounded-full border border-emerald-500/40 flex items-center gap-1">
-                                    ✓ COMISSÃO PAGA
+                                    ✓ COMISSÃO QUITADA (R$ {stats.totalPago.toFixed(2)})
+                                  </span>
+                                )}
+                                {isPartiallyPaid && (
+                                  <span className="text-[11px] bg-amber-500/20 text-amber-300 font-bold px-2.5 py-0.5 rounded-full border border-amber-500/40 flex items-center gap-1">
+                                    ⚡ NOVO SALDO PENDENTE: R$ {stats.comissaoPendente.toFixed(2)}
                                   </span>
                                 )}
                               </div>
@@ -2764,30 +2877,42 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                               <div className="flex items-center gap-2 shrink-0">
                                 <span className="flex items-center gap-1.5 px-3 py-2 bg-emerald-950/80 text-emerald-400 border border-emerald-500/50 text-xs sm:text-sm font-bold rounded-xl shadow-sm">
                                   <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>
-                                  <span>Pago em {dataFiltro.split('-').reverse().join('/')}</span>
+                                  <span>Quitado (R$ {stats.totalPago.toFixed(2)})</span>
                                 </span>
                                 <button 
                                   onClick={() => {
-                                    setReceitaData({ ...c, nome: c.barbeiro.nome, periodKey: paidKey, subTab: 'diario' });
+                                    setReceitaData({ ...c, nome: c.barbeiro.nome, periodKey: paidKey, subTab: 'diario', totalComissao: c.totalComissao, totalPagoAnterior: stats.totalPago });
                                     setIsFinalizarCaixaOpen(true);
                                   }}
                                   className="text-xs text-gray-400 hover:text-white underline px-1 py-1"
-                                  title="Refazer pagamento de comissão"
+                                  title="Refazer ou adicionar pagamento"
                                 >
                                   Reenviar
                                 </button>
                               </div>
+                            ) : isPartiallyPaid ? (
+                              <button 
+                                onClick={() => {
+                                  setReceitaData({ ...c, nome: c.barbeiro.nome, periodKey: paidKey, subTab: 'diario', totalComissao: stats.comissaoPendente, totalPagoAnterior: stats.totalPago });
+                                  setIsFinalizarCaixaOpen(true);
+                                }}
+                                className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs sm:text-sm font-bold rounded-xl transition-all shadow-sm shrink-0 w-full sm:w-auto"
+                                title="Pagar apenas o saldo das novas comissões geradas"
+                              >
+                                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                <span>Pagar Saldo (R$ {stats.comissaoPendente.toFixed(2)})</span>
+                              </button>
                             ) : (
                               <button 
                                 onClick={() => {
-                                  setReceitaData({ ...c, nome: c.barbeiro.nome, periodKey: paidKey, subTab: 'diario' });
+                                  setReceitaData({ ...c, nome: c.barbeiro.nome, periodKey: paidKey, subTab: 'diario', totalComissao: c.totalComissao, totalPagoAnterior: 0 });
                                   setIsFinalizarCaixaOpen(true);
                                 }}
-                                className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold rounded-xl transition-all shadow-sm hover:shadow-emerald-900/50 shrink-0 w-full sm:w-auto mt-1 sm:mt-0"
-                                title="Pagar Comissão do Barbeiro (Criará Receita e Despesa para a Barbearia, e Receita para o Barbeiro)"
+                                className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold rounded-xl transition-all shadow-sm shrink-0 w-full sm:w-auto"
+                                title="Pagar comissão pendente do barbeiro"
                               >
                                 <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                <span>Pagar Comissão</span>
+                                <span>Pagar Comissão (R$ {c.totalComissao.toFixed(2)})</span>
                               </button>
                             )}
                           </div>
@@ -2812,92 +2937,220 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
 
                             <div className="bg-emerald-950/40 p-3 sm:p-4 rounded-xl border border-emerald-500/40 col-span-2 lg:col-span-1 flex items-center justify-between gap-3">
                               <div>
-                                <span className="text-emerald-400 text-[10px] sm:text-xs font-bold uppercase tracking-wider block">Comissão Total</span>
-                                <span className="text-[10px] sm:text-xs text-emerald-300/70 block">Líquido do Barbeiro</span>
+                                <span className="text-emerald-400 text-[10px] sm:text-xs font-bold uppercase tracking-wider block">
+                                  {stats.totalPago > 0 ? 'Saldo A Pagar' : 'Comissão Total'}
+                                </span>
+                                {stats.totalPago > 0 && (
+                                  <span className="text-[10px] text-gray-400 block">Já pago: R$ {stats.totalPago.toFixed(2)}</span>
+                                )}
                               </div>
-                              <span className="text-emerald-400 font-extrabold text-lg sm:text-2xl shrink-0">R$ {c.totalComissao.toFixed(2)}</span>
+                              <div className="text-emerald-400 font-extrabold text-lg sm:text-2xl font-mono text-right">
+                                R$ {stats.comissaoPendente.toFixed(2)}
+                              </div>
                             </div>
                           </div>
 
-                          {/* Accordion Extrato */}
-                          <div className="pt-1">
-                            <button
-                              onClick={() => toggleExpandBarbeiro(expandKey)}
-                              className="w-full flex items-center justify-between py-2 px-3.5 bg-gray-800/40 hover:bg-gray-800/80 border border-gray-700/50 rounded-xl text-xs font-semibold text-gray-300 hover:text-white transition-all"
-                            >
-                              <span className="flex items-center gap-2 truncate">
-                                <svg className="w-4 h-4 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-                                <span className="truncate">{isExpanded ? 'Ocultar extrato de atendimentos' : `Ver extrato de atendimentos (${c.detalhesAtendimentos?.length || 0})`}</span>
-                              </span>
-                              <span className="text-[11px] bg-gray-700/60 px-2 py-0.5 rounded text-gray-200 shrink-0 ml-2">
-                                {isExpanded ? '▲ Ocultar' : '▼ Extrato'}
-                              </span>
-                            </button>
+                          {/* Accordion Extrato e Histórico de Pagamentos */}
+                          {(() => {
+                            const cardMode = cardAccordionMode[expandKey] || 'atendimentos';
+                            const bEmail = (c.barbeiro.email || c.barbeiro.idEmail || '').toLowerCase().trim();
+                            const bNome = (c.barbeiro.nome || '').toLowerCase().trim();
+                            const bId = (c.barbeiro.id || '').toLowerCase().trim();
 
-                            {isExpanded && (
-                              <div className="mt-3 bg-gray-950/80 p-3.5 sm:p-4 rounded-xl border border-gray-800 flex flex-col gap-3">
-                                <div className="flex justify-between items-center border-b border-gray-800 pb-2">
-                                  <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                                    Extrato Detalhado ({c.barbeiro.nome})
-                                  </h4>
-                                  <span className="text-xs text-gray-500">
-                                    {c.detalhesAtendimentos?.length || 0} atendimento(s)
-                                  </span>
+                            const barbeiroPayments = paidCommissionsList.filter(r => {
+                              const rEmail = (r.email || '').toLowerCase().trim();
+                              const rNome = (r.barbeiroNome || '').toLowerCase().trim();
+                              return (bEmail && rEmail && bEmail === rEmail) ||
+                                (bNome && rNome && bNome === rNome) ||
+                                (bId && (rEmail === bId || rNome === bId));
+                            });
+
+                            return (
+                              <div className="pt-1">
+                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                                  <button
+                                    onClick={() => {
+                                      if (isExpanded && cardMode === 'atendimentos') {
+                                        toggleExpandBarbeiro(expandKey, 'atendimentos');
+                                      } else {
+                                        setCardAccordionMode(m => ({ ...m, [expandKey]: 'atendimentos' }));
+                                        if (!isExpanded) toggleExpandBarbeiro(expandKey, 'atendimentos');
+                                      }
+                                    }}
+                                    className={`flex-1 flex items-center justify-between py-2 px-3.5 border rounded-xl text-xs font-semibold transition-all ${
+                                      isExpanded && cardMode === 'atendimentos'
+                                        ? 'bg-blue-600/90 text-white border-blue-500 shadow-sm'
+                                        : 'bg-gray-800/40 hover:bg-gray-800/80 border-gray-700/50 text-gray-300 hover:text-white'
+                                    }`}
+                                  >
+                                    <span className="flex items-center gap-2 truncate">
+                                      <svg className="w-4 h-4 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 012-2h2a2 2 0 012-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                                      <span className="truncate">Extrato Atendimentos ({c.detalhesAtendimentos?.length || 0})</span>
+                                    </span>
+                                    <span className="text-[10px] bg-gray-900/60 px-1.5 py-0.5 rounded text-gray-200 shrink-0 ml-1">
+                                      {isExpanded && cardMode === 'atendimentos' ? '▲ Ocultar' : '▼ Extrato'}
+                                    </span>
+                                  </button>
+
+                                  <button
+                                    onClick={() => {
+                                      if (isExpanded && cardMode === 'pagamentos') {
+                                        toggleExpandBarbeiro(expandKey, 'pagamentos');
+                                      } else {
+                                        setCardAccordionMode(m => ({ ...m, [expandKey]: 'pagamentos' }));
+                                        if (!isExpanded) toggleExpandBarbeiro(expandKey, 'pagamentos');
+                                      }
+                                    }}
+                                    className={`flex-1 flex items-center justify-between py-2 px-3.5 border rounded-xl text-xs font-semibold transition-all ${
+                                      isExpanded && cardMode === 'pagamentos'
+                                        ? 'bg-emerald-700/90 text-white border-emerald-500 shadow-sm'
+                                        : 'bg-gray-800/40 hover:bg-gray-800/80 border-gray-700/50 text-gray-300 hover:text-white'
+                                    }`}
+                                  >
+                                    <span className="flex items-center gap-2 truncate">
+                                      <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                      <span className="truncate">📜 Histórico Pagamentos ({barbeiroPayments.length})</span>
+                                    </span>
+                                    <span className="text-[10px] bg-gray-900/60 px-1.5 py-0.5 rounded text-gray-200 shrink-0 ml-1">
+                                      {isExpanded && cardMode === 'pagamentos' ? '▲ Ocultar' : '▼ Log'}
+                                    </span>
+                                  </button>
                                 </div>
 
-                                {(!c.detalhesAtendimentos || c.detalhesAtendimentos.length === 0) ? (
-                                  <p className="text-xs text-gray-500 py-2">Nenhum atendimento no período.</p>
-                                ) : (
-                                  <div className="divide-y divide-gray-800/80">
-                                    {c.detalhesAtendimentos.map((atend: any, idxAt: number) => {
-                                      const { dataStr, horaStr } = formatarDataHora(atend.dataAgendada, atend.horarios);
-                                      return (
-                                        <div key={atend.id || idxAt} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
-                                          <div className="flex flex-col gap-1 min-w-[150px]">
-                                            <div className="flex items-center gap-1.5 flex-wrap">
-                                              <span className="font-semibold text-gray-300 bg-gray-800 px-2 py-0.5 rounded border border-gray-700 text-[11px]">
-                                                {dataStr} {horaStr ? `• ${horaStr}` : ''}
-                                              </span>
-                                              {atend.isAssinatura && (
-                                                <span className="bg-purple-900/50 text-purple-300 font-bold px-2 py-0.5 rounded border border-purple-700/50 text-[10px]">
-                                                  🏷️ VIP
-                                                </span>
-                                              )}
-                                            </div>
-                                            <span className="font-bold text-white text-sm">{atend.cliente}</span>
-                                          </div>
+                                {isExpanded && cardMode === 'atendimentos' && (
+                                  <div className="mt-3 bg-gray-950/80 p-3.5 sm:p-4 rounded-xl border border-gray-800 flex flex-col gap-3">
+                                    <div className="flex justify-between items-center border-b border-gray-800 pb-2">
+                                      <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400">
+                                        Extrato Detalhado ({c.barbeiro.nome})
+                                      </h4>
+                                      <span className="text-xs text-gray-500">
+                                        {c.detalhesAtendimentos?.length || 0} atendimento(s)
+                                      </span>
+                                    </div>
 
-                                          <div className="flex-1 flex flex-wrap gap-1.5 my-0.5 sm:my-0">
-                                            {atend.itens?.map((it: any, iIdx: number) => (
-                                              <span key={iIdx} className={`px-2 py-0.5 rounded border text-[11px] font-medium ${
-                                                it.tipo === 'servico' 
-                                                  ? 'bg-blue-950/50 text-blue-300 border-blue-800/50' 
-                                                  : 'bg-amber-950/50 text-amber-300 border-amber-800/50'
-                                              }`}>
-                                                {it.nome || (it.tipo === 'servico' ? 'Serviço' : 'Produto')} (R$ {Number(it.valor || 0).toFixed(2)})
-                                              </span>
-                                            ))}
-                                          </div>
+                                    {(!c.detalhesAtendimentos || c.detalhesAtendimentos.length === 0) ? (
+                                      <p className="text-xs text-gray-500 py-2">Nenhum atendimento no período.</p>
+                                    ) : (
+                                      <div className="divide-y divide-gray-800/80">
+                                        {c.detalhesAtendimentos.map((atend: any, idxAt: number) => {
+                                          const { dataStr, horaStr } = formatarDataHora(atend.dataAgendada, atend.horarios);
+                                          return (
+                                            <div key={atend.id || idxAt} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+                                              <div className="flex flex-col gap-1 min-w-[150px]">
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                  <span className="font-semibold text-gray-300 bg-gray-800 px-2 py-0.5 rounded border border-gray-700 text-[11px]">
+                                                    {dataStr} {horaStr ? `• ${horaStr}` : ''}
+                                                  </span>
+                                                  {atend.isAssinatura && (
+                                                    <span className="bg-purple-900/50 text-purple-300 font-bold px-2 py-0.5 rounded border border-purple-700/50 text-[10px]">
+                                                      🏷️ VIP
+                                                    </span>
+                                                  )}
+                                                </div>
+                                                <span className="font-bold text-white text-sm">{atend.cliente}</span>
+                                              </div>
 
-                                          <div className="flex items-center justify-between sm:justify-end gap-3 min-w-[170px] pt-1 sm:pt-0 border-t sm:border-t-0 border-gray-800/60">
-                                            <div className="text-right">
-                                              <span className="text-[10px] text-gray-500 uppercase font-bold block">Valor Total</span>
-                                              <span className="text-gray-300 font-semibold">R$ {atend.valorTotalAtend.toFixed(2)}</span>
-                                            </div>
+                                              <div className="flex-1 flex flex-wrap gap-1.5 my-0.5 sm:my-0">
+                                                {atend.itens?.map((it: any, iIdx: number) => (
+                                                  <span key={iIdx} className={`px-2 py-0.5 rounded border text-[11px] font-medium ${
+                                                    it.tipo === 'servico' 
+                                                      ? 'bg-blue-950/50 text-blue-300 border-blue-800/50' 
+                                                      : 'bg-amber-950/50 text-amber-300 border-amber-800/50'
+                                                  }`}>
+                                                    {it.nome || (it.tipo === 'servico' ? 'Serviço' : 'Produto')} (R$ {Number(it.valor || 0).toFixed(2)})
+                                                  </span>
+                                                ))}
+                                              </div>
 
-                                            <div className="text-right bg-emerald-950/40 px-2.5 py-1 rounded-lg border border-emerald-800/50">
-                                              <span className="text-[10px] text-emerald-400/90 uppercase font-bold block">Comissão</span>
-                                              <span className="text-emerald-400 font-bold text-sm">R$ {atend.comissaoTotalAtend.toFixed(2)}</span>
+                                              <div className="flex items-center justify-between sm:justify-end gap-3 min-w-[170px] pt-1 sm:pt-0 border-t sm:border-t-0 border-gray-800/60">
+                                                <div className="text-right">
+                                                  <span className="text-[10px] text-gray-500 uppercase font-bold block">Valor Total</span>
+                                                  <span className="text-gray-300 font-semibold">R$ {atend.valorTotalAtend.toFixed(2)}</span>
+                                                </div>
+
+                                                <div className="text-right bg-emerald-950/40 px-2.5 py-1 rounded-lg border border-emerald-800/50">
+                                                  <span className="text-[10px] text-emerald-400/90 uppercase font-bold block">Comissão</span>
+                                                  <span className="text-emerald-400 font-bold text-sm">R$ {atend.comissaoTotalAtend.toFixed(2)}</span>
+                                                </div>
+                                              </div>
                                             </div>
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                {isExpanded && cardMode === 'pagamentos' && (
+                                  <div className="mt-3 bg-gray-950/80 p-3.5 sm:p-4 rounded-xl border border-gray-800 flex flex-col gap-3">
+                                    <div className="flex justify-between items-center border-b border-gray-800 pb-2">
+                                      <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                                        <span>📜 Histórico de Sangrias e Pagamentos de Comissão ({c.barbeiro.nome})</span>
+                                      </h4>
+                                      <span className="text-xs text-gray-400 font-bold">
+                                        Total Pago: R$ {barbeiroPayments.reduce((acc, p) => acc + Number(p.valorComissao || 0), 0).toFixed(2)}
+                                      </span>
+                                    </div>
+
+                                    {barbeiroPayments.length === 0 ? (
+                                      <p className="text-xs text-gray-500 py-3 text-center">Nenhum pagamento ou sangria de comissão registrado para este barbeiro.</p>
+                                    ) : (
+                                      <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-xs text-gray-300">
+                                          <thead className="bg-gray-900 text-gray-400 uppercase text-[10px] font-bold">
+                                            <tr>
+                                              <th className="p-2">Data Ref.</th>
+                                              <th className="p-2">Data/Hora Sangria</th>
+                                              <th className="p-2">Email Barbeiro</th>
+                                              <th className="p-2 text-right">Valor Pago</th>
+                                              <th className="p-2 text-center">Status</th>
+                                              <th className="p-2 text-center">Ação</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody className="divide-y divide-gray-800/80">
+                                            {barbeiroPayments.map((p, pIdx) => {
+                                              const originalIndex = paidCommissionsList.indexOf(p);
+                                              const dataFmt = p.data ? p.data.split('-').reverse().join('/') : '-';
+                                              return (
+                                                <tr key={pIdx} className="hover:bg-gray-900/60">
+                                                  <td className="p-2 font-mono text-gray-200 font-bold">
+                                                    {dataFmt}
+                                                  </td>
+                                                  <td className="p-2 text-gray-400 font-mono text-[11px]">
+                                                    {formatarDateTime(p.paidAt)}
+                                                  </td>
+                                                  <td className="p-2 text-gray-400 text-[11px] truncate max-w-[150px]">
+                                                    {p.email || '-'}
+                                                  </td>
+                                                  <td className="p-2 text-right font-extrabold text-emerald-400">
+                                                    R$ {Number(p.valorComissao).toFixed(2)}
+                                                  </td>
+                                                  <td className="p-2 text-center">
+                                                    <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded text-[10px] font-bold">
+                                                      ✓ PAGO
+                                                    </span>
+                                                  </td>
+                                                  <td className="p-2 text-center">
+                                                    <button
+                                                      onClick={() => handleRemovePaidCommission(originalIndex)}
+                                                      className="text-red-400 hover:text-red-300 hover:bg-red-950/40 px-2 py-0.5 rounded text-[11px] font-semibold underline"
+                                                      title="Estornar / remover pagamento de comissão"
+                                                    >
+                                                      Estornar
+                                                    </button>
+                                                  </td>
+                                                </tr>
+                                              );
+                                            })}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                               </div>
-                            )}
-                          </div>
+                            );
+                          })()}
                         </div>
                       );
                     })}
@@ -2941,7 +3194,18 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                       const expandKey = c.barbeiro.id + '_m';
                       const isExpanded = Boolean(expandedBarbeiros[expandKey]);
                       const paidKey = `${c.barbeiro.id}_m_${dataFiltro.slice(0, 7)}`;
-                      const isPaid = Boolean(paidCommissions[paidKey]);
+                      const stats = getPaidStatsForBarbeiro(
+                        paidCommissionsList,
+                        c.barbeiro.id,
+                        c.barbeiro.email || c.barbeiro.idEmail,
+                        c.barbeiro.nome,
+                        paidKey,
+                        dataFiltro.slice(0, 7),
+                        c.totalComissao
+                      );
+                      const isPaid = stats.isFullyPaid;
+                      const isPartiallyPaid = stats.isPartiallyPaid;
+
                       return (
                         <div key={idx} className="bg-gray-900/80 p-4 sm:p-6 rounded-2xl border border-gray-800 flex flex-col gap-4 sm:gap-5 transition-all hover:border-gray-700/80 shadow-lg">
                           {/* Header Row */}
@@ -2954,7 +3218,12 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                                 </span>
                                 {isPaid && (
                                   <span className="text-[11px] bg-emerald-500/20 text-emerald-400 font-bold px-2.5 py-0.5 rounded-full border border-emerald-500/40 flex items-center gap-1">
-                                    ✓ COMISSÃO PAGA
+                                    ✓ MÊS QUITADO (R$ {stats.totalPago.toFixed(2)})
+                                  </span>
+                                )}
+                                {isPartiallyPaid && (
+                                  <span className="text-[11px] bg-amber-500/20 text-amber-300 font-bold px-2.5 py-0.5 rounded-full border border-amber-500/40 flex items-center gap-1">
+                                    ⚡ NOVO SALDO MENSAL PENDENTE: R$ {stats.comissaoPendente.toFixed(2)}
                                   </span>
                                 )}
                               </div>
@@ -2969,30 +3238,42 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                               <div className="flex items-center gap-2 shrink-0">
                                 <span className="flex items-center gap-1.5 px-3 py-2 bg-emerald-950/80 text-emerald-400 border border-emerald-500/50 text-xs sm:text-sm font-bold rounded-xl shadow-sm">
                                   <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>
-                                  <span>Mês Pago</span>
+                                  <span>Mês Quitada (R$ {stats.totalPago.toFixed(2)})</span>
                                 </span>
                                 <button 
                                   onClick={() => {
-                                    setReceitaData({ ...c, nome: c.barbeiro.nome, periodKey: paidKey, subTab: 'mensal' });
+                                    setReceitaData({ ...c, nome: c.barbeiro.nome, periodKey: paidKey, subTab: 'mensal', totalComissao: c.totalComissao, totalPagoAnterior: stats.totalPago });
                                     setIsFinalizarCaixaOpen(true);
                                   }}
                                   className="text-xs text-gray-400 hover:text-white underline px-1 py-1"
-                                  title="Refazer pagamento de comissão do mês"
+                                  title="Refazer ou adicionar pagamento do mês"
                                 >
                                   Reenviar
                                 </button>
                               </div>
+                            ) : isPartiallyPaid ? (
+                              <button 
+                                onClick={() => {
+                                  setReceitaData({ ...c, nome: c.barbeiro.nome, periodKey: paidKey, subTab: 'mensal', totalComissao: stats.comissaoPendente, totalPagoAnterior: stats.totalPago });
+                                  setIsFinalizarCaixaOpen(true);
+                                }}
+                                className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs sm:text-sm font-bold rounded-xl transition-all shadow-sm shrink-0 w-full sm:w-auto"
+                                title="Pagar apenas o saldo pendente do mês"
+                              >
+                                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                <span>Pagar Saldo do Mês (R$ {stats.comissaoPendente.toFixed(2)})</span>
+                              </button>
                             ) : (
                               <button 
                                 onClick={() => {
-                                  setReceitaData({ ...c, nome: c.barbeiro.nome, periodKey: paidKey, subTab: 'mensal' });
+                                  setReceitaData({ ...c, nome: c.barbeiro.nome, periodKey: paidKey, subTab: 'mensal', totalComissao: c.totalComissao, totalPagoAnterior: 0 });
                                   setIsFinalizarCaixaOpen(true);
                                 }}
-                                className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold rounded-xl transition-all shadow-sm hover:shadow-emerald-900/50 shrink-0 w-full sm:w-auto mt-1 sm:mt-0"
-                                title="Pagar Comissão do Mês (Criará Receita e Despesa para a Barbearia, e Receita para o Barbeiro)"
+                                className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold rounded-xl transition-all shadow-sm shrink-0 w-full sm:w-auto"
+                                title="Pagar comissão do mês"
                               >
                                 <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                <span>Pagar Comissão do Mês</span>
+                                <span>Pagar Comissão do Mês (R$ {c.totalComissao.toFixed(2)})</span>
                               </button>
                             )}
                           </div>
@@ -3017,10 +3298,16 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
 
                             <div className="bg-emerald-950/40 p-3 sm:p-4 rounded-xl border border-emerald-500/40 col-span-2 lg:col-span-1 flex items-center justify-between gap-3">
                               <div>
-                                <span className="text-emerald-400 text-[10px] sm:text-xs font-bold uppercase tracking-wider block">Comissão Mensal</span>
-                                <span className="text-[10px] sm:text-xs text-emerald-300/70 block">Líquido do Barbeiro</span>
+                                <span className="text-emerald-400 text-[10px] sm:text-xs font-bold uppercase tracking-wider block">
+                                  {stats.totalPago > 0 ? 'Saldo Mensal A Pagar' : 'Comissão Mensal'}
+                                </span>
+                                {stats.totalPago > 0 && (
+                                  <span className="text-[10px] text-gray-400 block">Já pago: R$ {stats.totalPago.toFixed(2)}</span>
+                                )}
                               </div>
-                              <span className="text-emerald-400 font-extrabold text-lg sm:text-2xl shrink-0">R$ {c.totalComissao.toFixed(2)}</span>
+                              <span className="text-emerald-400 font-extrabold text-lg sm:text-2xl shrink-0">
+                                R$ {(stats.totalPago > 0 ? stats.comissaoPendente : c.totalComissao).toFixed(2)}
+                              </span>
                             </div>
                           </div>
 
@@ -3551,7 +3838,18 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                         <tbody className="divide-y divide-gray-800/60">
                           {comissoesMes.map((c, idx) => {
                             const paidKey = `${c.barbeiro.id}_m_${dataFiltro.slice(0, 7)}`;
-                            const isPaid = Boolean(paidCommissions[paidKey]);
+                            const stats = getPaidStatsForBarbeiro(
+                              paidCommissionsList,
+                              c.barbeiro.id,
+                              c.barbeiro.email || c.barbeiro.idEmail,
+                              c.barbeiro.nome,
+                              paidKey,
+                              dataFiltro.slice(0, 7),
+                              c.totalComissao
+                            );
+                            const isPaid = stats.isFullyPaid;
+                            const isPartiallyPaid = stats.isPartiallyPaid;
+
                             return (
                               <tr key={c.barbeiroId || c.nome || `barb-${idx}`} className="hover:bg-gray-800/40 transition-colors">
                                 <td className="p-2.5 font-bold text-white flex items-center gap-2">
@@ -3574,22 +3872,38 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                                 </td>
                                 <td className="p-2.5 text-right font-extrabold text-emerald-400">
                                   R$ {c.totalComissao.toFixed(2)}
+                                  {stats.totalPago > 0 && (
+                                    <div className="text-[10px] font-normal text-amber-300">
+                                      Pendente: R$ {stats.comissaoPendente.toFixed(2)}
+                                    </div>
+                                  )}
                                 </td>
                                 <td className="p-2.5 text-center">
                                   {isPaid ? (
                                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[10px] font-bold rounded-lg">
-                                      ✓ PAGO
+                                      ✓ QUITADO
                                     </span>
+                                  ) : isPartiallyPaid ? (
+                                    <button
+                                      onClick={() => {
+                                        setReceitaData({ ...c, nome: c.barbeiro.nome, periodKey: paidKey, subTab: 'mensal', totalComissao: stats.comissaoPendente, totalPagoAnterior: stats.totalPago });
+                                        setIsFinalizarCaixaOpen(true);
+                                      }}
+                                      className="px-2.5 py-1 bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-bold rounded-lg transition-all shadow-sm"
+                                      title="Pagar saldo pendente"
+                                    >
+                                      Pagar R$ {stats.comissaoPendente.toFixed(2)}
+                                    </button>
                                   ) : (
                                     <button
                                       onClick={() => {
-                                        setReceitaData({ ...c, nome: c.barbeiro.nome, periodKey: paidKey, subTab: 'mensal' });
+                                        setReceitaData({ ...c, nome: c.barbeiro.nome, periodKey: paidKey, subTab: 'mensal', totalComissao: c.totalComissao, totalPagoAnterior: 0 });
                                         setIsFinalizarCaixaOpen(true);
                                       }}
                                       className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold rounded-lg transition-all shadow-sm"
                                       title="Pagar comissão do mês"
                                     >
-                                      Pagar
+                                      Pagar R$ {c.totalComissao.toFixed(2)}
                                     </button>
                                   )}
                                 </td>
@@ -3910,89 +4224,210 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
       })()}
 
       {activeSubTab === 'historico' && (
-      <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
-        <h2 className="text-xl font-bold text-white mb-6">Histórico de Registros <span className="text-gray-500 text-sm font-normal ml-2">(Vendas/Cortes)</span></h2>
-        {registrosFiltradosDia.length === 0 ? (
-          <div className="w-full bg-gray-900/50 p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center">
-            <ClipboardListIcon className="w-16 h-16 mb-4 text-gray-700" />
-            <p className="text-lg">Nenhum registro encontrado no histórico de hoje.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar">
-            {[...registrosFiltradosDia].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()).map(r => {
-              const { dataHoraStr } = formatarDataHora(r.data, r.horarios);
-              const valorDesconto = r.desconto ?? r.pagamento?.desconto ?? 0;
-              const valorOriginal = r.valorOriginal ?? r.pagamento?.valorOriginal ?? (r.total + valorDesconto);
-              const temDesconto = valorDesconto > 0;
+      <div className="flex flex-col gap-6">
+        {/* Card 1: Log de Histórico de Pagamentos de Comissão */}
+        <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl space-y-5">
+          <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 border-b border-gray-700/50 pb-4">
+            <div>
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <span>📜 Log de Histórico de Pagamentos e Sangrias de Comissão</span>
+              </h2>
+              <p className="text-gray-400 text-sm mt-1">
+                Visualização detalhada de todos os pagamentos e sangrias efetuados aos barbeiros, armazenados no histórico.
+              </p>
+            </div>
 
-              return (
-                <div key={r.id} className="bg-gray-900/40 p-5 rounded-2xl border border-gray-800 flex flex-col md:flex-row md:items-center justify-between gap-5 group hover:border-gray-600 transition-all shadow-sm">
-                  <div>
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="bg-emerald-500/10 text-emerald-400 font-bold text-xs px-2.5 py-1 rounded-md border border-emerald-500/20 uppercase tracking-widest flex items-center gap-1.5 shadow-sm">
-                        <CheckCircleIcon className="w-3.5 h-3.5" />
-                         PAGO
-                      </div>
-                      <h3 className="font-bold text-white text-xl">{r.cliente}</h3>
-                    </div>
-                    <div className="flex items-center gap-3 mt-2">
-                      <p className="text-xs font-medium text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-500/20">{dataHoraStr}</p>
-                      <p className="text-xs text-gray-400 font-medium">Barbeiro: <span className="text-gray-300 ml-1">{r.barbeiroNome || 'N/A'}</span></p>
-                    </div>
-                    {temDesconto && (
-                      <div className="mt-2 text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/20 w-fit flex items-center gap-1.5">
-                        🏷️ Desconto aplicado: - R$ {valorDesconto.toFixed(2)} (Subtotal: R$ {valorOriginal.toFixed(2)})
-                      </div>
-                    )}
-                    <div className="flex flex-wrap gap-2 mt-4">
-                      {r.itens.map((item, idx) => (
-                        <span key={idx} className="bg-gray-800 border border-gray-700 text-gray-200 font-medium text-xs px-3 py-1.5 rounded-lg">
-                          <span className="text-gray-400 mr-1">{item.tipo === 'servico' ? '✂️' : '🧴'}</span>
-                          {item.nome} <span className="text-gray-500 ml-1 font-normal">R$ {item.valor.toFixed(2)}</span>
-                        </span>
-                      ))}
-                    </div>
-                    {r.tipoPagamento && r.tipoPagamento.length > 0 && (
-                      <div className="flex gap-2 flex-wrap items-center mt-3">
-                        <span className="text-[10px] uppercase font-bold text-gray-500 mr-1">Pagamento:</span>
-                        {r.tipoPagamento.map((pStr: string, index: number) => {
-                          try {
-                             const p = JSON.parse(pStr);
-                             return (
-                               <div 
-                                  key={`p-${index}`} 
-                                  title={p.valorOriginal ? `Cobrado: R$ ${p.valorOriginal.toFixed(2)} | Taxa: R$ ${(p.valorOriginal - p.valor).toFixed(2)}` : ''}
-                                  className="text-[10px] bg-green-500/10 text-green-400 px-2 py-0.5 rounded border border-green-500/20 shadow-sm flex gap-1.5 cursor-help"
-                               >
-                                 <span>{p.tipo}</span>
-                                 <span className="font-bold">R$ {p.valor.toFixed(2)}</span>
-                               </div>
-                             );
-                          } catch(e) { return null; }
-                        })}
-                      </div>
-                    )}
+            {/* Filtro por Barbeiro */}
+            <div className="flex items-center gap-2 self-start md:self-auto">
+              <label className="text-xs font-bold text-gray-400 uppercase">Filtrar Barbeiro:</label>
+              <select
+                value={selectedBarberLogFilter}
+                onChange={(e) => setSelectedBarberLogFilter(e.target.value)}
+                className="bg-gray-900 text-gray-200 border border-gray-700 rounded-xl px-3 py-1.5 text-xs font-semibold focus:outline-none focus:border-blue-500"
+              >
+                <option value="todos">Todos os barbeiros</option>
+                {barbeiros.map(b => (
+                  <option key={b.id} value={(b.email || b.idEmail || b.nome || '').toLowerCase().trim()}>
+                    {b.nome} ({b.email || b.idEmail || 'Sem email'})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {(() => {
+            const listFiltered = paidCommissionsList.filter(item => {
+              if (selectedBarberLogFilter === 'todos') return true;
+              const bEmail = (item.email || '').toLowerCase().trim();
+              const bNome = (item.barbeiroNome || '').toLowerCase().trim();
+              return bEmail.includes(selectedBarberLogFilter) || bNome.includes(selectedBarberLogFilter);
+            });
+
+            const totalPagoGeral = listFiltered.reduce((acc, curr) => acc + Number(curr.valorComissao || 0), 0);
+
+            return (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="bg-gray-900/60 p-3.5 rounded-xl border border-gray-700/50 flex items-center justify-between">
+                    <span className="text-xs text-gray-400 font-bold uppercase">Total de Pagamentos / Sangrias</span>
+                    <span className="text-lg font-bold text-blue-400">{listFiltered.length} transações</span>
                   </div>
-                  <div className="flex items-center justify-between md:flex-col md:items-end gap-2 border-t md:border-t-0 md:border-l border-gray-800 pt-4 md:pt-0 md:pl-5 min-w-40">
-                    <div className="flex flex-col items-end">
-                      <span className="text-green-400 font-black text-2xl bg-green-500/10 px-3.5 py-1.5 rounded-xl border border-green-500/20">
-                        R$ {r.total.toFixed(2)}
-                      </span>
-                      {temDesconto && (
-                        <span className="text-xs text-gray-500 line-through mt-1 font-semibold">
-                          R$ {valorOriginal.toFixed(2)}
-                        </span>
-                      )}
-                    </div>
-                    <button onClick={() => removeRegistro(r.id)} className="text-gray-500 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all bg-gray-800 p-2 rounded-lg mt-2">
-                      <TrashIcon className="w-5 h-5" />
-                    </button>
+                  <div className="bg-emerald-950/40 p-3.5 rounded-xl border border-emerald-800/50 flex items-center justify-between">
+                    <span className="text-xs text-emerald-400 font-bold uppercase">Total Geral Pago</span>
+                    <span className="text-xl font-black text-emerald-400">R$ {totalPagoGeral.toFixed(2)}</span>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
+
+                {listFiltered.length === 0 ? (
+                  <div className="w-full bg-gray-900/50 p-6 rounded-2xl border border-gray-800 text-center text-gray-500">
+                    <p className="text-sm">Nenhum histórico de pagamento de comissão encontrado.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto max-h-[400px] overflow-y-auto custom-scrollbar">
+                    <table className="w-full text-left text-xs text-gray-300">
+                      <thead className="bg-gray-900 text-gray-400 uppercase text-[10px] font-bold sticky top-0">
+                        <tr>
+                          <th className="p-3">Data Ref.</th>
+                          <th className="p-3">Data/Hora Sangria</th>
+                          <th className="p-3">Barbeiro</th>
+                          <th className="p-3">Email</th>
+                          <th className="p-3 text-right">Valor Pago</th>
+                          <th className="p-3 text-center">Status</th>
+                          <th className="p-3 text-center">Ação</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-800/80">
+                        {listFiltered.map((p, idx) => {
+                          const originalIndex = paidCommissionsList.indexOf(p);
+                          const dataFmt = p.data ? p.data.split('-').reverse().join('/') : '-';
+                          return (
+                            <tr key={idx} className="hover:bg-gray-900/60 transition-colors">
+                              <td className="p-3 font-mono text-gray-200 font-bold">
+                                {dataFmt}
+                              </td>
+                              <td className="p-3 text-gray-400 font-mono text-[11px]">
+                                {formatarDateTime(p.paidAt)}
+                              </td>
+                              <td className="p-3 font-bold text-white">
+                                {p.barbeiroNome || 'Barbeiro'}
+                              </td>
+                              <td className="p-3 text-gray-400 text-[11px] truncate max-w-[160px]">
+                                {p.email || '-'}
+                              </td>
+                              <td className="p-3 text-right font-black text-emerald-400 text-sm">
+                                R$ {Number(p.valorComissao).toFixed(2)}
+                              </td>
+                              <td className="p-3 text-center">
+                                <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-full text-[10px] font-bold">
+                                  ✓ PAGO
+                                </span>
+                              </td>
+                              <td className="p-3 text-center">
+                                <button
+                                  onClick={() => handleRemovePaidCommission(originalIndex)}
+                                  className="text-red-400 hover:text-red-300 hover:bg-red-950/40 px-2.5 py-1 rounded-lg text-xs font-semibold border border-red-800/40 transition-all"
+                                  title="Estornar / remover registro de pagamento"
+                                >
+                                  Estornar
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* Card 2: Histórico de Registros de Vendas / Cortes de Hoje */}
+        <div className="bg-gray-800/80 p-6 sm:p-8 rounded-2xl border border-gray-700/50 shadow-xl">
+          <h2 className="text-xl font-bold text-white mb-6">Histórico de Atendimentos Concluídos <span className="text-gray-500 text-sm font-normal ml-2">(Hoje)</span></h2>
+          {registrosFiltradosDia.length === 0 ? (
+            <div className="w-full bg-gray-900/50 p-8 rounded-2xl border border-gray-800 text-center text-gray-500 flex flex-col items-center justify-center">
+              <ClipboardListIcon className="w-16 h-16 mb-4 text-gray-700" />
+              <p className="text-lg">Nenhum registro encontrado no histórico de hoje.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+              {[...registrosFiltradosDia].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()).map(r => {
+                const { dataHoraStr } = formatarDataHora(r.data, r.horarios);
+                const valorDesconto = r.desconto ?? r.pagamento?.desconto ?? 0;
+                const valorOriginal = r.valorOriginal ?? r.pagamento?.valorOriginal ?? (r.total + valorDesconto);
+                const temDesconto = valorDesconto > 0;
+
+                return (
+                  <div key={r.id} className="bg-gray-900/40 p-5 rounded-2xl border border-gray-800 flex flex-col md:flex-row md:items-center justify-between gap-5 group hover:border-gray-600 transition-all shadow-sm">
+                    <div>
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="bg-emerald-500/10 text-emerald-400 font-bold text-xs px-2.5 py-1 rounded-md border border-emerald-500/20 uppercase tracking-widest flex items-center gap-1.5 shadow-sm">
+                          <CheckCircleIcon className="w-3.5 h-3.5" />
+                           PAGO
+                        </div>
+                        <h3 className="font-bold text-white text-xl">{r.cliente}</h3>
+                      </div>
+                      <div className="flex items-center gap-3 mt-2">
+                        <p className="text-xs font-medium text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-500/20">{dataHoraStr}</p>
+                        <p className="text-xs text-gray-400 font-medium">Barbeiro: <span className="text-gray-300 ml-1">{r.barbeiroNome || 'N/A'}</span></p>
+                      </div>
+                      {temDesconto && (
+                        <div className="mt-2 text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/20 w-fit flex items-center gap-1.5">
+                          🏷️ Desconto aplicado: - R$ {valorDesconto.toFixed(2)} (Subtotal: R$ {valorOriginal.toFixed(2)})
+                        </div>
+                      )}
+                      <div className="flex flex-wrap gap-2 mt-4">
+                        {r.itens.map((item, idx) => (
+                          <span key={idx} className="bg-gray-800 border border-gray-700 text-gray-200 font-medium text-xs px-3 py-1.5 rounded-lg">
+                            <span className="text-gray-400 mr-1">{item.tipo === 'servico' ? '✂️' : '🧴'}</span>
+                            {item.nome} <span className="text-gray-500 ml-1 font-normal">R$ {item.valor.toFixed(2)}</span>
+                          </span>
+                        ))}
+                      </div>
+                      {r.tipoPagamento && r.tipoPagamento.length > 0 && (
+                        <div className="flex gap-2 flex-wrap items-center mt-3">
+                          <span className="text-[10px] uppercase font-bold text-gray-500 mr-1">Pagamento:</span>
+                          {r.tipoPagamento.map((pStr: string, index: number) => {
+                            try {
+                               const p = JSON.parse(pStr);
+                               return (
+                                 <div 
+                                    key={`p-${index}`} 
+                                    title={p.valorOriginal ? `Cobrado: R$ ${p.valorOriginal.toFixed(2)} | Taxa: R$ ${(p.valorOriginal - p.valor).toFixed(2)}` : ''}
+                                    className="text-[10px] bg-green-500/10 text-green-400 px-2 py-0.5 rounded border border-green-500/20 shadow-sm flex gap-1.5 cursor-help"
+                                 >
+                                   <span>{p.tipo}</span>
+                                   <span className="font-bold">R$ {p.valor.toFixed(2)}</span>
+                                 </div>
+                               );
+                            } catch(e) { return null; }
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between md:flex-col md:items-end gap-2 border-t md:border-t-0 md:border-l border-gray-800 pt-4 md:pt-0 md:pl-5 min-w-40">
+                      <div className="flex flex-col items-end">
+                        <span className="text-green-400 font-black text-2xl bg-green-500/10 px-3.5 py-1.5 rounded-xl border border-green-500/20">
+                          R$ {r.total.toFixed(2)}
+                        </span>
+                        {temDesconto && (
+                          <span className="text-xs text-gray-500 line-through mt-1 font-semibold">
+                            R$ {valorOriginal.toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                      <button onClick={() => removeRegistro(r.id)} className="text-gray-500 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all bg-gray-800 p-2 rounded-lg mt-2">
+                        <TrashIcon className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
       )}
       <ConfirmationModal
@@ -4007,7 +4442,7 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
           ? `Tem certeza que deseja fechar o caixa da barbearia (R$ ${receitaData?.caixaBarbearia?.toFixed(2)}) e enviar para o fluxo de caixa? Isso criará uma transação de Receita.`
           : `Deseja efetuar o pagamento das comissões de ${receitaData?.nome} no valor de R$ ${receitaData?.totalComissao?.toFixed(2)}?\n\n` +
             `Ações que serão realizadas:\n` +
-            `• 🟢 RECEITA PAGA de R$ ${(receitaData?.faturamentoTotal > 0 ? receitaData?.faturamentoTotal : receitaData?.totalComissao)?.toFixed(2)} enviada para a Barbearia (Faturamento de Serviços, Produtos e Assinaturas).\n` +
+            `• 🟢 RECEITA PAGA de R$ ${receitaData?.totalComissao?.toFixed(2)} enviada para a Barbearia (Sangria de Caixa).\n` +
             `• 🔴 DESPESA PAGA de R$ ${receitaData?.totalComissao?.toFixed(2)} enviada para o financeiro da Barbearia (Comissão).\n` +
             `• 🟢 RECEITA PAGA de R$ ${receitaData?.totalComissao?.toFixed(2)} enviada para a conta do barbeiro.\n` +
             `• 🔒 Sinalização do status como PAGO para evitar pagamentos duplicados.`

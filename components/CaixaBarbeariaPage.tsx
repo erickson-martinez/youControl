@@ -49,6 +49,7 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
     { tipo: 'Crédito', valor: 0 },
     { tipo: 'Débito', valor: 0 }
   ]);
+  const [valorEntregueDinheiro, setValorEntregueDinheiro] = useState<string>('');
 
   const handleReload = () => {
     loadAgendamentos();
@@ -125,6 +126,7 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
       { tipo: 'Crédito', valor: 0 },
       { tipo: 'Débito', valor: 0 }
     ]);
+    setValorEntregueDinheiro(total > 0 ? String(total) : '');
     setPagamentoAgendamento(a);
     setPagamentoModalOpen(true);
   };
@@ -168,6 +170,11 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
             }
         }
     }
+
+    const novoDinheiro = newPagamentos.find(p => p.tipo === 'Dinheiro')?.valor || 0;
+    if (novoDinheiro > 0 && (!valorEntregueDinheiro || Number(valorEntregueDinheiro) < novoDinheiro)) {
+      setValorEntregueDinheiro(String(novoDinheiro));
+    }
     
     setPagamentosParciais(newPagamentos);
   };
@@ -175,6 +182,13 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
   const handleConcluir = async (a: any, pagamentosFinalizados: {tipo:string, valor:number}[]) => {
     const activePagamentos = pagamentosFinalizados.filter(p => p.valor > 0);
     const formas = activePagamentos.map(p => p.tipo);
+
+    const dinheiroItemFinal = pagamentosFinalizados.find(p => p.tipo === 'Dinheiro');
+    const valorCobradoDinheiroFinal = dinheiroItemFinal ? dinheiroItemFinal.valor : 0;
+    const numEntregue = Number(valorEntregueDinheiro) || 0;
+    const trocoFinal = valorCobradoDinheiroFinal > 0 && numEntregue >= valorCobradoDinheiroFinal
+      ? Number((numEntregue - valorCobradoDinheiroFinal).toFixed(2))
+      : 0;
 
     // Save types inside the agendamento update as stringified JSON format
     const tipos = activePagamentos.map(p => {
@@ -187,7 +201,14 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
        const taxa = key && taxas && taxas[key] ? taxas[key] : 0;
        const valorDescontado = p.valor - (p.valor * taxa / 100);
 
-       return JSON.stringify({ ...p, valorOriginal: p.valor, taxaAplicada: taxa, valor: Number(valorDescontado.toFixed(2)) });
+       return JSON.stringify({
+         ...p,
+         valorOriginal: p.valor,
+         valorRecebidoDinheiro: p.tipo === 'Dinheiro' ? numEntregue : undefined,
+         troco: p.tipo === 'Dinheiro' ? trocoFinal : undefined,
+         taxaAplicada: taxa,
+         valor: Number(valorDescontado.toFixed(2))
+       });
     });
 
     const valorTotal = calcularValorTotal(a);
@@ -195,7 +216,7 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
     await updateStatus(a.id, 'pago', a.barbeiroId, {
       formas,
       valorRecebido: valorTotal,
-      troco: 0,
+      troco: trocoFinal,
       tipoPagamento: tipos,
     });
     
@@ -207,6 +228,10 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
           updateProduto(prod.id, { estoque: Math.max(0, prod.estoque - 1) });
         }
       });
+    }
+
+    if (trocoFinal > 0) {
+      alert(`✓ Pagamento de R$ ${valorTotal.toFixed(2)} registrado com sucesso!\n\n💵 TROCO A DEVOLVER: R$ ${trocoFinal.toFixed(2)}`);
     }
   };
 
@@ -507,11 +532,12 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
                                return (
                                  <div 
                                     key={`p-${index}`} 
-                                    title={p.valorOriginal ? `Cobrado: R$ ${p.valorOriginal.toFixed(2)} | Taxa: R$ ${(p.valorOriginal - p.valor).toFixed(2)}` : ''}
-                                    className="text-[10px] bg-green-500/10 text-green-400 px-2 py-0.5 rounded border border-green-500/20 shadow-sm flex gap-1.5 cursor-help"
+                                    title={p.valorRecebidoDinheiro ? `Pago em Dinheiro: R$ ${p.valorRecebidoDinheiro.toFixed(2)} | Troco: R$ ${(p.troco || 0).toFixed(2)}` : p.valorOriginal ? `Cobrado: R$ ${p.valorOriginal.toFixed(2)} | Taxa: R$ ${(p.valorOriginal - p.valor).toFixed(2)}` : ''}
+                                    className="text-[10px] bg-green-500/10 text-green-400 px-2 py-0.5 rounded border border-green-500/20 shadow-sm flex gap-1.5 items-center cursor-help"
                                  >
                                    <span>{p.tipo}</span>
                                    <span className="font-bold">R$ {p.valor.toFixed(2)}</span>
+                                   {p.troco > 0 && <span className="text-amber-300 font-bold ml-1">(Troco: R$ {p.troco.toFixed(2)})</span>}
                                  </div>
                                );
                             } catch (e) {
@@ -536,7 +562,7 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
 
       {pagamentoModalOpen && pagamentoAgendamento && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-900 border border-gray-700 rounded-3xl p-6 sm:p-8 w-full max-w-lg shadow-2xl">
+          <div className="bg-gray-900 border border-gray-700 rounded-3xl p-6 sm:p-8 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-white">Receber Pagamento</h2>
               <button 
@@ -548,16 +574,22 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
             </div>
 
             <div className="space-y-4 mb-6">
-              <div className="bg-gray-800/80 p-4 rounded-xl flex justify-between items-center">
+              <div className="bg-gray-800/80 p-4 rounded-xl flex justify-between items-center border border-gray-700/50">
                 <span className="text-gray-400 font-medium tracking-wide text-sm uppercase">Total Cobrado</span>
                 <span className="text-white font-black text-2xl">R$ {calcularValorTotal(pagamentoAgendamento).toFixed(2)}</span>
               </div>
 
               <div className="space-y-3 pt-2">
-                <p className="text-sm text-gray-500 font-medium mb-3">Distribuir parcelas do pagamento:</p>
+                <p className="text-sm text-gray-400 font-medium mb-2">Formas de pagamento e valores:</p>
                 {pagamentosParciais.map((p, idx) => (
                   <div key={idx} className="flex items-center gap-4">
-                    <span className="text-gray-300 font-medium w-24 shrink-0">{p.tipo}</span>
+                    <span className="text-gray-300 font-semibold w-24 shrink-0 flex items-center gap-1.5">
+                      {p.tipo === 'Dinheiro' && '💵'}
+                      {p.tipo === 'Pix' && '⚡'}
+                      {p.tipo === 'Crédito' && '💳'}
+                      {p.tipo === 'Débito' && '💳'}
+                      {p.tipo}
+                    </span>
                     <div className="relative flex-1">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">R$</span>
                       <input
@@ -569,17 +601,116 @@ export default function CaixaBarbeariaPage({ empresa, user }: { empresa?: Empres
                   </div>
                 ))}
               </div>
+
+              {/* DEDICATED CASH & CHANGE CALCULATOR SECTION */}
+              {(() => {
+                const dinheiroItem = pagamentosParciais.find(p => p.tipo === 'Dinheiro');
+                const valorCobradoDinheiro = dinheiroItem ? dinheiroItem.valor : 0;
+                if (valorCobradoDinheiro <= 0) return null;
+
+                const numEntregue = Number(valorEntregueDinheiro) || 0;
+                const trocoCalculado = numEntregue >= valorCobradoDinheiro
+                  ? Number((numEntregue - valorCobradoDinheiro).toFixed(2))
+                  : 0;
+
+                // Valores sugeridos de cédulas para atalho
+                const sugestoes = [
+                  valorCobradoDinheiro,
+                  10, 20, 50, 100, 200
+                ].filter((v, i, self) => v >= valorCobradoDinheiro && self.indexOf(v) === i)
+                 .sort((a, b) => a - b)
+                 .slice(0, 5);
+
+                return (
+                  <div className="bg-gray-800/90 border-2 border-emerald-500/30 p-4 rounded-2xl space-y-3 mt-4 shadow-inner">
+                    <div className="flex items-center justify-between border-b border-gray-700/60 pb-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                        💵 Cálculo de Troco (Dinheiro)
+                      </span>
+                      <span className="text-xs text-gray-400 font-medium">
+                        Cobrado em Dinheiro: <strong className="text-white font-bold">R$ {valorCobradoDinheiro.toFixed(2)}</strong>
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="block text-xs font-semibold text-gray-300">
+                        Valor Pago pelo Cliente (em dinheiro):
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 font-black text-base">R$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder={valorCobradoDinheiro.toFixed(2)}
+                          value={valorEntregueDinheiro}
+                          onChange={(e) => setValorEntregueDinheiro(e.target.value)}
+                          className="w-full bg-gray-900 border-2 border-emerald-500/50 text-emerald-300 font-black text-2xl rounded-xl py-2.5 pl-12 pr-3 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-colors"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Botões rápidos de atalho */}
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {sugestoes.map((sug, sIdx) => (
+                        <button
+                          key={sIdx}
+                          type="button"
+                          onClick={() => setValorEntregueDinheiro(String(sug))}
+                          className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-all ${
+                            numEntregue === sug
+                              ? 'bg-emerald-600 text-white border-emerald-400 shadow-sm scale-105'
+                              : 'bg-gray-900/80 text-gray-300 border-gray-700 hover:border-gray-500 hover:text-white'
+                          }`}
+                        >
+                          {sug === valorCobradoDinheiro ? `Exato (R$ ${sug.toFixed(2)})` : `R$ ${sug.toFixed(2)}`}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Exibição do Troco */}
+                    {numEntregue >= valorCobradoDinheiro ? (
+                      <div className="bg-emerald-950/90 border-2 border-emerald-500/60 p-4 rounded-xl flex items-center justify-between shadow-lg mt-3">
+                        <div className="flex flex-col">
+                          <span className="text-xs font-black uppercase text-emerald-400 tracking-wider">
+                            Troco do Cliente
+                          </span>
+                          <span className="text-[11px] text-emerald-300/80">
+                            (R$ {numEntregue.toFixed(2)} - R$ {valorCobradoDinheiro.toFixed(2)})
+                          </span>
+                        </div>
+                        <span className="text-3xl font-black text-emerald-300 tracking-tight">
+                          R$ {trocoCalculado.toFixed(2)}
+                        </span>
+                      </div>
+                    ) : numEntregue > 0 ? (
+                      <div className="bg-amber-950/70 border border-amber-600/50 p-3 rounded-xl text-xs text-amber-300 font-semibold flex items-center gap-2">
+                        <span>⚠️</span>
+                        <span>Valor pago (R$ {numEntregue.toFixed(2)}) é menor que o valor cobrado em dinheiro (R$ {valorCobradoDinheiro.toFixed(2)}).</span>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })()}
             </div>
 
             {(() => {
               const pago = pagamentosParciais.reduce((acc, curr) => acc + curr.valor, 0);
-              const pendente = calcularValorTotal(pagamentoAgendamento) - pago;
-              const hasError = pendente !== 0;
+              const totalCobrado = calcularValorTotal(pagamentoAgendamento);
+              const pendente = totalCobrado - pago;
+
+              const dinheiroItem = pagamentosParciais.find(p => p.tipo === 'Dinheiro');
+              const valorCobradoDinheiro = dinheiroItem ? dinheiroItem.valor : 0;
+              const numEntregue = Number(valorEntregueDinheiro) || 0;
+              
+              const faltaDinheiro = valorCobradoDinheiro > 0 && numEntregue < valorCobradoDinheiro;
+              const hasError = Math.abs(pendente) > 0.01 || faltaDinheiro;
+
               return (
                 <div className="border-t border-gray-800 pt-5 mt-2">
                   <div className="flex justify-between items-center mb-6">
-                    <span className="text-gray-400 text-sm">Falta Pagar</span>
-                    <span className={`font-bold text-lg ${pendente < 0 ? 'text-red-400' : pendente === 0 ? 'text-green-400' : 'text-orange-400'}`}>
+                    <span className="text-gray-400 text-sm font-medium">Falta Pagar (Geral)</span>
+                    <span className={`font-bold text-lg ${pendente < -0.01 ? 'text-red-400' : Math.abs(pendente) <= 0.01 ? 'text-green-400' : 'text-orange-400'}`}>
                       R$ {Math.abs(pendente).toFixed(2)}
                     </span>
                   </div>
