@@ -3,13 +3,19 @@ import { API_BASE_URL } from '../constants';
 
 export interface Barbeiro {
   id: string;
+  _id?: string;
   nome: string;
   telefone: string;
+  email?: string;
+  idEmail?: string;
   comissao: number;
   corte: number;
+  comissaoAssinatura?: number;
+  valorBaseComissaoAssinatura?: number;
   diasTrabalhados: string[];
   linkId?: string;
   cargo?: 'barbeiro' | 'caixa';
+  contratoAceitoAt?: string;
 }
 
 const promiseCache = new Map<string, Promise<any>>();
@@ -54,10 +60,15 @@ export const useBarbeiros = (empresaId?: string) => {
   // Manter compatibilidade com a adição manual temporária enquanto a tela não for 100% migrada
   const addBarbeiro = async (barbeiro: Omit<Barbeiro, 'id'>) => {
     try {
+      const payload = {
+        aceitarContrato: false,
+        contratoAceito: false,
+        ...barbeiro
+      };
       const response = await fetch(`${API_BASE_URL}/barbers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(barbeiro)
+        body: JSON.stringify(payload)
       });
       if (response.ok) {
         reloadBarbeiros();

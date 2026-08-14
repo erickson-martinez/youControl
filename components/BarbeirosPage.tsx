@@ -10,6 +10,8 @@ import MonthNavigator from './MonthNavigator';
 import ConfirmationModal from './ConfirmationModal';
 import BarbeiroAgendaPage from './BarbeiroAgendaPage';
 import { CadastrarAssinaturaForm, SubscriptionPlan, SubscriptionClient } from './CadastrarAssinaturaForm';
+import { ContratoBarbeiroPage } from './ContratoBarbeiroPage';
+import { ContratoAssinaturaClientePage } from './ContratoAssinaturaClientePage';
 import { commissionsService, Commission, extractValidEmail } from '../services/commissionsService';
 
 const DIAS_SEMANA = [
@@ -181,9 +183,12 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
   const [email, setEmail] = useState('');
   const [comissao, setComissao] = useState('');
   const [corte, setCorte] = useState('');
+  const [comissaoAssinatura, setComissaoAssinatura] = useState('35');
+  const [valorBaseComissaoAssinatura, setValorBaseComissaoAssinatura] = useState('30');
   const [custoDiario, setCustoDiario] = useState('');
   const [dias, setDias] = useState<string[]>([]);
   const [cargo, setCargo] = useState<'barbeiro' | 'caixa'>('barbeiro');
+  const [selectedContratoBarbeiro, setSelectedContratoBarbeiro] = useState<any | null>(null);
 
   const toggleDia = (dia: string) => {
     setDias(prev => prev.includes(dia) ? prev.filter(d => d !== dia) : [...prev, dia]);
@@ -192,12 +197,20 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
   const handleEdit = (barbeiro: any) => {
     setEditingId(barbeiro.id);
     setNome(barbeiro.nome);
-    setEmail(barbeiro.idEmail || barbeiro.email || barbeiro.telefone || '');
+    // Prioritize valid email with @ character, otherwise empty string rather than user ID string
+    const validEmail = (barbeiro.email && barbeiro.email.includes('@'))
+      ? barbeiro.email
+      : ((barbeiro.idEmail && barbeiro.idEmail.includes('@'))
+          ? barbeiro.idEmail
+          : (barbeiro.email && !barbeiro.email.startsWith('mR') && barbeiro.email.length > 5 ? barbeiro.email : ''));
+    setEmail(validEmail);
     setComissao(barbeiro.comissao?.toString() || '');
     setCorte(barbeiro.corte?.toString() || '');
+    setComissaoAssinatura(barbeiro.comissaoAssinatura !== undefined ? barbeiro.comissaoAssinatura.toString() : '35');
+    setValorBaseComissaoAssinatura(barbeiro.valorBaseComissaoAssinatura !== undefined ? barbeiro.valorBaseComissaoAssinatura.toString() : '30');
     setDias(barbeiro.diasTrabalhados || []);
     setCargo(barbeiro.cargo || 'barbeiro');
-    setCustoDiario(''); // Maybe later keep track of this, but not in barbeiro directly
+    setCustoDiario('');
   };
 
   const cancelEdit = () => {
@@ -206,6 +219,8 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
     setEmail('');
     setComissao('');
     setCorte('');
+    setComissaoAssinatura('35');
+    setValorBaseComissaoAssinatura('30');
     setCustoDiario('');
     setCargo('barbeiro');
     setDias([]);
@@ -224,13 +239,22 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
     
     setLoading(true);
 
+    const targetBarbeiro = barbeiros.find(b => b.id === editingId);
+    const isInputEmail = email.trim().includes('@');
+    const finalEmail = isInputEmail 
+      ? email.trim() 
+      : (targetBarbeiro?.email && targetBarbeiro.email.includes('@') ? targetBarbeiro.email : email.trim());
+    const finalIdEmail = targetBarbeiro?.idEmail || targetBarbeiro?.id || (!isInputEmail ? email.trim() : '');
+
     const payload = {
         nome,
-        email,
-        telefone: email,
-        idEmail: email,
+        email: finalEmail,
+        telefone: targetBarbeiro?.telefone || finalEmail,
+        idEmail: finalIdEmail,
         comissao: cargo === 'caixa' ? 0 : (Number(comissao) || 0),
         corte: cargo === 'caixa' ? 0 : (Number(corte) || 0),
+        comissaoAssinatura: cargo === 'caixa' ? 0 : (Number(comissaoAssinatura) || 35),
+        valorBaseComissaoAssinatura: cargo === 'caixa' ? 0 : (Number(valorBaseComissaoAssinatura) || 30),
         diasTrabalhados: dias,
         linkId: empresaId,
         cargo
@@ -302,24 +326,52 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
               </div>
 
               {cargo === 'barbeiro' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-1">Comissão Produtos (%)</label>
-                    <input 
-                      type="number" step="0.1" min="0" max="100"
-                      value={comissao} onChange={e => setComissao(e.target.value)}
-                      className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                      placeholder="Ex: 10"
-                    />
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1">Comissão Produtos (%)</label>
+                      <input 
+                        type="number" step="0.1" min="0" max="100"
+                        value={comissao} onChange={e => setComissao(e.target.value)}
+                        className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                        placeholder="Ex: 10"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1">Comissão Serviços (%)</label>
+                      <input 
+                        type="number" step="0.1" min="0" max="100"
+                        value={corte} onChange={e => setCorte(e.target.value)}
+                        className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                        placeholder="Ex: 50"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-1">Comissão Serviços (%)</label>
-                    <input 
-                      type="number" step="0.1" min="0" max="100"
-                      value={corte} onChange={e => setCorte(e.target.value)}
-                      className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                      placeholder="Ex: 50"
-                    />
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-blue-950/20 border border-blue-800/40 rounded-xl">
+                    <div>
+                      <label className="block text-xs font-semibold text-blue-300 mb-1">Comissão Assinatura (%)</label>
+                      <input 
+                        type="number" step="0.1" min="0" max="100"
+                        value={comissaoAssinatura} onChange={e => setComissaoAssinatura(e.target.value)}
+                        className="w-full bg-gray-900 text-white border border-blue-700/50 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-400"
+                        placeholder="Padrão: 35%"
+                      />
+                      <span className="text-[10px] text-gray-400 mt-1 block">Porcentagem inicial: 35%</span>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-blue-300 mb-1">Valor Base Assinatura (R$)</label>
+                      <input 
+                        type="number" step="1" min="0"
+                        value={valorBaseComissaoAssinatura} onChange={e => setValorBaseComissaoAssinatura(e.target.value)}
+                        className="w-full bg-gray-900 text-white border border-blue-700/50 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-400"
+                        placeholder="Ex: 30"
+                      />
+                      <span className="text-[10px] text-gray-400 mt-1 block">
+                        Comissão: R$ {((Number(valorBaseComissaoAssinatura) || 30) * ((Number(comissaoAssinatura) || 35) / 100)).toFixed(2)}/atendimento
+                      </span>
+                    </div>
                   </div>
                 </div>
               )}
@@ -457,18 +509,29 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
                     <span className="truncate">{barbeiro.nome}</span>
                     {isOwner && <span className="flex-shrink-0 text-xs bg-purple-900/30 text-purple-400 px-2 py-0.5 rounded-full border border-purple-500/20 whitespace-nowrap">Proprietário</span>}
                   </h3>
-                  {barbeiro.email && <p className="text-sm text-gray-400 truncate">{barbeiro.email}</p>}
+                  {(() => {
+                    const display = (barbeiro.email && barbeiro.email.includes('@')) 
+                      ? barbeiro.email 
+                      : ((barbeiro.idEmail && barbeiro.idEmail.includes('@')) ? barbeiro.idEmail : null);
+                    return display ? <p className="text-sm text-gray-400 truncate">{display}</p> : null;
+                  })()}
                 </div>
                 
                 {barbeiro.cargo !== 'caixa' ? (
-                  <div className="flex gap-4 p-3 bg-gray-900/50 rounded-xl border border-gray-800/50">
-                    <div className="flex-1">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 block mb-1">Comissão Prod.</span>
-                      <span className="text-blue-400 font-medium">{barbeiro.comissao}%</span>
+                  <div className="grid grid-cols-3 gap-2 p-3 bg-gray-900/50 rounded-xl border border-gray-800/50 text-center">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500 block mb-0.5">Prod.</span>
+                      <span className="text-blue-400 font-medium text-xs sm:text-sm">{barbeiro.comissao}%</span>
                     </div>
-                    <div className="flex-1 border-l border-gray-800/80 pl-4">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 block mb-1">Comissão Serv.</span>
-                      <span className="text-green-400 font-medium">{barbeiro.corte}%</span>
+                    <div className="border-l border-gray-800/80 pl-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500 block mb-0.5">Serv.</span>
+                      <span className="text-green-400 font-medium text-xs sm:text-sm">{barbeiro.corte}%</span>
+                    </div>
+                    <div className="border-l border-gray-800/80 pl-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500 block mb-0.5">Assinatura</span>
+                      <span className="text-purple-400 font-medium text-xs sm:text-sm">
+                        {barbeiro.comissaoAssinatura !== undefined ? barbeiro.comissaoAssinatura : 35}%
+                      </span>
                     </div>
                   </div>
                 ) : (
@@ -492,13 +555,50 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
                     </div>
                   </div>
                 )}
-                
+
+                {/* Ações de Contrato Terceirizado */}
+                <div className="pt-3 border-t border-gray-800/80 flex items-center justify-between gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const link = `${window.location.origin}/?contratoBarbeiro=1&barbeiroId=${barbeiro.id}&linkId=${empresaId || 'barbearia-default'}`;
+                      navigator.clipboard.writeText(link);
+                      alert('✓ Link do contrato do barbeiro copiado com sucesso!');
+                    }}
+                    className="text-xs bg-gray-900 hover:bg-gray-800 text-gray-300 hover:text-white px-3 py-1.5 rounded-lg border border-gray-700 transition-colors flex items-center gap-1"
+                  >
+                    📋 Copiar Link Contrato
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedContratoBarbeiro(barbeiro)}
+                    className="text-xs bg-blue-950/60 hover:bg-blue-900/80 text-blue-300 hover:text-blue-200 px-3 py-1.5 rounded-lg border border-blue-800/60 transition-colors flex items-center gap-1 font-medium"
+                  >
+                    📄 Ver Contrato
+                  </button>
+                </div>
 
               </div>
               );
             })}
           </div>
         )}
+
+        {/* Modal de Contrato Terceirizado do Barbeiro */}
+        {selectedContratoBarbeiro && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+            <div className="w-full max-w-3xl my-8">
+              <ContratoBarbeiroPage
+                barbeiroId={selectedContratoBarbeiro.id}
+                linkId={empresaId}
+                initialBarbeiro={selectedContratoBarbeiro}
+                onClose={() => setSelectedContratoBarbeiro(null)}
+              />
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );
@@ -2525,12 +2625,12 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
         let comissaoProdutoAtend = 0;
 
         if (isAssinatura) {
+          const percAssinatura = barbeiro.comissaoAssinatura !== undefined ? Number(barbeiro.comissaoAssinatura) : 35;
           const valServicos = subtotalServicos > 0 ? subtotalServicos : (r.valorOriginal || r.valorTotal || r.total || 0);
-          if (valServicos > 30) {
-            comissaoServicoAtend = 17.5;
-          } else if (valServicos > 0) {
-            comissaoServicoAtend = 10;
-          }
+          const baseAssinatura = barbeiro.valorBaseComissaoAssinatura !== undefined && Number(barbeiro.valorBaseComissaoAssinatura) > 0 
+            ? Number(barbeiro.valorBaseComissaoAssinatura) 
+            : (valServicos > 0 ? valServicos : 30);
+          comissaoServicoAtend = baseAssinatura * (percAssinatura / 100);
           (r.itens || []).forEach((item: any) => {
             if (item.tipo === 'produto') {
               const produtoObj = produtos.find(p => p.id === item.idItem);
@@ -2581,13 +2681,12 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
         const isAssinatura = Boolean(r.temAssinatura || r.isSubscription || r.assinatura?.possui || r.itens?.some((i: any) => i.idItem === 'assinatura' || i.tipo === 'assinatura' || (i.nome && i.nome.toLowerCase().includes('assinatura'))));
 
         if (isAssinatura) {
-          // Assinatura: comissão por serviço é R$ 10 para agendamento até R$ 30, e R$ 17,50 acima de R$ 30
+          const percAssinatura = barbeiro.comissaoAssinatura !== undefined ? Number(barbeiro.comissaoAssinatura) : 35;
           const valServicos = subtotalServicos > 0 ? subtotalServicos : (r.valorOriginal || r.valorTotal || r.total || 0);
-          if (valServicos > 30) {
-            comissaoServicos += 17.5;
-          } else if (valServicos > 0) {
-            comissaoServicos += 10;
-          }
+          const baseAssinatura = barbeiro.valorBaseComissaoAssinatura !== undefined && Number(barbeiro.valorBaseComissaoAssinatura) > 0 
+            ? Number(barbeiro.valorBaseComissaoAssinatura) 
+            : (valServicos > 0 ? valServicos : 30);
+          comissaoServicos += baseAssinatura * (percAssinatura / 100);
 
           let temItemProcessado = false;
           (r.itens || []).forEach((item: any) => {

@@ -167,7 +167,8 @@ export const calcularResumoPagamento = (
   pagamentoBackend?: PagamentoAgendamento,
   assinaturaBackend?: AssinaturaAgendamento,
   possuirAssinaturaOverride?: boolean,
-  planoNomeOverride?: string
+  planoNomeOverride?: string,
+  qtdServicosCalc: number = 1
 ): ResumoPagamentoAgendamento => {
   const dayOfWeek = obterDiaSemanaApartirDeData(dataAgendada);
   const isSegundaAQuinta = dayOfWeek >= 1 && dayOfWeek <= 4;
@@ -206,23 +207,30 @@ export const calcularResumoPagamento = (
   let formasPagamento: string[] = pagamentoBackend?.formas || [];
 
   if (temAssinatura) {
+    const qtdSvc = Math.max(1, qtdServicosCalc);
+    const taxaFimDeSemana = !isSegundaAQuinta ? (qtdSvc * 10) : 0;
+
     if (pagamentoBackend?.desconto !== undefined && pagamentoBackend.desconto > 0) {
       desconto = pagamentoBackend.desconto;
     } else {
-      desconto = subtotalServicos > 0 ? subtotalServicos : valorOriginal;
+      desconto = Math.max(0, subtotalServicos - taxaFimDeSemana);
     }
 
     if (pagamentoBackend?.valorRecebido !== undefined && pagamentoBackend.valorRecebido > 0) {
       valorCobrado = pagamentoBackend.valorRecebido;
     } else {
-      valorCobrado = Math.max(0, subtotalProdutos);
+      valorCobrado = Math.max(0, subtotalProdutos + taxaFimDeSemana);
     }
 
     if (!formasPagamento.includes('Assinatura')) {
       formasPagamento = ['Assinatura', ...formasPagamento];
     }
 
-    mensagemDestaque = 'Serviços cobertos pela assinatura';
+    if (!isSegundaAQuinta) {
+      mensagemDestaque = `Taxa de R$ ${taxaFimDeSemana.toFixed(2)} (${qtdSvc} serviço(s) x R$ 10,00) aplicada para agendamento em ${nomeDiaSemana}`;
+    } else {
+      mensagemDestaque = 'Serviços cobertos 100% pela assinatura (Segunda a Quinta)';
+    }
   } else {
     if (pagamentoBackend?.desconto !== undefined) {
       desconto = pagamentoBackend.desconto;

@@ -106,17 +106,6 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
     });
   }, [clienteTelefone, subscribers]);
 
-  // Se o cliente for assinante e a data selecionada for Sexta, Sábado ou Domingo, reseta a data
-  useEffect(() => {
-    if (matchedSubscriber && data) {
-      const dow = new Date(data + "T12:00:00Z").getDay();
-      if (dow < 1 || dow > 4) {
-        setData("");
-        setHorariosSelecionados([]);
-      }
-    }
-  }, [matchedSubscriber, data]);
-
   const matchedPlanName = useMemo(() => {
     if (!matchedSubscriber) return null;
     if (matchedSubscriber.planoNome) return matchedSubscriber.planoNome;
@@ -184,9 +173,14 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
     return calcularResumoPagamento(
       data,
       totalServicos,
-      totalProdutos
+      totalProdutos,
+      undefined,
+      undefined,
+      Boolean(matchedSubscriber),
+      matchedPlanName || undefined,
+      servicosSelecionados.length || 1
     );
-  }, [data, totalServicos, totalProdutos]);
+  }, [data, totalServicos, totalProdutos, matchedSubscriber, matchedPlanName, servicosSelecionados.length]);
 
   const handleReload = () => {
     reloadBarbeiros();
@@ -228,15 +222,6 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
         `Você indicou ${quantidadePessoas} pessoas, por favor selecione pelo menos ${quantidadePessoas} horários.`,
       );
       return;
-    }
-
-    // Validar restrição de dia para clientes com assinatura (Segunda a Quinta apenas)
-    if (matchedSubscriber || resumo.temAssinatura) {
-      const dayOfWeek = new Date(data + "T12:00:00Z").getDay();
-      if (dayOfWeek < 1 || dayOfWeek > 4) {
-        alert("Clientes com assinatura só podem agendar de Segunda a Quinta-feira. Por favor, selecione uma data entre Segunda e Quinta-feira.");
-        return;
-      }
     }
 
     // Validar conflitos
@@ -606,18 +591,20 @@ export default function AgendamentoPage({ empresa, empresas = [] }: { empresa?: 
                 </div>
                 {data && (() => {
                   const dow = new Date(data + "T12:00:00Z").getDay();
-                  if (dow < 1 || dow > 4) {
+                  const isMonThu = dow >= 1 && dow <= 4;
+                  const numSvc = servicosSelecionados.length || 1;
+                  if (!isMonThu) {
                     return (
-                      <div className="p-2.5 bg-red-500/20 border border-red-500/40 rounded-lg text-red-300 text-xs font-bold flex items-center gap-2">
-                        <span>⚠️</span>
-                        <span>Clientes com assinatura só podem agendar de Segunda a Quinta-feira. A data selecionada ({resumo.nomeDiaSemana}) não é permitida para assinantes.</span>
+                      <div className="p-2.5 bg-amber-500/20 border border-amber-500/40 rounded-lg text-amber-200 text-xs font-bold flex items-center gap-2">
+                        <span>⚡</span>
+                        <span>Agendamento em {resumo.nomeDiaSemana}: Taxa de conveniência de R$ 10,00 por serviço ({numSvc}x R$ 10,00 = R$ {(numSvc * 10).toFixed(2)}).</span>
                       </div>
                     );
                   }
                   return (
                     <div className="p-2 bg-emerald-500/15 border border-emerald-500/30 rounded-lg text-emerald-300 text-xs font-medium flex items-center gap-2">
                       <span>✓</span>
-                      <span>Agendamento por assinatura válido para {resumo.nomeDiaSemana} (Segunda a Quinta).</span>
+                      <span>Agendamento coberto 100% pela assinatura em {resumo.nomeDiaSemana} (Segunda a Quinta).</span>
                     </div>
                   );
                 })()}

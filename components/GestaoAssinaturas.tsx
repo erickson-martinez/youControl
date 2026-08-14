@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { API_BASE_URL } from '../constants';
 import { useBarbeariaConfig, Servico } from '../hooks/useBarbeariaConfig';
-import { PlusIcon, PencilIcon, TrashIcon, XCircleIcon, CheckCircleIcon, ClockIcon } from './icons';
+import { PlusIcon, PencilIcon, TrashIcon, XCircleIcon, CheckCircleIcon, ClockIcon, DocumentTextIcon, LinkIcon } from './icons';
 import ConfirmationModal from './ConfirmationModal';
 import LembretesRecorrentesModal from './LembretesRecorrentesModal';
+import { ContratoAssinaturaClientePage } from './ContratoAssinaturaClientePage';
 
 export interface SubscriptionPlan {
   id?: string;
@@ -87,6 +88,8 @@ export const GestaoAssinaturas: React.FC<GestaoAssinaturasProps> = ({
   const [planIlimitado, setPlanIlimitado] = useState(true);
   const [planLimiteMensal, setPlanLimiteMensal] = useState('4');
   const [planFormOpen, setPlanFormOpen] = useState(false);
+  const [selectedContractPlan, setSelectedContractPlan] = useState<SubscriptionPlan | null>(null);
+  const [selectedContractClient, setSelectedContractClient] = useState<{ nome?: string; email?: string; telefone?: string } | null>(null);
 
   // Feedback Messages
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -268,8 +271,22 @@ export const GestaoAssinaturas: React.FC<GestaoAssinaturasProps> = ({
     }
   };
 
+  const handleCopyClientLink = (sub: any) => {
+    const planId = sub.planoId || (plans[0]?.id || plans[0]?._id);
+    const params = new URLSearchParams();
+    if (planId) params.set('planId', planId);
+    if (linkId) params.set('linkId', linkId);
+    if (sub.nome) params.set('nome', sub.nome);
+    if (sub.email) params.set('email', sub.email);
+    if (sub.telefone) params.set('telefone', sub.telefone);
+
+    const fullUrl = `${window.location.origin}/contrato-assinatura?${params.toString()}`;
+    navigator.clipboard.writeText(fullUrl);
+    setSuccessMsg(`Link de aceite do contrato para ${sub.nome} copiado para a área de transferência!`);
+    setTimeout(() => setSuccessMsg(null), 4000);
+  };
+
   const executeDeletePlan = async (planId: string) => {
-    clearAlerts();
     try {
       let res = await fetch(`${API_BASE_URL}/subscription-plans/${planId}`, { method: 'DELETE' }).catch(() => null);
       if (!res || !res.ok || (res.headers.get('content-type') || '').includes('text/html')) {
@@ -657,13 +674,26 @@ export const GestaoAssinaturas: React.FC<GestaoAssinaturasProps> = ({
           </button>
         </div>
 
-        <button
-          onClick={() => setIsLembretesModalOpen(true)}
-          className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-lg"
-        >
-          <ClockIcon className="w-4 h-4" />
-          ⏰ Lembretes de Assinaturas
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => {
+              const planToUse = plans[0] || { id: 'default', nome: 'Plano de Assinatura Mensal', valorMensal: 99.90 };
+              setSelectedContractPlan(planToUse);
+            }}
+            className="px-3.5 py-2 bg-purple-900/60 hover:bg-purple-800 text-purple-200 border border-purple-700/60 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-lg"
+          >
+            <DocumentTextIcon className="w-4 h-4 text-purple-300" />
+            📄 Contrato de Assinatura
+          </button>
+
+          <button
+            onClick={() => setIsLembretesModalOpen(true)}
+            className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-lg"
+          >
+            <ClockIcon className="w-4 h-4" />
+            ⏰ Lembretes
+          </button>
+        </div>
       </div>
 
       {/* Alert Messages */}
@@ -899,7 +929,27 @@ export const GestaoAssinaturas: React.FC<GestaoAssinaturasProps> = ({
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-2 shrink-0 border-t md:border-t-0 md:border-l border-gray-700/60 pt-3 md:pt-0 md:pl-4 justify-end">
+                    <div className="flex items-center gap-2 shrink-0 border-t md:border-t-0 md:border-l border-gray-700/60 pt-3 md:pt-0 md:pl-4 justify-end flex-wrap">
+                      <button
+                        onClick={() => {
+                          const planToUse = matchedPlan || plans[0] || { id: sub.planoId, nome: planName, valorMensal: 0 };
+                          setSelectedContractPlan(planToUse);
+                          setSelectedContractClient({ nome: sub.nome, email: sub.email, telefone: sub.telefone });
+                        }}
+                        title="Gerar / Ver Contrato do Cliente"
+                        className="px-2.5 py-1.5 bg-purple-900/40 hover:bg-purple-800/60 text-purple-200 border border-purple-700/50 rounded-xl transition text-xs font-semibold flex items-center gap-1 shadow-sm"
+                      >
+                        <DocumentTextIcon className="w-4 h-4 text-purple-300" /> Contrato
+                      </button>
+
+                      <button
+                        onClick={() => handleCopyClientLink(sub)}
+                        title="Copiar Link de Aceite para Enviar ao Cliente"
+                        className="px-2.5 py-1.5 bg-blue-900/40 hover:bg-blue-800/60 text-blue-200 border border-blue-700/50 rounded-xl transition text-xs font-semibold flex items-center gap-1 shadow-sm"
+                      >
+                        <LinkIcon className="w-4 h-4 text-blue-300" /> Link de Aceite
+                      </button>
+
                       {isPendente && (
                         <button
                           onClick={() => handleActivateSubscriber(subId, sub.nome)}
@@ -1148,25 +1198,74 @@ export const GestaoAssinaturas: React.FC<GestaoAssinaturasProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex justify-end items-center gap-2 pt-3 border-t border-gray-700/60">
-                      <button
-                        onClick={() => handleOpenEditPlan(plan)}
-                        className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-blue-300 rounded-xl text-xs font-semibold flex items-center gap-1"
-                      >
-                        <PencilIcon className="w-4 h-4" /> Editar
-                      </button>
-                      <button
-                        onClick={() => handleDeletePlan(planId, plan.nome)}
-                        className="px-3 py-1.5 bg-red-500/15 hover:bg-red-500/30 text-red-400 border border-red-500/30 rounded-xl text-xs font-semibold flex items-center gap-1"
-                      >
-                        <TrashIcon className="w-4 h-4" /> Remover
-                      </button>
+                    <div className="flex justify-between items-center gap-2 pt-3 border-t border-gray-700/60 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const contractUrl = `${window.location.origin}/?contratoAssinatura=1&planId=${planId}&linkId=${linkId || 'barbearia-default'}`;
+                            navigator.clipboard.writeText(contractUrl);
+                            setSuccessMsg('✓ Link do contrato de assinatura copiado com sucesso!');
+                          }}
+                          className="px-2.5 py-1.5 bg-gray-900 hover:bg-gray-800 text-gray-300 hover:text-white rounded-xl text-xs font-medium border border-gray-700 flex items-center gap-1 transition"
+                          title="Copiar Link para o Cliente Contratar"
+                        >
+                          📋 Copiar Link
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setSelectedContractPlan(plan)}
+                          className="px-2.5 py-1.5 bg-purple-950/60 hover:bg-purple-900/80 text-purple-300 rounded-xl text-xs font-semibold border border-purple-800/60 flex items-center gap-1 transition"
+                          title="Visualizar Contrato do Cliente"
+                        >
+                          📄 Ver Contrato
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleOpenEditPlan(plan)}
+                          className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-blue-300 rounded-xl text-xs font-semibold flex items-center gap-1"
+                        >
+                          <PencilIcon className="w-4 h-4" /> Editar
+                        </button>
+                        <button
+                          onClick={() => handleDeletePlan(planId, plan.nome)}
+                          className="px-3 py-1.5 bg-red-500/15 hover:bg-red-500/30 text-red-400 border border-red-500/30 rounded-xl text-xs font-semibold flex items-center gap-1"
+                        >
+                          <TrashIcon className="w-4 h-4" /> Remover
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Modal de Contrato do Cliente */}
+      {selectedContractPlan && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="w-full max-w-3xl my-8">
+            <ContratoAssinaturaClientePage
+              planId={selectedContractPlan.id || selectedContractPlan._id}
+              linkId={linkId || 'barbearia-default'}
+              initialPlan={selectedContractPlan}
+              initialClient={selectedContractClient || undefined}
+              onClose={() => {
+                setSelectedContractPlan(null);
+                setSelectedContractClient(null);
+              }}
+              onSuccess={() => {
+                setSelectedContractPlan(null);
+                setSelectedContractClient(null);
+                fetchSubscribers();
+              }}
+            />
+          </div>
         </div>
       )}
 

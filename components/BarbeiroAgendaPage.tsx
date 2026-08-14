@@ -192,15 +192,12 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
     const isAssinatura = Boolean(resumo.temAssinatura || agendamento.assinatura?.possui || agendamento.assinaturaAplicada || agendamento.isSubscription);
 
     if (isAssinatura) {
-      // Assinatura: comissão por serviço é R$ 10 para agendamento até R$ 30, e R$ 17,50 acima de R$ 30
+      const percAssinatura = barbeiro.comissaoAssinatura !== undefined ? Number(barbeiro.comissaoAssinatura) : 35;
       const valServicoTotal = subtotalServicos > 0 ? subtotalServicos : (agendamento.valorOriginal || 0);
-      if (valServicoTotal > 30) {
-        comissaoServicos = 17.5;
-      } else if (valServicoTotal > 0) {
-        comissaoServicos = 10;
-      } else {
-        comissaoServicos = 0;
-      }
+      const baseAssinatura = barbeiro.valorBaseComissaoAssinatura !== undefined && Number(barbeiro.valorBaseComissaoAssinatura) > 0 
+        ? Number(barbeiro.valorBaseComissaoAssinatura) 
+        : (valServicoTotal > 0 ? valServicoTotal : 30);
+      comissaoServicos = baseAssinatura * (percAssinatura / 100);
     } else {
       if (agendamento.servicosIds && agendamento.servicosIds.length > 0) {
         agendamento.servicosIds.forEach((sId: string) => {

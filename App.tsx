@@ -26,6 +26,8 @@ import BarbeirosPage from './components/BarbeirosPage';
 import CaixaBarbeariaPage from './components/CaixaBarbeariaPage';
 import BarbeiroAgendaPage from './components/BarbeiroAgendaPage';
 import AgendamentoPage from './components/AgendamentoPage';
+import { ContratoAssinaturaClientePage } from './components/ContratoAssinaturaClientePage';
+import { ContratoBarbeiroPage } from './components/ContratoBarbeiroPage';
 import SimuladorSolarPage from './components/SimuladorSolarPage';
 // Burger Imports
 import BurgerProductsPage from './components/BurgerProductsPage';
@@ -247,10 +249,20 @@ const App: React.FC = () => {
 
   // --- ROTAS PÚBLICAS ---
   const isPublicMenu = window.location.pathname === '/cardapio' || window.location.search.includes('view=menu');
-  const isPublicAgendamento = window.location.pathname === '/agendamento' || window.location.search.includes('empresaId=');
+  const isPublicAgendamento = window.location.pathname === '/agendamento' || (window.location.search.includes('empresaId=') && !window.location.search.includes('contratoAssinatura=') && !window.location.search.includes('contratoBarbeiro='));
+  const isPublicContratoAssinatura = window.location.pathname === '/contrato-assinatura' || window.location.search.includes('contratoAssinatura=');
+  const isPublicContratoBarbeiro = window.location.pathname === '/contrato-barbeiro' || window.location.search.includes('contratoBarbeiro=');
 
   if (isPublicMenu) {
     return <BurgerClientOrderPage />;
+  }
+
+  if (isPublicContratoAssinatura) {
+    return <ContratoAssinaturaClientePage />;
+  }
+
+  if (isPublicContratoBarbeiro) {
+    return <ContratoBarbeiroPage />;
   }
 
   // Agendamento publico via URL (direto)
@@ -326,11 +338,27 @@ const App: React.FC = () => {
         },
       });
     } catch (error) {
-      console.error(`API call to ${url} failed with network error:`, error);
-      const networkErrorMessage = 'Falha de conexão: Não foi possível comunicar com o servidor. Verifique sua conexão com a internet e tente novamente.';
-      // Don't fatally block the UI
-      // if (!apiError) setApiError(networkErrorMessage);
-      throw new Error(networkErrorMessage);
+      if (url.includes('stok-5ytv.onrender.com/api/v1')) {
+        const localUrl = url.replace('https://stok-5ytv.onrender.com/api/v1', '/api/v1');
+        try {
+          response = await fetch(localUrl, {
+            ...options,
+            cache: 'no-store',
+            headers: {
+              'Content-Type': 'application/json',
+              ...options.headers,
+            },
+          });
+        } catch (localErr) {
+          console.error(`API fallback call to ${localUrl} failed with network error:`, localErr);
+          const networkErrorMessage = 'Falha de conexão: Não foi possível comunicar com o servidor. Verifique sua conexão com a internet e tente novamente.';
+          throw new Error(networkErrorMessage);
+        }
+      } else {
+        console.error(`API call to ${url} failed with network error:`, error);
+        const networkErrorMessage = 'Falha de conexão: Não foi possível comunicar com o servidor. Verifique sua conexão com a internet e tente novamente.';
+        throw new Error(networkErrorMessage);
+      }
     }
 
     if (!response.ok) {
@@ -352,62 +380,94 @@ const App: React.FC = () => {
   }, [user, apiError]);
 
   const fetchUserPermissions = useCallback(async (idEmail: string, email: string) => {
+    const cacheKey = `cached_permissions_${idEmail || email}`;
+
+    const fetchJsonSafe = async (url: string, init?: RequestInit) => {
+      try {
+        let res = await fetch(url, init).catch(() => null);
+        if (!res || !res.ok) {
+          if (url.startsWith(API_BASE_URL)) {
+            const relativeUrl = url.replace(API_BASE_URL, '/api/v1');
+            res = await fetch(relativeUrl, init).catch(() => null);
+          }
+        }
+        return res;
+      } catch {
+        return null;
+      }
+    };
+
     try {
-        const response = await fetch(`${API_BASE_URL}/permissions?idEmail=${idEmail}${email ? `&email=${encodeURIComponent(email)}` : ''}`, { cache: 'no-store' });
-        
-        if (!response.ok) {
-           throw new Error(`Servidor respondeu com ${response.status}`);
-        }
+        const primaryUrl = `${API_BASE_URL}/permissions?idEmail=${idEmail}${email ? `&email=${encodeURIComponent(email)}` : ''}`;
+        const response = await fetchJsonSafe(primaryUrl, { cache: 'no-store' });
 
-        const data = await response.json();
-        const permissionsList = data.permissions || [];
+        if (response && response.ok) {
+            const data = await response.json();
+            const permissionsList = data.permissions || [];
 
-        if (permissionsList.length === 0) {
-            console.warn(`User ${email} has no permissions. Granting default 'financeiro' access.`);
-            await fetch(`${API_BASE_URL}/permissions`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ idEmail: idEmail, email: email, permissions: ["financeiro", "graficos"] }),
-            });
-            
-            const refetchedResponse = await fetch(`${API_BASE_URL}/permissions?idEmail=${idEmail}${email ? `&email=${encodeURIComponent(email)}` : ''}`, { cache: 'no-store' });
-            if (refetchedResponse.ok) {
-                const refetchedData = await refetchedResponse.json();
-                const refetchedPermissionsList = refetchedData.permissions || [];
-                const perms = apiToFrontendPermissions(refetchedPermissionsList, email);
-                setUserPermissions(perms);
-                return perms;
-            }
-        }
-
-        const perms = apiToFrontendPermissions(permissionsList, email);
-        setUserPermissions(perms);
-        return perms;
-
-    } catch (error) {
-        if ((error as Error).message.includes('404')) {
-            console.warn(`No permissions record for ${email} (404). Granting default 'financeiro' access.`);
-            try {
-                await fetch(`${API_BASE_URL}/permissions`, {
+            if (permissionsList.length === 0) {
+                console.warn(`User ${email} has no permissions. Granting default 'financeiro' access.`);
+                await fetchJsonSafe(`${API_BASE_URL}/permissions`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ idEmail: idEmail, email: email, permissions: ["financeiro", "graficos"] }),
                 });
 
-                const refetchedResponse = await fetch(`${API_BASE_URL}/permissions?idEmail=${idEmail}${email ? `&email=${encodeURIComponent(email)}` : ''}`, { cache: 'no-store' });
-                if (refetchedResponse.ok) {
+                const refetchedResponse = await fetchJsonSafe(primaryUrl, { cache: 'no-store' });
+                if (refetchedResponse && refetchedResponse.ok) {
+                    const refetchedData = await refetchedResponse.json();
+                    const refetchedPermissionsList = refetchedData.permissions || [];
+                    const perms = apiToFrontendPermissions(refetchedPermissionsList, email);
+                    try { localStorage.setItem(cacheKey, JSON.stringify(perms)); } catch(e){}
+                    setUserPermissions(perms);
+                    return perms;
+                }
+            }
+
+            const perms = apiToFrontendPermissions(permissionsList, email);
+            try { localStorage.setItem(cacheKey, JSON.stringify(perms)); } catch(e){}
+            setUserPermissions(perms);
+            return perms;
+        }
+
+        if (response && response.status === 404) {
+            console.warn(`No permissions record for ${email} (404). Granting default 'financeiro' access.`);
+            try {
+                await fetchJsonSafe(`${API_BASE_URL}/permissions`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ idEmail: idEmail, email: email, permissions: ["financeiro", "graficos"] }),
+                });
+
+                const refetchedResponse = await fetchJsonSafe(primaryUrl, { cache: 'no-store' });
+                if (refetchedResponse && refetchedResponse.ok) {
                     const refetchedData = await refetchedResponse.json();
                     const perms = apiToFrontendPermissions(refetchedData.permissions || [], email);
+                    try { localStorage.setItem(cacheKey, JSON.stringify(perms)); } catch(e){}
                     setUserPermissions(perms);
                     return perms;
                 }
             } catch (grantError) {
-                console.error(`Failed to grant permissions after 404 for ${email}, applying fallback.`, grantError);
+                console.warn(`Failed to grant permissions after 404 for ${email}, applying fallback.`, grantError);
             }
-        } else {
-             console.error("Erro ao carregar permissões do usuário (banco de dados ou rede):", error);
         }
-        
+
+        throw new Error("Servidor de permissões indisponível ou em carregamento.");
+
+    } catch (error) {
+        console.warn("Aviso ao carregar permissões do usuário (servidor offline ou de rede):", (error as Error).message);
+
+        try {
+            const cached = localStorage.getItem(cacheKey);
+            if (cached) {
+                const parsed = JSON.parse(cached);
+                if (parsed && typeof parsed === 'object') {
+                    setUserPermissions(parsed);
+                    return parsed;
+                }
+            }
+        } catch (e) {}
+
         setUserPermissions(FALLBACK_PERMISSIONS);
         return FALLBACK_PERMISSIONS;
     }

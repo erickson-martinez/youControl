@@ -205,7 +205,9 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
                                     comissao: 10,
                                     corte: 50,
                                     diasTrabalhados: ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'],
-                                    linkId: empresaId
+                                    linkId: empresaId,
+                                    aceitarContrato: false,
+                                    contratoAceito: false
                                 })
                             });
                         } catch(e) {
