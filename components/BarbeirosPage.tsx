@@ -194,22 +194,45 @@ const TabBarbeiros = ({ empresaId, empresa, user }: { empresaId?: string, empres
     setDias(prev => prev.includes(dia) ? prev.filter(d => d !== dia) : [...prev, dia]);
   };
 
-  const handleEdit = (barbeiro: any) => {
+  const handleEdit = async (barbeiro: any) => {
     setEditingId(barbeiro.id);
-    setNome(barbeiro.nome);
-    // Prioritize valid email with @ character, otherwise empty string rather than user ID string
-    const validEmail = (barbeiro.email && barbeiro.email.includes('@'))
-      ? barbeiro.email
-      : ((barbeiro.idEmail && barbeiro.idEmail.includes('@'))
-          ? barbeiro.idEmail
-          : (barbeiro.email && !barbeiro.email.startsWith('mR') && barbeiro.email.length > 5 ? barbeiro.email : ''));
-    setEmail(validEmail);
-    setComissao(barbeiro.comissao?.toString() || '');
-    setCorte(barbeiro.corte?.toString() || '');
+    setNome(barbeiro.nome || '');
+    
+    // Check if barbeiro has a direct email with @
+    let userEmail = (barbeiro.email && barbeiro.email.includes('@')) 
+      ? barbeiro.email 
+      : ((barbeiro.idEmail && barbeiro.idEmail.includes('@')) ? barbeiro.idEmail : '');
+
+    // If no valid email string found directly on barbeiro, try fetching from /users API
+    if (!userEmail) {
+      try {
+        const resUsers = await fetch(`${API_BASE_URL}/users`);
+        if (resUsers.ok) {
+          const allUsers = await resUsers.json();
+          const usersList = Array.isArray(allUsers) ? allUsers : (allUsers.users || []);
+          const found = usersList.find((u: any) => 
+            u.idEmail === barbeiro.idEmail || 
+            u.id === barbeiro.idEmail || 
+            u.id === barbeiro.id || 
+            u.email === barbeiro.email ||
+            (barbeiro.nome && u.name && u.name.toLowerCase().trim() === barbeiro.nome.toLowerCase().trim())
+          );
+          if (found && found.email && found.email.includes('@')) {
+            userEmail = found.email;
+          }
+        }
+      } catch (e) {
+        console.warn("Erro ao buscar email do usuário:", e);
+      }
+    }
+
+    setEmail(userEmail || barbeiro.telefone || '');
+    setComissao(barbeiro.comissao !== undefined ? barbeiro.comissao.toString() : '10');
+    setCorte(barbeiro.corte !== undefined ? barbeiro.corte.toString() : '50');
     setComissaoAssinatura(barbeiro.comissaoAssinatura !== undefined ? barbeiro.comissaoAssinatura.toString() : '35');
     setValorBaseComissaoAssinatura(barbeiro.valorBaseComissaoAssinatura !== undefined ? barbeiro.valorBaseComissaoAssinatura.toString() : '30');
     setDias(barbeiro.diasTrabalhados || []);
-    setCargo(barbeiro.cargo || 'barbeiro');
+    setCargo(barbeiro.cargo || ((barbeiro.comissao === 0 && barbeiro.corte === 0) ? 'caixa' : 'barbeiro'));
     setCustoDiario('');
   };
 
@@ -2353,7 +2376,7 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
     if (!item) return;
 
     const nome = item.barbeiroNome || item.email || 'Barbeiro';
-    const dataFmt = (item.data || '').split('-').reverse().join('/');
+    const dataFmt = (item.data || '').split('T')[0].split('-').reverse().join('/');
 
     if (confirm(`Deseja realmente estornar/remover o pagamento de R$ ${Number(item.valorComissao).toFixed(2)} (Ref: ${dataFmt}) do barbeiro ${nome}? O valor voltará a ficar pendente.`)) {
       if (item.id) {
@@ -2629,8 +2652,12 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
           const valServicos = subtotalServicos > 0 ? subtotalServicos : (r.valorOriginal || r.valorTotal || r.total || 0);
           const baseAssinatura = barbeiro.valorBaseComissaoAssinatura !== undefined && Number(barbeiro.valorBaseComissaoAssinatura) > 0 
             ? Number(barbeiro.valorBaseComissaoAssinatura) 
-            : (valServicos > 0 ? valServicos : 30);
-          comissaoServicoAtend = baseAssinatura * (percAssinatura / 100);
+            : 25;
+          const multiplicador = (valServicos > 0 && baseAssinatura > 0) 
+            ? Math.max(1, Math.round(valServicos / baseAssinatura)) 
+            : 1;
+
+          comissaoServicoAtend = multiplicador * (baseAssinatura * (percAssinatura / 100));
           (r.itens || []).forEach((item: any) => {
             if (item.tipo === 'produto') {
               const produtoObj = produtos.find(p => p.id === item.idItem);
@@ -2651,8 +2678,8 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
           });
         }
 
-        const valCalcAtend = servicosValorCobrado + subtotalProdutos;
-        const valorTotalAtend = valCalcAtend > 0 ? valCalcAtend : (r.total || r.valorOriginal || r.valorTotal || 0);
+        const valCalcAtend = isAssinatura ? subtotalProdutos : (servicosValorCobrado + subtotalProdutos);
+        const valorTotalAtend = valCalcAtend > 0 ? valCalcAtend : 0;
         const comissaoTotalAtend = comissaoServicoAtend + comissaoProdutoAtend;
 
         return {
@@ -2685,8 +2712,12 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
           const valServicos = subtotalServicos > 0 ? subtotalServicos : (r.valorOriginal || r.valorTotal || r.total || 0);
           const baseAssinatura = barbeiro.valorBaseComissaoAssinatura !== undefined && Number(barbeiro.valorBaseComissaoAssinatura) > 0 
             ? Number(barbeiro.valorBaseComissaoAssinatura) 
-            : (valServicos > 0 ? valServicos : 30);
-          comissaoServicos += baseAssinatura * (percAssinatura / 100);
+            : 25;
+          const multiplicador = (valServicos > 0 && baseAssinatura > 0) 
+            ? Math.max(1, Math.round(valServicos / baseAssinatura)) 
+            : 1;
+
+          comissaoServicos += multiplicador * (baseAssinatura * (percAssinatura / 100));
 
           let temItemProcessado = false;
           (r.itens || []).forEach((item: any) => {
@@ -3209,7 +3240,7 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                                           <tbody className="divide-y divide-gray-800/80">
                                             {barbeiroPayments.map((p, pIdx) => {
                                               const originalIndex = paidCommissionsList.indexOf(p);
-                                              const dataFmt = p.data ? p.data.split('-').reverse().join('/') : '-';
+                                              const dataFmt = p.data ? p.data.split('T')[0].split('-').reverse().join('/') : '-';
                                               return (
                                                 <tr key={pIdx} className="hover:bg-gray-900/60">
                                                   <td className="p-2 font-mono text-gray-200 font-bold">
@@ -4125,15 +4156,27 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                             </thead>
                             <tbody className="divide-y divide-gray-800/60">
                               {agendamentosDoMes.slice(0, 30).map((a, idx) => {
-                                const dataFormatted = (a.dataAgendada || a.data || '').split('-').reverse().join('/');
+                                const dataFormatted = (a.dataAgendada || a.data || '').split('T')[0].split('-').reverse().join('/');
                                 const val = a.pagamento?.valorCobrado || a.valorOriginal || a.valorTotalPrevisto || 0;
+                                const bObj = barbeiros.find((b: any) => 
+                                  (a.barbeiroId && (b.id === a.barbeiroId || b.idEmail === a.barbeiroId || b.email === a.barbeiroId)) ||
+                                  (a.barbeiroEmail && (b.email === a.barbeiroEmail || b.idEmail === a.barbeiroEmail)) ||
+                                  (a.barbeiro && (b.id === a.barbeiro || b.email === a.barbeiro || b.idEmail === a.barbeiro || b.nome === a.barbeiro))
+                                );
+                                const barbeiroNomeDisplay = (a.barbeiroNome && a.barbeiroNome !== 'N/A') 
+                                  ? a.barbeiroNome 
+                                  : (bObj?.nome || (typeof a.barbeiro === 'string' && !a.barbeiro.startsWith('mR') ? a.barbeiro : '') || 'N/A');
+
+                                const sObj = servicos.find((s: any) => s.id === a.servicoId || (a.servicosIds && a.servicosIds.includes(s.id)));
+                                const servicoNomeDisplay = a.servicoNome || a.servico || sObj?.nome || 'Serviço';
+
                                 return (
                                   <tr key={a.id || `agend-${idx}`} className="hover:bg-gray-800/40 transition-colors">
                                     <td className="p-2 font-semibold text-white">{a.clienteNome || a.cliente || 'Cliente'}</td>
                                     <td className="p-2 text-gray-400">{dataFormatted} {a.horario || ''}</td>
-                                    <td className="p-2 text-gray-300">{a.barbeiroNome || 'N/A'}</td>
+                                    <td className="p-2 text-gray-300">{barbeiroNomeDisplay}</td>
                                     <td className="p-2 font-medium text-blue-300">
-                                      {a.servicoNome || 'Serviço'} <span className="text-gray-400 font-normal">(R$ {val.toFixed(2)})</span>
+                                      {servicoNomeDisplay} <span className="text-gray-400 font-normal">(R$ {val.toFixed(2)})</span>
                                     </td>
                                     <td className="p-2 text-right">
                                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
@@ -4213,12 +4256,25 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                             </thead>
                             <tbody className="divide-y divide-gray-800/60">
                               {registrosFiltradosMes.map((r, idx) => {
-                                const dataFormatada = (r.data || '').split('-').reverse().join('/');
+                                const rawDataStr = String(r.data || '');
+                                const dateOnly = rawDataStr.split('T')[0];
+                                const dataFormatada = dateOnly.includes('-') ? dateOnly.split('-').reverse().join('/') : rawDataStr;
+                                const horaStr = r.horario || r.horarios || (rawDataStr.includes('T') ? rawDataStr.split('T')[1].substring(0, 5) : '');
+                                const horaDisplay = horaStr && horaStr !== '00:00' ? ` ${horaStr}` : '';
+                                const bObj = barbeiros.find((b: any) => 
+                                  (r.barbeiroId && (b.id === r.barbeiroId || b.idEmail === r.barbeiroId || b.email === r.barbeiroId)) ||
+                                  (r.barbeiroEmail && (b.email === r.barbeiroEmail || b.idEmail === r.barbeiroEmail)) ||
+                                  (r.barbeiro && (b.id === r.barbeiro || b.email === r.barbeiro || b.idEmail === r.barbeiro || b.nome === r.barbeiro))
+                                );
+                                const barbeiroNomeDisplay = (r.barbeiroNome && r.barbeiroNome !== 'N/A') 
+                                  ? r.barbeiroNome 
+                                  : (bObj?.nome || (typeof r.barbeiro === 'string' && !r.barbeiro.startsWith('mR') ? r.barbeiro : '') || 'N/A');
+
                                 return (
                                   <tr key={r.id || `venda-${idx}`} className="hover:bg-gray-800/40 transition-colors">
-                                    <td className="p-2 font-mono text-gray-400">{dataFormatada}</td>
+                                    <td className="p-2 font-mono text-gray-400">{dataFormatada}{horaDisplay}</td>
                                     <td className="p-2 font-semibold text-white">{r.cliente || 'Cliente'}</td>
-                                    <td className="p-2 text-gray-300">{r.barbeiroNome || 'N/A'}</td>
+                                    <td className="p-2 text-gray-300">{barbeiroNomeDisplay}</td>
                                     <td className="p-2">
                                       <div className="flex flex-wrap gap-1">
                                         {(r.itens || []).map((item: any, iIdx: number) => (
@@ -4398,7 +4454,7 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                       <tbody className="divide-y divide-gray-800/80">
                         {listFiltered.map((p, idx) => {
                           const originalIndex = paidCommissionsList.indexOf(p);
-                          const dataFmt = p.data ? p.data.split('-').reverse().join('/') : '-';
+                          const dataFmt = p.data ? p.data.split('T')[0].split('-').reverse().join('/') : '-';
                           return (
                             <tr key={idx} className="hover:bg-gray-900/60 transition-colors">
                               <td className="p-3 font-mono text-gray-200 font-bold">
@@ -4457,6 +4513,14 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                 const valorDesconto = r.desconto ?? r.pagamento?.desconto ?? 0;
                 const valorOriginal = r.valorOriginal ?? r.pagamento?.valorOriginal ?? (r.total + valorDesconto);
                 const temDesconto = valorDesconto > 0;
+                const bObj = barbeiros.find((b: any) => 
+                  (r.barbeiroId && (b.id === r.barbeiroId || b.idEmail === r.barbeiroId || b.email === r.barbeiroId)) ||
+                  (r.barbeiroEmail && (b.email === r.barbeiroEmail || b.idEmail === r.barbeiroEmail)) ||
+                  (r.barbeiro && (b.id === r.barbeiro || b.email === r.barbeiro || b.idEmail === r.barbeiro || b.nome === r.barbeiro))
+                );
+                const barbeiroNomeDisplay = (r.barbeiroNome && r.barbeiroNome !== 'N/A') 
+                  ? r.barbeiroNome 
+                  : (bObj?.nome || (typeof r.barbeiro === 'string' && !r.barbeiro.startsWith('mR') ? r.barbeiro : '') || 'N/A');
 
                 return (
                   <div key={r.id} className="bg-gray-900/40 p-5 rounded-2xl border border-gray-800 flex flex-col md:flex-row md:items-center justify-between gap-5 group hover:border-gray-600 transition-all shadow-sm">
@@ -4470,7 +4534,7 @@ const TabRegistros = ({ empresaId, user }: { empresaId?: string, user?: User }) 
                       </div>
                       <div className="flex items-center gap-3 mt-2">
                         <p className="text-xs font-medium text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-500/20">{dataHoraStr}</p>
-                        <p className="text-xs text-gray-400 font-medium">Barbeiro: <span className="text-gray-300 ml-1">{r.barbeiroNome || 'N/A'}</span></p>
+                        <p className="text-xs text-gray-400 font-medium">Barbeiro: <span className="text-gray-300 ml-1">{barbeiroNomeDisplay}</span></p>
                       </div>
                       {temDesconto && (
                         <div className="mt-2 text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/20 w-fit flex items-center gap-1.5">

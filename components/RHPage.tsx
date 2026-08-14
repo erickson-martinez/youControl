@@ -170,29 +170,31 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
                 });
                 
                 if (role === 'Barbeiro') {
-                    if (!barber) {
-                        let userName = "Barbeiro";
-                        let currentIdEmail = userEmail;
-                        let actualEmail = userEmail;
-                        try {
-                            const resUsers = await apiFetch(`${API_BASE_URL}/users`);
-                            if (resUsers.ok) {
-                                const allUsers = await resUsers.json();
-                                const usersList = Array.isArray(allUsers) ? allUsers : (allUsers.users || []);
-                                const found = usersList.find((u: any) => 
-                                    u.idEmail === userEmail || 
-                                    u.email === userEmail || 
-                                    u.id === userEmail || 
-                                    (cleanEmail && (u.email || '').replace(/\D/g, '') === cleanEmail)
-                                );
-                                if (found) {
-                                    if (found.name) userName = found.name;
-                                    if (found.idEmail || found.id) currentIdEmail = found.idEmail || found.id;
-                                    if (found.email) actualEmail = found.email;
-                                }
+                    let userName = "Barbeiro";
+                    let currentIdEmail = userEmail;
+                    let actualEmail = userEmail && userEmail.includes('@') ? userEmail : '';
+                    try {
+                        const resUsers = await apiFetch(`${API_BASE_URL}/users`);
+                        if (resUsers.ok) {
+                            const allUsers = await resUsers.json();
+                            const usersList = Array.isArray(allUsers) ? allUsers : (allUsers.users || []);
+                            const found = usersList.find((u: any) => 
+                                u.idEmail === userEmail || 
+                                u.email === userEmail || 
+                                u.id === userEmail || 
+                                (cleanEmail && (u.email || '').replace(/\D/g, '') === cleanEmail)
+                            );
+                            if (found) {
+                                if (found.name) userName = found.name;
+                                if (found.idEmail || found.id) currentIdEmail = found.idEmail || found.id;
+                                if (found.email) actualEmail = found.email;
                             }
-                        } catch(e) {}
-                        
+                        }
+                    } catch(e) {}
+
+                    if (!actualEmail && userEmail) actualEmail = userEmail;
+
+                    if (!barber) {
                         try {
                             await apiFetch(`${API_BASE_URL}/barbers`, {
                                 method: 'POST',
@@ -204,6 +206,8 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
                                     telefone: cleanEmail || actualEmail,
                                     comissao: 10,
                                     corte: 50,
+                                    comissaoAssinatura: 35,
+                                    valorBaseComissaoAssinatura: 30,
                                     diasTrabalhados: ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'],
                                     linkId: empresaId,
                                     aceitarContrato: false,
@@ -213,34 +217,55 @@ const RHPage: React.FC<RHPageProps> = ({ user, empresas, onCurrentUserUpdate }) 
                         } catch(e) {
                             console.warn("Erro ao POST barbeiro:", e);
                         }
-                        
+                    } else {
                         try {
-                            // Fetch current permissions first to append instead of replace
-                            let currentPerms: string[] = [];
-                            try {
-                                const permRes = await apiFetch(`${API_BASE_URL}/permissions?idEmail=${currentIdEmail}${actualEmail ? `&email=${encodeURIComponent(actualEmail)}` : ''}`);
-                                if (permRes.ok) {
-                                    const pData = await permRes.json();
-                                    currentPerms = pData.permissions || [];
-                                }
-                            } catch(e) {}
-
-                            if (!currentPerms.includes('barbeiroAgenda')) {
-                                await apiFetch(`${API_BASE_URL}/permissions?idEmail=${currentIdEmail}&add=true`, {
-                                    method: 'PATCH',
-                                    headers: {
-                                        'Content-Type': 'application/json'
-                                    },
-                                    body: JSON.stringify({
-                                        idEmail: currentIdEmail,
-                                        email: actualEmail,
-                                        permissions: ['barbeiroAgenda']
-                                    })
-                                });
-                            }
-                        } catch (pErr) {
-                            console.warn("Erro ao atribuir permissão barbeiroAgenda via RH:", pErr);
+                            await apiFetch(`${API_BASE_URL}/barbers/${barber.id || barber._id}`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    ...barber,
+                                    nome: barber.nome || userName,
+                                    email: actualEmail,
+                                    idEmail: currentIdEmail,
+                                    comissao: barber.comissao !== undefined ? barber.comissao : 10,
+                                    corte: barber.corte !== undefined ? barber.corte : 50,
+                                    comissaoAssinatura: barber.comissaoAssinatura !== undefined ? barber.comissaoAssinatura : 35,
+                                    valorBaseComissaoAssinatura: barber.valorBaseComissaoAssinatura !== undefined ? barber.valorBaseComissaoAssinatura : 30,
+                                    aceitarContrato: barber.aceitarContrato !== undefined ? barber.aceitarContrato : false,
+                                    linkId: empresaId
+                                })
+                            });
+                        } catch(e) {
+                            console.warn("Erro ao PUT barbeiro:", e);
                         }
+                    }    
+                    
+                    try {
+                        // Fetch current permissions first to append instead of replace
+                        let currentPerms: string[] = [];
+                        try {
+                            const permRes = await apiFetch(`${API_BASE_URL}/permissions?idEmail=${currentIdEmail}${actualEmail ? `&email=${encodeURIComponent(actualEmail)}` : ''}`);
+                            if (permRes.ok) {
+                                const pData = await permRes.json();
+                                currentPerms = pData.permissions || [];
+                            }
+                        } catch(e) {}
+
+                        if (!currentPerms.includes('barbeiroAgenda')) {
+                            await apiFetch(`${API_BASE_URL}/permissions?idEmail=${currentIdEmail}&add=true`, {
+                                method: 'PATCH',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    idEmail: currentIdEmail,
+                                    email: actualEmail,
+                                    permissions: ['barbeiroAgenda']
+                                })
+                            });
+                        }
+                    } catch (pErr) {
+                        console.warn("Erro ao atribuir permissão barbeiroAgenda via RH:", pErr);
                     }
                 } else {
                     if (barber) {

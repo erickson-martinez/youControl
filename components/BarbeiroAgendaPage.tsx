@@ -196,8 +196,11 @@ const BarbeiroAgendaPage: React.FC<BarbeiroAgendaPageProps> = ({ user, empresa, 
       const valServicoTotal = subtotalServicos > 0 ? subtotalServicos : (agendamento.valorOriginal || 0);
       const baseAssinatura = barbeiro.valorBaseComissaoAssinatura !== undefined && Number(barbeiro.valorBaseComissaoAssinatura) > 0 
         ? Number(barbeiro.valorBaseComissaoAssinatura) 
-        : (valServicoTotal > 0 ? valServicoTotal : 30);
-      comissaoServicos = baseAssinatura * (percAssinatura / 100);
+        : 25;
+      const multiplicador = (valServicoTotal > 0 && baseAssinatura > 0)
+        ? Math.max(1, Math.round(valServicoTotal / baseAssinatura))
+        : 1;
+      comissaoServicos = multiplicador * (baseAssinatura * (percAssinatura / 100));
     } else {
       if (agendamento.servicosIds && agendamento.servicosIds.length > 0) {
         agendamento.servicosIds.forEach((sId: string) => {
